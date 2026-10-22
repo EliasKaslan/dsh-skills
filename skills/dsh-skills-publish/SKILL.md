@@ -42,10 +42,10 @@ whenToUse: 发布 skill 到公开仓、排查每日同步失败、改发布范�
 
 执行顺序（脚本内固定）：
 
-1. **快照**——`robocopy <skills> <work_repo>\skills /MIR`，排除 `.git` / `node_modules` / `__pycache__` / `.venv`，按文件名排除 `credentials.txt`、`*.key`、`*.pem`、`*.p12`、`*.pfx`、`*.token`、`.env*` 等。`/MIR` 会删除目标侧多余文件，所以目标只能是镜像仓的 `skills` 子目录。
+1. **快照**——`robocopy <skills> <work_repo>\skills /MIR`，排除 `.git` / `node_modules` / `__pycache__` / `.venv`，按文件名排除 `credentials.txt`、`*.key`、`*.pem`、`*.p12`、`*.pfx`、`*.token`、`.env*` 等。`/MIR` 会删除目标侧多余文件，所以目标只能是镜像仓的 `skills` 子目录。**`/MIR` 也意味着源侧一次瞬时缺失就会从公开仓删掉内容**，因此脚本带缩水护栏：快照为 0 个 skill，或比上次 `state.json` 的 `skill_count` 掉超过一半（且上次 ≥10）时 **exit 5 拒绝发布**；确属大清理时加 `-AllowBigShrink`。
 2. **生成**——每次重写 `README.md`（skill 清单表）、`index.json`（机器可读清单）、`.gitattributes`（`* -text`，禁止 CRLF 归一化）。三者都是**确定性**的：内容不变就逐字节不变，不会为了"跑过"产生空提交。
 3. **密钥扫描**——把 `token_file` 与 `extra_secret_files` 里的每个字符串读进内存（**不落盘、不打印**），在快照树上做字面量匹配；另扫 `ghp_` / `github_pat_` / `-----BEGIN ... PRIVATE KEY-----` / `AKIA` 四类模式。命中即 **exit 4**，绝不推送。
-4. **提交与推送**——`main` 与 `<YYYY-MM-DD>` 各推一次，refspec 是 `HEAD:refs/heads/<branch>`，令牌只出现在内联 URL 里（`<user>:<token>@`，GitCode 只认这种形态），**不会写进 `.git/config`**。
+4. **提交与推送**——`main` 与 `<YYYY-MM-DD>` 各推一次，refspec 是 `HEAD:refs/heads/<branch>`。**clone 走公开 URL，令牌只出现在推送的内联 URL 里**（`<user>:<token>@`，GitCode 只认这种形态）；脚本每次启动都会检查 `remote.origin.url`，一旦发现带凭据就 `set-url` 洗掉，令牌永不进 `.git/config`。
 5. **验收**——`git ls-remote` 回读两个 ref，断言 `main` == 当日分支 == 本地 HEAD，否则 exit 7。
 
 ## 2. 可直接复制的命令
@@ -62,6 +62,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\admin\.dsh\skills\
 
 # 指定日期分支（补跑某天）
 powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\admin\.dsh\skills\dsh-skills-publish\publish-dsh-skills.ps1" -DateStamp 2026-10-21
+
+# 确属大规模清理 skill，绕过缩水护栏
+powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\admin\.dsh\skills\dsh-skills-publish\publish-dsh-skills.ps1" -AllowBigShrink
 
 # 读状态 / 告警
 Get-Content "C:\Users\admin\.dsh\.skill-publish\state.json" -Raw
@@ -91,7 +94,7 @@ Register-ScheduledTask -TaskName 'DSH-Skills-Publish' -Action $act -Trigger $trg
 | 0 | 推送成功，或 `NO_CHANGE`（内容没变，两个 ref 已在同一 commit） | `state.json` 的 `changed` / `main_remote_sha` |
 | 3 | 环境或配置错误：缺 `source_dir` / `token_file`、工作副本不是 git 仓、分支名非法 | 日志里的 `not found` / `not a git repository` |
 | 4 | 密钥扫描命中：快照里出现活令牌字面量或私钥块 | 日志里的 `SECRET HIT:`（只给文件与模式，不给值） |
-| 5 | 快照或提交失败：`robocopy rc>=8`、`git add/commit` 非 0 | 日志里的 `robocopy rc=` / `git commit failed` |
+| 5 | 快照或提交失败：`robocopy rc>=8`、`git add/commit` 非 0，或 skill 数异常缩水被护栏拦下 | 日志里的 `robocopy rc=` / `git commit failed` / `refusing to publish` |
 | 6 | 推送失败：鉴权、网络、non-fast-forward | 日志里的 `push ... failed`（输出已脱敏） |
 | 7 | 推送后复核不一致：两个 ref 缺一个，或 sha 不相等 | 日志里的 `ref mismatch:` |
 | 8 | 未预期异常 | 日志里的 `unexpected:` |
@@ -102,15 +105,19 @@ Register-ScheduledTask -TaskName 'DSH-Skills-Publish' -Action $act -Trigger $trg
 
 1. **远端同一 sha**：`ls-remote` 里 `refs/heads/main` 与 `refs/heads/<今天>` 相等，且等于 `state.json` 的 `head_sha`。
 2. **匿名可读**：URL 不带 token、`-c credential.helper=`、`GIT_TERMINAL_PROMPT=0` 下 `git clone --depth 1` 成功，且 `skills/<某 skill>/SKILL.md` 在克隆里存在。
-   实测计数：clone 下来 **37 个 skill 目录**（含本 skill 自己）。
-3. **匿名不可写**：同样的匿名 URL 做 `git push --dry-run` 必须失败（403/401），证明"只有所有者能提交"。
-   **别把 403 之外的形态当通过** —— 超时、连接失败都不算负控成立。
+   实测计数：clone 下来的 skill 目录数应等于 `state.json` 的 `skill_count`（本轮实测 **35**，会随 skill 增删变化），且克隆里 `credentials.txt` 命中数为 **0**。
+3. **匿名不可写**：同样的匿名 URL 做 `git push --dry-run` 必须失败——本机实测是 `fatal: could not read Username for 'https://gitcode.com': terminal prompts disabled`（exit 128）。
+   **别把 403 之外的形态当通过** —— 超时、连接失败都不算负控成立；再叠加一条平台侧证据：`GET /repos/:owner/:repo/collaborators` 只有本人一个 `access_level=50` 的 Owner。
 
 ## 5. 排障
 
 - **exit 6 + `Authentication failed` / 403**：先核 `publish.config.json` 的 `token_file` 路径与令牌是否过期；GitCode 传输层只认 `https://<user>:<token>@`，把 token 当用户名必失败（`could not read Password`）。
 - **exit 6 + `non-fast-forward` / `rejected`**：远端有本地没有的提交（例如网页端直接改过）。本脚本**不自动强推**；先 `git -C D:\repos\dsh-skills fetch` 看清差异，人工对齐后再跑。
 - **exit 4**：说明 skill 目录里出现了真实凭据。把该文件加进 `/XF` 排除清单（脚本里的 robocopy 行）或从 skill 正文里删掉明文，再跑一次 `-DryRun` 复核。
+- **exit 5 + `refusing to publish`**：源目录 `~\.dsh\skills` 那一刻只剩不到一半 skill（常见于另一个进程正在合并 / 重建 skill 目录）。等源树稳定后重跑；若确是有意大清理，加 `-AllowBigShrink`。
+- **日期分支名撞车 / 补跑历史**：`-DateStamp 2026-10-21` 会把某个历史日期分支快进到当前内容，**不是**重建当时的内容——要真历史只能靠每天按时跑。
+- **同日多次运行**：内容变了就追加提交，当日分支随之前进；内容没变则 `NO_CHANGE`，两个 ref 原地不动。
+- **手动删远端日期分支**：`git -C D:\repos\dsh-skills push <authUrl> --delete <YYYY-MM-DD>`；删完 `main` 不受影响。
 - **每日任务没跑**：`Get-ScheduledTask DSH-Skills-Publish` 看 `State`；`Last Result` 不能当判据。机器 02:00 关机时靠 `-StartWhenAvailable` 在下次可用时补跑；`Interactive` 登录类型要求该用户已登录。
 - **想立刻回滚内容**：日期分支是历史快照，`git -C D:\repos\dsh-skills reset --hard <旧 sha>` 后再 `-NoPush` 检查，然后真跑覆盖 `main`（**只在自己的镜像仓里操作**，不要在远端改写 `main` 历史）。
 - **隐私提醒**：仓库是公开的，skill 正文里的本机路径（`D:\key\...`、内网 IP）会一起公开。要收口就先改 skill 正文，再跑发布。

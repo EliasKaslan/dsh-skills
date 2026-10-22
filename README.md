@@ -19,7 +19,7 @@ git clone https://gitcode.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **35** 个 skill、**59** 个文件、**1360926** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **35** 个 skill、**59** 个文件、**1362630** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
