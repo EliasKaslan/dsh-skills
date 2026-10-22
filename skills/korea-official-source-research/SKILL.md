@@ -1,6 +1,6 @@
 ---
 name: korea-official-source-research
-description: 韩国（济州）官方一手信息源抓取与端点配方——web_fetch 对韩国站点普遍不可用，python urllib 按站点分档，pwsh 直连最稳；含出入境/入境申告官方源结构（e-AC 的 bbsId=文章id / flId=附件id、列表页、使馆 mofa.go.kr 详情页、无日期戳用响应头 Date 与 등록일 定锚、判废止）、假页面与域名陷阱（HTTP 200 却是 404）、koreatourinfo 镜像、济州公交 BIS、visitjeju、열린관광、免税店协会、门票 xlsx、潮汐站。适用于"韩国出入境/入境申告/法务部/关税厅/检疫 Q-CODE 官方源怎么抓 / 韩国官方页面没有日期怎么看 / 驻外使馆 mofa.go.kr 详情页怎么取 / 政策是否已废止怎么查 / 查济州公交线路和末班车 / 韩国景点开放时间与休馆日 / 抓 visitjeju 详情页字段 / 门票 xlsx 怎么解析 / 潮汐表怎么取 / 抓韩国站点全失败怎么办"。不适用：本机 pwsh 自身的编码坑 → 用 `pwsh-on-windows`。
+description: 韩国（济州）官方一手信息源——官方页面怎么抓、没日期怎么看：web_fetch 对韩国站点多数不可用，urllib 按站点分档，pwsh 最稳；含出入境/入境申告官方源结构（e-AC 的 bbsId / flId、mofa.go.kr 详情页、无日期戳用响应头 Date 与 등록일 定锚、判废止）、假页面陷阱、公交 BIS、visitjeju、休馆日、门票 xlsx、潮汐。适用于"韩国出入境/入境申告/法务部/关税厅/检疫 Q-CODE 官方源怎么抓 / 韩国官方页面没有日期怎么看 / 驻外使馆 mofa.go.kr 详情页怎么取 / 政策是否已废止怎么查 / 查济州公交线路和末班车 / 韩国景点开放时间与休馆日 / 抓 visitjeju 详情页字段 / 门票 xlsx 怎么解析 / 潮汐表怎么取 / 抓韩国站点全失败怎么办"。不适用：本机 pwsh 编码坑 → 用 `pwsh-on-windows`；判厂商官网链接真假 → 用 `ai-vendor-official-source-audit`。
 whenToUse: 要拿韩国官方一手数据（出入境/入境申告、公交时刻、景点与店铺营业时间/休馆日、门票、渡轮、潮汐）时用：先按站点量本机可达性（web_fetch / python urllib / pwsh 三级），再按端点配方抓取。模型看不到本节。
 ---
 

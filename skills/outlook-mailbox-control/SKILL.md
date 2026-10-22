@@ -1,6 +1,6 @@
 ---
 name: outlook-mailbox-control
-description: Outlook.com（个人 MSA）邮箱接管——MS365 MCP discovery 直调：15 项能力配方（工具名＋最小 parameters JSON）、三条个人账户硬规则（authority 必须 consumers／只支持 delegated／app password 已硬禁用）、设备码登录与令牌核验、🤖 前缀护栏、逐字错误原文。适用于"接管我的 outlook 邮箱 / 查一下收件箱 / 按关键词搜邮件 / 读某封邮件的正文和附件 / 以我的名义回一封信 / 帮我存个草稿 / outlook 邮件工具报错"。不适用：PowerShell 的坑（乱码/BOM/执行策略）→ 用 `pwsh-on-windows`；改 DSH 插件行与 MCP 接入层 → 用 `dsh-agent-customization`；沉淀与写哪个根 → 用 `sedimenting-skills`；frontmatter 写法 → 用 `dsh-skill-authoring`；QQ 邮箱 IMAP → 用 `qq-mail-control`。
+description: Outlook.com（个人 MSA）邮箱接管——接管我的 outlook 邮箱、查收件箱、按关键词搜邮件、读正文和附件、以我的名义回信、存草稿：MS365 MCP discovery 直调的能力配方（工具名＋最小 parameters JSON）、三条个人账户硬规则（authority 必须 consumers／只支持 delegated／app password 已硬禁用）、设备码登录与令牌核验、🤖 前缀护栏、逐字错误原文。适用于"接管我的 outlook 邮箱 / 查一下收件箱 / 按关键词搜邮件 / 读某封邮件的正文和附件 / 以我的名义回一封信 / 帮我存个草稿 / outlook 邮件工具报错 / authority 该填什么 / app password 为什么用不了"。不适用：QQ 邮箱 IMAP → 用 `qq-mail-control`；改 DSH 插件行与 MCP 接入层 → 用 `dsh-agent-customization`；PowerShell 的坑 → 用 `pwsh-on-windows`。
 whenToUse: 通过 DSH 的 `mcp__outlook__*` 工具接管 Outlook.com 个人邮箱（列/搜/读/附件/回复/草稿）或排查其认证与调用错误时使用。基线：ms-365-mcp-server 0.157.0 ＋ consumers ＋ --discovery。模型看不到本节。
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: upstream-docs-refresh-audit
-description: 上游开源仓库 docs 刷新审计（实测 vllm-project/vllm-ascend main）——输入一批中文内部需求或中文转测文档，判 docs/source 是否需要刷新，产出六节结论清单 + 逐条刷新方案：三件前置产物先行、只读 worktree 隔离、代号靠 git log --grep 破解、页名看 nav_titles.py、判存在性搜全仓、findings 落盘 fan-out、分次写盘、`.po` 翻译归责与脚本存在性判据。适用于"这批需求在 docs 里都能检索到吗 / 转测文档声明的能力主线能查到吗 / 这版主线资料要不要刷新 / 出一份资料刷新清单 / 内部代号在仓库里到底叫什么 / 转测文档写的环境变量和启动参数主线到底有没有 / 要不要顺手改 .po 翻译 / 那个脚本到底存不存在"。不适用：要装 vllm 或 vllm-ascend → 用 `vllm-ascend-source-install`；要起服务跑推理 → 用 `ascend-vllm-serve`。
+description: 上游仓库 docs 刷新审计——这批需求在 docs 里都能检索到吗、这版主线资料要不要刷新：输入一批中文内部需求或中文转测文档，判 docs/source 是否需要刷新，产出六节结论清单 + 逐条刷新方案：三件前置产物先行、只读 worktree 隔离、代号靠 git log --grep 破解、页名看 nav_titles.py、判存在性搜全仓、findings 落盘 fan-out、分次写盘、`.po` 翻译归责与脚本存在性判据。适用于"这批需求在 docs 里都能检索到吗 / 转测文档声明的能力主线能查到吗 / 这版主线资料要不要刷新 / 出一份资料刷新清单 / 内部代号在仓库里到底叫什么 / 转测文档写的环境变量和启动参数主线到底有没有 / 要不要顺手改 .po 翻译 / 那个脚本到底存不存在"。不适用：要装 vllm 或 vllm-ascend → 用 `vllm-ascend-source-install`；要起服务跑推理 → 用 `ascend-vllm-serve`。
 whenToUse: 手里有内部需求或转测文档，要判上游仓库 main 的 docs 缺口并产出刷新清单时用；只是要装或跑 vllm 请转 ascend 系列。模型看不到本节。
 ---
 

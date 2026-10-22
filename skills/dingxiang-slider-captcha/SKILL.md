@@ -1,6 +1,6 @@
 ---
 name: dingxiang-slider-captcha
-description: 顶象（dx）拼图缺口滑块验证码在 Android 模拟器上的实测结构与破解结论——含 DOM/几何参数、块与手指位移 1:1、块是半透明混合渲染（NCC 定位失效根因）；结论：成功率极低（实测 0/6）。适用于"过一下顶象滑块验证码 / 提示请拖动滑块至正确缺口 / 用 adb 拖验证码 / 拿 dx_captcha_basic 的 DOM 和坐标 / LDPlayer 上模拟器里滑块拖不过"。不适用：不是 PR / 不是读 AIDD 报告 → 用 `aidd-report-reader`。
+description: 顶象（dx）拼图缺口滑块验证码在 Android 模拟器上的实测结构与破解结论——过一下顶象滑块验证码、用 adb 拖、拿 dx_captcha_basic 的 DOM 和坐标：含 DOM/几何参数、块与手指位移 1:1、块是半透明混合渲染（NCC 定位失效根因）；结论：成功率极低（实测 0/6，别再试第 7 次）。适用于"过一下顶象滑块验证码 / 提示请拖动滑块至正确缺口 / 用 adb 拖验证码 / 拿 dx_captcha_basic 的 DOM 和坐标 / LDPlayer 上模拟器里滑块拖不过 / 缺口位置怎么算 / NCC 为什么定位不准"。不适用：要读 AIDD 扫描报告 → 用 `aidd-report-reader`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。
 whenToUse: 要用 adb / LDPlayer 在 Android 模拟器上自动化通过顶象滑块验证码，或快速拿到它的 DOM 结构与几何参数时使用（已知成功率极低）。模型看不到本节。
 ---
 

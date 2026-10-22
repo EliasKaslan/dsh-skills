@@ -1,6 +1,6 @@
 ---
 name: dsh-agent-customization
-description: DSH「改造 agent 行为」入口总纲——五层何时生效 + `settings.yaml` 是导入源 + 上线纪律（热重载≠冷启动、坏 row 冷启动静默、要看门狗）。适用于"改 DSH 的行为该改哪一层 / 改了 AGENTS.md 为何不生效 / 插件行坏了怎么回滚 / settings.yaml 改了为何不生效 / MCP 怎么挂进来 / 实验包怎么挂 profile / 中文 UI 不是中文提示词 / 会话日志里能不能找回旧版本 / 文件被覆盖了怎么恢复 / session.v4.jsonl.zstd 怎么解压 / 本轮运行失败 / Provider finish_reason 报错怎么判 / 怎么判断是上游还是 DSH 的 bug"。不适用：只离线验挂载 → 用 `dsh-agent-preset-verification`；在线验运行时 → 用 `dsh-agent-preset-live-verification`；隔离环境 → 用 `dsh-isolated-web-host`。
+description: DSH 改造 agent 行为的入口总纲——改了 AGENTS.md 为何不生效、插件行坏了怎么回滚、settings.yaml 改了为何没反应、这次改动属于哪一层；含五层生效时机、热重载≠冷启动、坏 row 三形态、MCP 挂载与会话日志找回旧版本。适用于"改 DSH 的行为该改哪一层 / 改了 AGENTS.md 为何不生效 / 插件行坏了怎么回滚 / settings.yaml 改了为何不生效 / MCP 怎么挂进来 / 实验包怎么挂 profile / 中文 UI 不是中文提示词 / 会话日志里能不能找回旧版本 / 会话日志怎么解压 / 本轮运行失败 / finish_reason 报错怎么判 / 上游还是 DSH 的 bug"。不适用：只离线验负载挂载 → 用 `dsh-agent-preset-verification`；只要干净实验环境 → 用 `dsh-isolated-web-host`。
 whenToUse: 要改 DSH 自身行为（行为宪法 / 流程 skill / agent 组合 / 默认 preset / 插件行与 patch），或要判定改动何时生效、怎样回滚、上线前还差哪一步时，先加载本总纲。模型看不到本节。
 ---
 

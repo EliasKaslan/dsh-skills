@@ -1,6 +1,6 @@
 ---
 name: github-org-delta-watch
-description: GitHub 组织增量追踪——基准日之后谁在动：rate_limit 的 Date 头取"今天"、orgs/{org}/repos?sort=pushed 覆盖全组织找活性、pushed_at 冻结即内容冻结、issues 要 created 与 updated 各拉一遍。适用于"组织基准日后有什么新动作 / 谁在动 / 有没有发新版 / 组织调研报告要更新增量 / 这个仓是不是死仓 / 官方那个承诺兑现了吗 / GitHub 403 额度耗尽后怎么继续取证"。不适用：向 GitHub 仓提 PR → 用 `github-pr-flow`；读 AIDD 扫描报告 → 用 `aidd-report-reader`。
+description: GitHub 组织增量追踪——基准日之后这个组织谁在动、这仓是不是死仓、官方那个承诺兑现了没：rate_limit 的 Date 头取"今天"、orgs/{org}/repos?sort=pushed 覆盖全组织找活性、pushed_at 冻结即内容冻结、issues 要 created 与 updated 各拉一遍。适用于"组织基准日后有什么新动作 / 谁在动 / 有没有发新版 / 组织调研报告要更新增量 / 这个仓是不是死仓 / 官方那个承诺兑现了吗 / GitHub 403 额度耗尽后怎么继续取证"。不适用：向 GitHub 仓提 PR → 用 `github-pr-flow`；到厂商官网取一手来源 → 用 `ai-vendor-official-source-audit`。
 whenToUse: 已有一份带基准日的 GitHub 组织/仓库调研报告，要产出基准日之后的增量热点与观察点变化清单时使用；也用于判某仓是否死仓、某个官方承诺是否已兑现。模型看不到本节。
 ---
 

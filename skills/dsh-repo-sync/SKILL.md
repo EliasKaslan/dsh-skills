@@ -1,6 +1,6 @@
 ---
 name: dsh-repo-sync
-description: DSH 配置到私仓的确定性同步机制——脚本 sync-dsh-repos.ps1 把 `C:\Users\admin\.dsh` 与编排 preset 用 robocopy 快照进 `D:\repos\deepseek-harness`，根级 cordis.patch.yml 里的明文 PAT 会被值脱敏成 redacted，运行时不打印令牌，退出码 0/3/4/5/6/7/8，状态与告警落 `sync\state.json`、`sync\ALERT.md`。适用于"私仓天天收到 workflow 失败邮件 / 手动同步我的私仓 / 现在同步一次 / 同步坏了怎么办 / ALERT.md 出现了 / 昨天同步没成功 / 私仓内容少了或不对 / 计划任务 DSH-Repo-Sync 报错 / 想改同步的排除项 / 把私仓公开 / 把同步仓公开"。不适用：向 GitHub 上游仓提 PR → 用 `github-pr-flow`；向 GitCode 社区仓提 PR → 用 `gitcode-pr-flow`。
+description: 我的 DSH 私仓同步——现在同步一次、昨天同步没成功、私仓内容少了或不对、ALERT.md 出现了、计划任务 DSH-Repo-Sync 报错：脚本 sync-dsh-repos.ps1 把 ~/.dsh 与编排 preset 用 robocopy 快照进私仓镜像，明文 PAT 脱敏成 redacted，退出码即结论（0 成功 / 非 0 见码表）。适用于"私仓天天收到 workflow 失败邮件 / 手动同步我的私仓 / 现在同步一次 / 同步坏了怎么办 / ALERT.md 出现了 / 昨天同步没成功 / 私仓内容少了或不对 / 计划任务 DSH-Repo-Sync 报错 / 想改同步的排除项 / 把私仓公开"。不适用：向 GitHub 上游仓提 PR → 用 `github-pr-flow`；向 GitCode 社区仓提 PR → 用 `gitcode-pr-flow`；计划任务注册与退役取证 → 用 `win-scheduled-task-forensics`。
 whenToUse: 要手动跑一次 ~/.dsh 到私仓的同步、排查同步失败（ALERT/退出码/日志）、或改同步排除项与计划任务时使用。模型看不到本节，触发只靠 description。
 ---
 

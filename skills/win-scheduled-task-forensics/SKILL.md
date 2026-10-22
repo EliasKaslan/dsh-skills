@@ -1,6 +1,6 @@
 ---
 name: win-scheduled-task-forensics
-description: Windows 计划任务/持久化项取证与安全退役——五处侦察面（计划任务全量、schtasks 旁证、Run 键、两个启动文件夹、WMI 事件订阅）缺一处就漏；退役顺序固定为 Export-ScheduledTask 留档 → Disable-ScheduledTask（保留定义优于 unregister）→ 复核 State=Disabled 且 Actions 原文未变 → 清进程 → 复核其它任务未被误碰；LastTaskResult=3 是掉登录态、不是任务损坏。适用于"找出某个 agent 建的每日定时程序 / 谁给我装了计划任务 / 把每日签到任务停掉 / 这个定时任务是谁加的 / 停用以后怎么恢复 / 雷电签到任务怎么退役"。不适用：本机 pwsh 命令本身的坑（PS 5.1 解析期错误、BOM、ExecutablePath 恒空、非提权停 SYSTEM 服务、XML 不含 Enabled）→ 用 `pwsh-on-windows`；要拆多路并行子任务并给子代理下契约 → 用 `orchestrating-subagents`。
+description: Windows 计划任务/持久化项取证与安全退役——谁给我装了每日定时程序、把每日签到任务停掉、这个定时任务是谁加的：五处侦察面（计划任务全量、schtasks 旁证、Run 键、两个启动文件夹、WMI 事件订阅）缺一处就漏；退役顺序固定为 Export-ScheduledTask 留档 → Disable-ScheduledTask（保留定义优于 unregister）→ 复核 State=Disabled 且 Actions 原文未变 → 清进程 → 复核其它任务未被误碰。适用于"找出某个 agent 建的每日定时程序 / 谁给我装了计划任务 / 把每日签到任务停掉 / 这个定时任务是谁加的 / 停用以后怎么恢复 / 雷电签到任务怎么退役"。不适用：本机 pwsh 命令本身的坑 → 用 `pwsh-on-windows`；要拆多路并行子任务 → 用 `orchestrating-subagents`。
 whenToUse: 在本机排查/退役 Windows 计划任务与其它自启持久化项（尤其某个 agent 建的每日定时脚本）时用。命令级坑一律见 `pwsh-on-windows`，本 skill 只留指针。模型看不到本节。
 ---
 

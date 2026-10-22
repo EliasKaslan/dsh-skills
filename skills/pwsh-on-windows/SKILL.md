@@ -1,6 +1,6 @@
 ---
 name: pwsh-on-windows
-description: 本机命令行（pwsh 实为 Windows PowerShell 5.1，非 PS7）——默认按 GBK 解码、写 BOM、PS7 语法是解析期错误，一整套静默坏结果：中文乱码、行数/CR 数少算或暴增、skill frontmatter 被 BOM 毁掉、整段脚本一行不执行（Out-String/Measure-Object -Line/Set-Content 各有一坑）。适用于"中文乱码 / 行数或 CR 数对不上 / .ps1 或 npx 被执行策略拦 / 计数总是 0 / 目录看着空其实不空 / PS7 语法报错 / python 传 JSON 报 Expecting value / icacls 后报 WinError 5 / 重定向输出被判 binary / ssh 内联命令里引号内管道被吃掉 / node -e 引号被剥掉 / diff 整文件全异"。不适用：远端 Linux → 用 `ascend-env`；skill frontmatter 契约 → 用 `dsh-skill-authoring`。
+description: 本机命令行一整套静默坏结果（pwsh 实为 Windows PowerShell 5.1，非 PS7）——中文乱码、行数或 CR 数对不上、计数总是 0、目录看着空其实不空、执行策略拦住脚本、传 JSON 报 Expecting value：默认按 GBK 解码、写 BOM，Out-String / Measure-Object -Line / Set-Content 各有一坑。适用于"中文乱码 / 行数或 CR 数对不上 / 计数为什么总是 0 / 目录看着空其实不空 / .ps1 或 npx 被执行策略拦 / PS7 语法报错 / python 传 JSON 报 Expecting value / icacls 后报 WinError 5 / 重定向输出被判 binary / ssh 内联命令里引号内管道被吃掉 / node -e 引号被剥掉 / diff 整文件全异"。不适用：远端 Linux → 用 `ascend-env`；skill frontmatter 契约 → 用 `dsh-skill-authoring`。
 whenToUse: 本机用 pwsh 工具跑命令、读写文件、统计行数/字符/CR、发 HTTP 或写脚本（尤其涉中文、换行、编码、引号、PS7 语法）时使用；**给 node/python 内联传含双引号的脚本或 JSON 时必读**（裸 `-e`/`-c` 的引号会被剥掉）。模型看不到本节。
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: ai-vendor-official-source-audit
-description: AI 厂商官方信息源真伪与覆盖面判定——产品名≠API model id（按官方模型列表逐名计数）；官方新闻页与详情页信息不同，两页都抓；响应体 <10KB 判 catch-all SPA 空壳（配假 slug 对照 + 真/假字节比）；HF &full=true 拿时间、401=not found、createdAt≠发布日；/raw/ vs /resolve/ 二进制验 magic。适用于"这家厂商官方报告有哪些来源 / 这个文档链接是真的吗 / 抓下来是空壳还是真页 / 这个模型 id 官方有没有对外提供 / 某模型是否真发布了 / 二手稿说超越某竞品是真的吗 / 这个 arXiv 编号算不算官方 / 某产品是否已下线查无"。不适用：只精读论文并核查开源声称 → 用 `arxiv-paper-deep-read-and-claim-verification`；只做外部热度量级 → 用 `external-buzz-magnitude-check`；只看 GitHub 组织增量 → 用 `github-org-delta-watch`。
+description: AI 厂商官方源真伪与覆盖——这家厂商官方报告有哪些来源、这个文档链接是真的吗、抓下来是空壳还是真页：产品名≠API model id（按官方列表逐名计数）、新闻页与详情页都抓；体积极小或与假 slug 同档判空壳；HF &full=true 拿时间、401 只按状态码判（裸名要回列表按前缀核）、createdAt≠发布日；/raw/ vs /resolve/ 二进制验 magic。适用于"这家厂商官方报告有哪些来源 / 这个文档链接是真的吗 / 抓下来是空壳还是真页 / 这个模型 id 官方有没有对外提供 / 某模型是否真发布了 / 二手稿说的超越是真的吗 / 这个 arXiv 编号算不算官方 / 某产品是否已下线查无"。不适用：只精读论文并核查开源声称 → 用 `arxiv-paper-deep-read-and-claim-verification`；只做外部热度量级 → 用 `external-buzz-magnitude-check`；只看 GitHub 组织增量 → 用 `github-org-delta-watch`。
 whenToUse: 要判某模型厂商的官方来源有哪些、某文档链接或模型 id 是不是真的、某模型是否真发布、二手稿的竞品对标方向对不对时用；含 sitemap 取权威索引、假 slug 对照破空壳、逐名计数核 id、HF 与 ModelScope 端点陷阱。模型看不到本节。
 ---
 

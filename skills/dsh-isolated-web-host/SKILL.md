@@ -1,6 +1,6 @@
 ---
 name: dsh-isolated-web-host
-description: 起第二个 DSH web host 做隔离实验（重定向 DSH_HOME）——建测试 home 骨架、必加 --no-open、启动先落盘 pid 与端口、不带 token 的 401 判就绪、taskkill /PID 收尾；本机端口枚举是盲的（netstat/Get-NetTCPConnection 恒空），判就绪/判清理只认 HTTP 探针与落盘 pid。适用于"起个隔离 host 试试 / 想不污染真实环境就验证插件行或 patch / 真实 host 占着 3080 不能重启 / 端口枚举查不到监听 / netstat 找不到 3080 / 改了 preset 想找干净环境挂载看看"。不适用：要验收 preset 挂载或运行时真相 → 用 `dsh-agent-preset-verification` 或 `dsh-agent-preset-live-verification`；DSH 改哪一层/何时生效/怎么撤 → 用 `dsh-agent-customization`（总纲）。
+description: 起个隔离 DSH host 做实验——想不污染真实 ~/.dsh 就验证插件行或 patch、真实 host 占着 3080 不能重启时用它：必加 --no-open、启动先落盘 pid 与端口、不带 token 的 401 判就绪、taskkill /PID 收尾；本机端口枚举是盲的（netstat / Get-NetTCPConnection 恒空），判就绪与判清理只认 HTTP 探针与落盘 pid。适用于"起个隔离 host 试试 / 想不污染真实环境就验证插件行或 patch / 真实 host 占着 3080 不能重启 / 端口枚举查不到监听 / netstat 找不到 3080 / 改了 preset 想找干净环境挂载看看"。不适用：只想验能不能挂载 → 用 `dsh-agent-preset-verification`；改哪层/何时生效/怎么撤 → 用 `dsh-agent-customization`。
 whenToUse: 需要一个不污染真实 ~/.dsh、不占 3080 的第二 host 来自由起停地试插件行 / patch / preset 改动时用；它只搭环境，不做验收。判就绪与判清理用 HTTP 探针 + 启动时落盘的 pid，别用端口监听状态（本机枚举恒为空）。模型看不到本节。
 ---
 

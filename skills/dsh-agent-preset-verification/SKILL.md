@@ -1,6 +1,6 @@
 ---
 name: dsh-agent-preset-verification
-description: DSH agent preset 离线静态校验——0.2.0-rc.2 起载体是 bundle patch 里的 @deepseek-ai/dsh-agent-preset 声明行（目录式 .agent-presets 已死，healthy≠能挂载）。先认机制 → 逐行解析 plugins 每个包能否解析 → 逐行取 Config/resolveConfig 报错原文 → install_bundle 后 list_plugins 看状态。适用于"preset 到底挂载对没对 / 改完 preset 先离线确认能不能挂 / preset 没生效但看不出哪错了 / 委派工具一调用就报错是不是配置键写错 / maxDepth 写 0 为什么让工具全废"。不适用：已起会话验运行时真相 → 用 `dsh-agent-preset-live-verification`；只要干净实验环境 → 用 `dsh-isolated-web-host`；不知改 DSH 哪层、何时生效、怎么撤 → 用 `dsh-agent-customization`。
+description: DSH agent preset 验收两阶段——preset 没生效但看不出哪错了、到底挂载对没对、改完先离线确认；离线过了但插件行为不对、persona 与工具在真会话里对不对、委派为什么失败；headless 不能验 preset 且会污染 home。阶段一离线逐行解析 plugins 与 config，阶段二干净 host 真会话 RPC 核对。适用于"preset 到底挂载对没对 / 改完 preset 先离线确认能不能挂 / preset 没生效但看不出哪错了 / 离线过了但插件行为不对 / 委派为什么失败 / 能不能用 headless 验收 preset / maxDepth 写 0 为什么让工具全废"。不适用：只要干净实验环境 → 用 `dsh-isolated-web-host`；不知改哪层、何时生效、怎么撤 → 用 `dsh-agent-customization`。
 whenToUse: 离线（还没起会话）校验 preset 能不能挂载、plugins 里哪个包名在当前安装不存在、哪个配置键或工具名写错时用；已起会话要验 persona、工具裁剪与委派请转 live 版。模型看不到本节。
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: aidd-report-reader
-description: 读华为 AIDD（aidd.huawei.blue）文档质量扫描报告并导出问题清单——gitcode OAuth 登录（DevUI 复选框要直接注入 Vue 状态）、REST API 免爬 DOM 批量拉 issues。适用于"检查 AIDD 扫描报告 / 解析 AIDD 问题 / 导出 issue 数据 / 登录 AIDD 抓文档质量检测结果 / 某个项目的扫描分数和 fatal 问题有多少"。不适用：不是 PR（提 PR 见对应 PR skill）、不是浏览器滑块验证码 → 用 `dingxiang-slider-captcha`。
+description: 读华为 AIDD（aidd.huawei.blue）文档质量扫描报告并导出问题清单——检查 AIDD 扫描报告、解析 AIDD 问题、导出 issue 数据：gitcode OAuth 登录（DevUI 复选框要直接注入 Vue 状态）、REST API 免爬 DOM 批量拉 issues、报告在哪个接口、issues 字段有哪些。适用于"检查 AIDD 扫描报告 / 解析 AIDD 问题 / 导出 issue 数据 / 登录 AIDD 抓文档质量检测结果 / 某个项目的扫描分数和 fatal 问题有多少 / 报告在哪个接口 / issues 字段有哪些 / 分数怎么算出来的"。不适用：要向 GitHub / GitCode 仓提 PR → 用 `github-pr-flow` 或 `gitcode-pr-flow`；要过顶象滑块验证码 → 用 `dingxiang-slider-captcha`。
 whenToUse: 要访问 aidd.huawei.blue 检查 / 解析 / 导出"问题报告"，或抓某个项目（如 MindSpeed-Ops）的 AIDD 扫描结果时使用。模型看不到本节。
 ---
 
