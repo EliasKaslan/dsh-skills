@@ -3,7 +3,7 @@
   "generated_by": "publish-dsh-skills.ps1",
   "skill_count": 35,
   "file_count": 70,
-  "total_bytes": 1378673,
+  "total_bytes": 1381174,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -101,7 +101,7 @@
       "path": "skills/dsh-agent-customization",
       "description": "DSH 改造 agent 行为的入口总纲——改了 AGENTS.md 为何不生效、插件行坏了怎么回滚、settings.yaml 改了为何没反应、这次改动属于哪一层；含五层生效时机、热重载≠冷启动、坏 row 三形态、MCP 挂载与会话日志找回旧版本。适用于\"改 DSH 的行为该改哪一层 / 改了 AGENTS.md 为何不生效 / 插件行坏了怎么回滚 / settings.yaml 改了为何不生效 / MCP 怎么挂进来 / 实验包怎么挂 profile / 中文 UI 不是中文提示词 / 会话日志里能不能找回旧版本 / 会话日志怎么解压 / 本轮运行失败 / finish_reason 报错怎么判 / 上游还是 DSH 的 bug\"。不适用：只离线验负载挂载 → 用 `dsh-agent-preset-verification`；只要干净实验环境 → 用 `dsh-isolated-web-host`。",
       "files": 5,
-      "bytes": 90893
+      "bytes": 90923
     },
     {
       "name": "dsh-agent-preset-verification",
@@ -115,7 +115,7 @@
       "path": "skills/dsh-isolated-web-host",
       "description": "起个隔离 DSH host 做实验——想不污染真实 ~/.dsh 就验证插件行或 patch、真实 host 占着 3080 不能重启时用它：必加 --no-open、启动先落盘 pid 与端口、不带 token 的 401 判就绪、taskkill /PID 收尾；本机端口枚举是盲的（netstat / Get-NetTCPConnection 恒空），判就绪与判清理只认 HTTP 探针与落盘 pid。适用于\"起个隔离 host 试试 / 想不污染真实环境就验证插件行或 patch / 真实 host 占着 3080 不能重启 / 端口枚举查不到监听 / netstat 找不到 3080 / 改了 preset 想找干净环境挂载看看\"。不适用：只想验能不能挂载 → 用 `dsh-agent-preset-verification`；改哪层/何时生效/怎么撤 → 用 `dsh-agent-customization`。",
       "files": 1,
-      "bytes": 16903
+      "bytes": 16936
     },
     {
       "name": "dsh-repo-sync",
@@ -141,16 +141,16 @@
     {
       "name": "dsh-skills-publish",
       "path": "skills/dsh-skills-publish",
-      "description": "把本机 ~/.dsh/skills 的全部 skill 每天凌晨 2 点发布到 GitCode 公开仓 EliasKaslan/dsh-skills——脚本 publish-dsh-skills.ps1 先快照再扫活密钥，然后提交 main 并让当日 YYYY-MM-DD 分支与 main 指向同一 commit，只保留最近 15 个日期分支、更早的自动删除；计划任务 DSH-Skills-Publish，退出码 0/3/4/5/6/7/8，状态落 .skill-publish\\state.json 与 ALERT.md。适用于\"把 skill 发到 GitCode / 建个公开 skill 仓 / 每天自动同步 skill / 今天的日期分支建了吗 / main 和日期分支不一致 / 分支太多了怎么清理 / 旧日期分支还在吗 / 发布脚本报错 / 手动跑一次 skill 发布 / 停掉每日发布任务\"。不适用：DSH 配置与私仓同步 → 用 `dsh-repo-sync`。",
+      "description": "把本机 ~/.dsh/skills 的全部 skill 每天凌晨 2 点同步发布到 GitCode 与 GitHub 两个公开仓 EliasKaslan/dsh-skills——脚本 publish-dsh-skills.ps1 先快照再扫活密钥，再对每个站点提交 main 并让当日 YYYY-MM-DD 分支与 main 指向同一 commit，每个站点只保留最近 15 个日期分支；计划任务 DSH-Skills-Publish，退出码 0/3/4/5/6/7/8，状态落 .skill-publish\\state.json 与 ALERT.md。适用于\"把 skill 发到 GitCode / 同步一份到 GitHub / 建个公开 skill 仓 / 每天自动同步 skill / 今天的日期分支建了吗 / main 和日期分支不一致 / 分支太多了怎么清理 / 发布脚本报错 / 手动跑一次 skill 发布 / 停掉每日发布任务\"。不适用：DSH 配置与私仓同步 → 用 `dsh-repo-sync`。",
       "files": 5,
-      "bytes": 47763
+      "bytes": 50198
     },
     {
       "name": "external-buzz-magnitude-check",
       "path": "skills/external-buzz-magnitude-check",
       "description": "外部热度量级取证——这事在外网真的火吗（HN points/评论、HF likes/下载量、Artificial Analysis/OpenRouter 体验指标、社区情绪分级）——判某事在外网是否真热、某模型是否真难用，给可复现量级数字；与 GitHub 提交活性解耦，双榜分开列。适用于\"这事在外网真的火吗 / 给我外部热度量级证据 / 这个模型是不是真的很难用 / 社区有没有人在骂 / HN 有多少 points 和评论 / 这个模型速度慢不慢 / 内部提交多但外面没动静算不算热点\"。不适用：只看 GitHub 组织内部提交增量 → 用 `github-org-delta-watch`；核查论文声称能否复现 → 用 `arxiv-paper-deep-read-and-claim-verification`。",
       "files": 1,
-      "bytes": 17525
+      "bytes": 17528
     },
     {
       "name": "gitcode-pr-flow",

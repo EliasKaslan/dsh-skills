@@ -1,14 +1,33 @@
 {
-  "source_dir": "C:\\Users\\<you>\\.dsh\\skills",
+  "source_dir": "C:\\Users\\admin\\.dsh\\skills",
   "work_repo": "D:\\repos\\dsh-skills",
-  "state_dir": "C:\\Users\\<you>\\.dsh\\.skill-publish",
-  "remote_url": "https://gitcode.com/<owner>/dsh-skills.git",
-  "user": "<owner>",
-  "token_file": "D:\\key\\gitcode_token.txt",
-  "extra_secret_files": [],
+  "state_dir": "C:\\Users\\admin\\.dsh\\.skill-publish",
   "branch_main": "main",
   "date_format": "yyyy-MM-dd",
   "keep_date_branches": 15,
-  "author_name": "<owner>",
-  "author_email": "<owner>@example.com"
+  "targets": [
+    {
+      "id": "gitcode",
+      "name": "GitCode",
+      "remote_url": "https://gitcode.com/<user>/dsh-skills.git",
+      "user": "<user>",
+      "token_file": "D:\\key\\gitcode_token.txt",
+      "branch_main": "main",
+      "keep_date_branches": 15
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "remote_url": "https://github.com/<user>/dsh-skills.git",
+      "user": "<user>",
+      "token_file": "D:\\key\\github_pta.txt",
+      "branch_main": "main",
+      "keep_date_branches": 15
+    }
+  ],
+  "extra_secret_files": [
+    "D:\\key\\github_pta.txt"
+  ],
+  "author_name": "<your name>",
+  "author_email": "<your email>"
 }

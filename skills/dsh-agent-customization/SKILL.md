@@ -142,7 +142,7 @@ whenToUse: 要改 DSH 自身行为（行为宪法 / 流程 skill / agent 组合 
 2. **失败形态有三种，都要单独判**：① **合法 row、但 server 起不来**（host 照常服务、无 token GET 照样 **401**，工具**静默缺席**——见 2.1 形态①，唯一痕迹是子进程 stderr 一行；"无 token 401"**不算**接入成功）；② **host 正常起来了、新工具却没注册上**（**同样静默**，`401` 会照样通过；**本次未取证**，但仍必须防）；③ **YAML 语法错误**（**不是静默**：进程直接 `EXITED code=1` + 解析报错，见 2.1 形态③）。⇒ 无论走哪一条，都必须再去会话的工具面里**点名核对那个新工具是否存在**（`mcp__<serverName>__<tool>`）。
 3. **追加 MCP row 的验收三段（本轮实测跑通的顺序，别跳、别只用其中一段）**：
    1. **静态组合**：`node <dsh bin.js> --profile web --dump-config` **退出码 0**，且输出里 `name: '@deepseek-ai/dsh-mcp-client'` 的计数**恰好 +1**（改前改后各数一次）。⚠ 它**只组合、不 mount**——`--dump-config` 通过**证不了**工具会挂上（同 2.10 第 1 条）。
-   2. **隔离 host 冷启动 + 真建会话**：另给一个 `DSH_HOME` 冷启动（`dsh-isolated-web-host`），在**该 host 的真会话**里，从 **`request/header`（服务端权威、模型自述不算）**点名核对工具名与总数（取法见 `dsh-agent-preset-verification` 阶段二（`references/online-session.md` §2）：`data.header.tools[].name`）。
+   2. **隔离 host 冷启动 + 真建会话**：另给一个 `DSH_HOME` 冷启动（`dsh-isolated-web-host`），在**该 host 的真会话**里，从 **`request/header`（服务端权威、模型自述不算）**点名核对工具名与总数（取法见 `dsh-agent-preset-verification` 阶段二（`dsh-agent-preset-verification/references/online-session.md` §2）：`data.header.tools[].name`）。
    3. **真实会话里真调用一次只读工具**：拿到真实数据才算通（"工具名出现了"不等于"能调通"）。
    - 三段的分工：① 管"配置层写对了"，② 管"挂载了 + 会话拿得到"，③ 管"调用真能通"。只做 ① 是**假通过**。
 4. **证明"只追加、没重写"（共享 YAML 的安全前提）**：改动前先记下**原文件字节数 N** 与原文件 `sha256`；改动后算新文件**前 N 个字节**的 `sha256`，**必须仍等于改前那个值** ⇒ 证明这次改动是纯追加、没有重写任何既有字节。本轮实测相等。任意一处被重排/重写，这个等式立刻不成立。

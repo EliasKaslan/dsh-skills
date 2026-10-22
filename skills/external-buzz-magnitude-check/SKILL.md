@@ -52,23 +52,12 @@ whenToUse: 外部热度取证：先定权威 UTC 再算 epoch，取 HN points/�
    - 验证：一条热门旧闻的转载 URL 含日期段 `20260808`，据此判为 2026-08-08 旧闻，**不进本期热点榜**。
 6. **英文大媒体阴性也要记录**：本期 TechCrunch / VentureBeat / The Information **零命中**，写"未检索到"。
 
-## 坑与修法
-
-- **`query=MiniMax` 误报**：命中 "minimal / minimize / minimax 算法" 等。实测 `nbHits=33` 里绝大多数是误报 → 修法：**逐条看 `title` 再计数**，不要直接报 `nbHits`。
-- **epoch 算错会静默返回空结果**：URL 语法正确但数字不对 → 空数组、不报错，是本次最隐蔽的坑 → 修法：先用第 1 步锚点核对换算，再发查询。
-- **HF 该端点不返回 `trendingScore`**：想拿 trending 排名需换端点或读页面（未验证：具体替代端点未实测，不要臆造 URL）。
-- **`license:other` ≠ Apache-2.0，也 ≠ 无许可证**：`MiniMax-H3` 的 `license:other` 对应自定义的 MiniMax H3 Community License Agreement → 修法：照抄 `tags` 里的原始值；`license` 为 `null`（GitHub API）同样只是**自定义许可无 SPDX id**，必须回仓库正文确认。（`github-org-delta-watch` 里已有同一坑的 GitHub 侧版本。）
-- **Reddit 全路 403**：`www.reddit.com`、`old.reddit.com`、`api.reddit.com`、`/comments/<id>.json` 与 web_fetch **全部 403**；镜像 `safereddit.com` 返回 Anubis 拦截页、`redlib.catsarch.com` 429 → 修法：拿不到一手 upvote/评论时**必须显式标注"无一手数据"**，Reddit 量级一律标为**二手转述**，**不得混入量级榜**。
-- **反爬页：状态码 200 ≠ 内容可取**：36kr 快讯 HTTP 200 但正文是火山引擎反爬质询页 → 修法：剥标签后看正文特征（质询页无正文日期与实体名），判为不可取，不要当正文用。
-- **搜索类结论不要写成"不存在"**：搜不到就写"未检索到"，并写上检索范围与端点。
-- **第三方 / 旧闻 / 幻觉三防**：第三方包（如 PyPI 上的同名包）不等于官方兑现；早于基准日的报道单独归"旧闻"；数字必须来自 API 响应原文。
-
 ## 步骤 7：体验指标与社区情绪取证（AA / OpenRouter / 社区情绪分级）
 
 来源：2026-09-29 一轮"某模型实际使用体验是否真差"取证真跑通（Artificial Analysis / OpenRouter / 官方缺陷自陈 / HN / HF / 知乎 / B 站）。
 
-1. **判"客观指标异常"必须有同期竞品对照**（本节最重要的一条）：**单模型指标不构成结论**。同一个实测数字（output speed 40.76 tok/s）单看会判"很慢"，与竞品同口径并列后（另一厂商 36.32 tok/s）结论才变成"慢但不是最慢"。判据：**≥3 家同口径并列**（同 provider 口径、同 prompt 类型、同时间窗），少于 3 家只写"实测值"、不写"快/慢"。
-2. **Artificial Analysis 取数法**（模型页 URL 形状 `artificialanalysis.ai/models/<slug>`）：
+7.1  **判"客观指标异常"必须有同期竞品对照**（本节最重要的一条）：**单模型指标不构成结论**。同一个实测数字（output speed 40.76 tok/s）单看会判"很慢"，与竞品同口径并列后（另一厂商 36.32 tok/s）结论才变成"慢但不是最慢"。判据：**≥3 家同口径并列**（同 provider 口径、同 prompt 类型、同时间窗），少于 3 家只写"实测值"、不写"快/慢"。
+7.2  **Artificial Analysis 取数法**（模型页 URL 形状 `artificialanalysis.ai/models/<slug>`）：
    - 模型页**非 SPA**：假 slug → 真 **404** ⇒ 可用来判 slug 真假。
    - 载荷是 SSR 的 HTML，字段被转义成 `\"field\"` ⇒ **先把 `\"` 反转义再按大括号配对（brace-match）**，并用 `{"id":"<uuid>","slug":"...","name":"` 锚定目标模型对象；**页面上有几百个 model 对象，直接 `[regex]::Matches('\\"intelligenceIndex\\"…')` 会命中任一个**（实测 684 个）⇒ 必须 brace-match 到目标对象后才读字段，否则拿到的是别的模型。
    - 速度 / 延迟类**真字段名**：`timescaleData.medianOutputSpeed`、`timescaleData.medianTimeToFirstChunk`、`timeToFirstAnswerToken.total`、`endToEndResponseTime.total`、`outputSpeedVariance{p05,median,p95}`、`performanceByPromptType{long,medium,hundredK,mediumParallel}`、`omniscienceHallucinationRate`、`intelligenceIndexIsEstimated`、`performanceDataSource{type,providerName}`、`price1mInputTokens` / `price1mOutputTokens`。
@@ -76,7 +65,7 @@ whenToUse: 外部热度取证：先定权威 UTC 再算 epoch，取 HN points/�
    - 反例：`medianTimeToFirstToken`、`ttft` 在该 HTML 里命中数为 **0** ⇒ 不要凭印象臆造字段名，先搜字段是否存在。
    - AA 官方 API `/api/v2/data/llms/models` → **401 需 key**，别走。
    - **残差警告（不要当成已验证结论）**：本流程**未查清 HTML 里 `self.__next_f.push` 分块索引与字段名的对应关系** ⇒ brace-match 拿到的字段**可能只是同名字段的另一个副本**（同一模型在页面里有多个数据块，同名键可能重复出现），而本流程没做"块 ↔ 图表"的映射校验。**下次第一步**：先把 `self.__next_f.push` 的分块拆出来、给每块编号并定位每个分块里的字段名，确认目标字段**唯一出现在哪一块**之后再去取值；在那之前，取到的数字只写"某分块内该字段的值"，不写成"该模型的官方指标"。
-3. **OpenRouter 三个面**：
+7.3  **OpenRouter 三个面**：
    - ① `/api/v1/models/<slug>/endpoints` 判**是否被下架 / 降权**；若某 slug 返回含数据的 **200** 但 `latency_last_30m` / `throughput_last_30m` **恒为 null** ⇒ 速度不能从这个端点拿（不是它慢，是它不供数）。
    - ② **真值在模型页 HTML 内嵌的 React Query 载荷**：含 `p50_latency/p95_latency/p99_latency/p50_throughput/request_count/window_minutes`，以及体验类字段 `requests_with_tool_call_errors` / `total_tool_calls`（**按 key 分别取全部值再求和算比率**，不要取单条 record）。
    - ③ **同一页有两个日粒度序列**（`model_chart` 与 `top_apps_chart`），口径可差数倍 ⇒ **必须按字符位置把每条 record 归属到所属序列**，否则把两个口径混成一条数。可抄写法（先取两个序列的**起始字符索引**当边界，再按递增覆盖把每条 record 归属）：
@@ -94,13 +83,13 @@ whenToUse: 外部热度取证：先定权威 UTC 再算 epoch，取 HN points/�
      - 合成样本干跑实测（数字是测试值，不是真数据）：**不切分**天真写法把 4 条混在一起求和 **94.6**；按区间归属 → `model_chart` **29.3** / `top_apps_chart` **65.3** ⇒ 两个口径必须分开陈述，**不做跨序列减法**。
      - **键名到序列的映射要自己复核**：本流程只按字符位置切分；`p50_latency` 是否只出现在 `model_chart` 块、`requests_with_tool_call_errors` 落在哪个块**未逐块验证（未验证）** ⇒ 先 `IndexOf` 确认两个起点都在，再读归属结果。
    - ④ `/rankings` 主体是 skeleton（`data-testid="rankings-skeleton-row"`），真值只在 sr-only 文本 + JSON-LD（`"@type":"ItemList"`，其 `name` 逐字为 "Top LLMs by weekly token usage on OpenRouter"）；前端 API `/api/frontend/*`、`/api/v1/analytics/rankings` **全 404**。
-4. **官方"自认缺陷"类博客是最硬的一手证据**：厂商自己发的复盘文（tolerance 线、分 harness 的错误率、修复成本、修复版权重后缀、API 切换时间）既证明"体验差"有据，也说明**"厂商承认" ≠ "用户传闻"**，两者分列。同时：**修复版权重的下载量极低 ≠ 问题没修** ⇒ 要核对 API 是否已切到修好的版本。
-5. **社区情绪必须分级计数**，三档分别给数字、**不得把 ③ 混进结论**：
+7.4  **官方"自认缺陷"类博客是最硬的一手证据**：厂商自己发的复盘文（tolerance 线、分 harness 的错误率、修复成本、修复版权重后缀、API 切换时间）既证明"体验差"有据，也说明**"厂商承认" ≠ "用户传闻"**，两者分列。同时：**修复版权重的下载量极低 ≠ 问题没修** ⇒ 要核对 API 是否已切到修好的版本。
+7.5  **社区情绪必须分级计数**，三档分别给数字、**不得把 ③ 混进结论**：
    - ① 一手实测（贴 prompt / 截图 / 日志）
    - ② 二手转述（只转述结论）
    - ③ 仅存在性（只拿到标题，正文取不到）
    - 且**主动找反证**：正面 / 中性反馈同样分档计数，避免确认偏误（只计数"骂的"＝自证）。
-6. **中文站反爬绕行矩阵**（下表是实测码 + 实测结论，不是推断）：
+7.6  **中文站反爬绕行矩阵**（下表是实测码 + 实测结论，不是推断）：
 
    | 目标 | curl | 浏览器（Playwright） | 结论 |
    |---|---|---|---|
@@ -126,7 +115,18 @@ whenToUse: 外部热度取证：先定权威 UTC 再算 epoch，取 HN points/�
      - **集合不等 ≠ 劫持**：CDN 就近应答 / GeoDNS / TTL 过期都会让两侧合法地拿到不同子集 ⇒ `两侧一致=False` 只写"两侧集合不一致，需人工判因"，**不要直接写成"被劫持"**（未验证：区分"劫持"与"GeoDNS 就近"需要额外证据链，本流程未建立该判据）。
    - **TLS 兜底**：**不要在 PS 5.1 里设 `ServicePointManager::ServerCertificateValidationCallback`**（实测会把所有 HTTPS 全挂，报"基础连接已经关闭: 发送时发生错误"）⇒ 改用 `curl.exe -k` 落 `$env:TEMP` 再**按 UTF-8 读回**。
    - **镜像站的 views 是镜像自身计数**（个位数）⇒ **不可当原站量级**。
-7. **HN 取量级用 Algolia**：`https://hn.algolia.com/api/v1/search?query=<KW>&tags=story&hitsPerPage=20`，**逐条看 `title` 再计数**（`nbHits` 含大量误报，同上面「坑与修法」第 1 条）。HF discussions 端点返回的是 **dict 不是 list**（`{discussions:[…],count,…}`），正文在 `/discussions/{num}` 的 `events[].data.latest.raw`；总条数与实际可读条数常不一致 ⇒ 分档计数（同本节第 5 条）。
+7.7  **HN 取量级用 Algolia**：`https://hn.algolia.com/api/v1/search?query=<KW>&tags=story&hitsPerPage=20`，**逐条看 `title` 再计数**（`nbHits` 含大量误报，同上面「坑与修法」第 1 条）。HF discussions 端点返回的是 **dict 不是 list**（`{discussions:[…],count,…}`），正文在 `/discussions/{num}` 的 `events[].data.latest.raw`；总条数与实际可读条数常不一致 ⇒ 分档计数（同 7.5）。
+
+## 坑与修法
+
+- **`query=MiniMax` 误报**：命中 "minimal / minimize / minimax 算法" 等。实测 `nbHits=33` 里绝大多数是误报 → 修法：**逐条看 `title` 再计数**，不要直接报 `nbHits`。
+- **epoch 算错会静默返回空结果**：URL 语法正确但数字不对 → 空数组、不报错，是本次最隐蔽的坑 → 修法：先用第 1 步锚点核对换算，再发查询。
+- **HF 该端点不返回 `trendingScore`**：想拿 trending 排名需换端点或读页面（未验证：具体替代端点未实测，不要臆造 URL）。
+- **`license:other` ≠ Apache-2.0，也 ≠ 无许可证**：`MiniMax-H3` 的 `license:other` 对应自定义的 MiniMax H3 Community License Agreement → 修法：照抄 `tags` 里的原始值；`license` 为 `null`（GitHub API）同样只是**自定义许可无 SPDX id**，必须回仓库正文确认。（`github-org-delta-watch` 里已有同一坑的 GitHub 侧版本。）
+- **Reddit 全路 403**：`www.reddit.com`、`old.reddit.com`、`api.reddit.com`、`/comments/<id>.json` 与 web_fetch **全部 403**；镜像 `safereddit.com` 返回 Anubis 拦截页、`redlib.catsarch.com` 429 → 修法：拿不到一手 upvote/评论时**必须显式标注"无一手数据"**，Reddit 量级一律标为**二手转述**，**不得混入量级榜**。
+- **反爬页：状态码 200 ≠ 内容可取**：36kr 快讯 HTTP 200 但正文是火山引擎反爬质询页 → 修法：剥标签后看正文特征（质询页无正文日期与实体名），判为不可取，不要当正文用。
+- **搜索类结论不要写成"不存在"**：搜不到就写"未检索到"，并写上检索范围与端点。
+- **第三方 / 旧闻 / 幻觉三防**：第三方包（如 PyPI 上的同名包）不等于官方兑现；早于基准日的报道单独归"旧闻"；数字必须来自 API 响应原文。
 
 ## 不要做什么
 

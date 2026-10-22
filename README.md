@@ -27,7 +27,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **35** 个 skill、**70** 个文件、**1378673** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **35** 个 skill、**70** 个文件、**1381174** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -50,7 +50,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 17 | [`dsh-repo-sync`](skills/dsh-repo-sync/SKILL.md) | 我的 DSH 私仓同步——现在同步一次、昨天同步没成功、私仓内容少了或不对、ALERT.md 出现了、计划任务 DSH-Repo-Sync 报错：脚本 sync-dsh-repos.ps1 把 ~/.dsh 与编排 preset 用 rob... | 3 |
 | 18 | [`dsh-skill-authoring`](skills/dsh-skill-authoring/SKILL.md) | DSH skill 文件本身的写法契约——skill 没被触发或加载不上时先看这条：模型每步只看到目录里的一行「`name` + 半角冒号 + description」（正文与 whenToUse 都不进目录），description 被折... | 3 |
 | 19 | [`dsh-skill-self-audit`](skills/dsh-skill-self-audit/SKILL.md) | DSH skill 集合的每日无人值守自检——静默满 1 小时且距上次自检 ≥20h 才跑；Windows 计划任务 DSH-Skill-SelfAudit 每小时轮询、headless 真跑；体检含 YAML round-trip、交叉引... | 5 |
-| 20 | [`dsh-skills-publish`](skills/dsh-skills-publish/SKILL.md) | 把本机 ~/.dsh/skills 的全部 skill 每天凌晨 2 点发布到 GitCode 公开仓 EliasKaslan/dsh-skills——脚本 publish-dsh-skills.ps1 先快照再扫活密钥，然后提交 main... | 5 |
+| 20 | [`dsh-skills-publish`](skills/dsh-skills-publish/SKILL.md) | 把本机 ~/.dsh/skills 的全部 skill 每天凌晨 2 点同步发布到 GitCode 与 GitHub 两个公开仓 EliasKaslan/dsh-skills——脚本 publish-dsh-skills.ps1 先快照再扫... | 5 |
 | 21 | [`external-buzz-magnitude-check`](skills/external-buzz-magnitude-check/SKILL.md) | 外部热度量级取证——这事在外网真的火吗（HN points/评论、HF likes/下载量、Artificial Analysis/OpenRouter 体验指标、社区情绪分级）——判某事在外网是否真热、某模型是否真难用，给可复现量级数字；... | 1 |
 | 22 | [`gitcode-pr-flow`](skills/gitcode-pr-flow/SKILL.md) | GitCode 上任意昇腾社区仓提 PR（MindSpeed-Ops 与 MindSpeed-Agent 均已完整验证）从个人 fork 到合入全流程——compile 评论触发门禁（任何 head 变化后须补发）、双 CI 判读与标签审计... | 4 |
 | 23 | [`github-org-delta-watch`](skills/github-org-delta-watch/SKILL.md) | GitHub 组织增量追踪——基准日之后这个组织谁在动、这仓是不是死仓、官方那个承诺兑现了没：rate_limit 的 Date 头取"今天"、orgs/{org}/repos?sort=pushed 覆盖全组织找活性、pushed_at ... | 1 |
