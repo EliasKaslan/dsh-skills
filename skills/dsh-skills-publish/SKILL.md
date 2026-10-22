@@ -123,6 +123,8 @@ Register-ScheduledTask -TaskName 'DSH-Skills-Publish' -Action $act -Trigger $trg
 - **exit 6 + `non-fast-forward` / `rejected`**：远端有本地没有的提交（例如网页端直接改过）。本脚本**不自动强推**；先 `git -C D:\repos\dsh-skills fetch` 看清差异，人工对齐后再跑。
 - **exit 4**：说明 skill 目录里出现了真实凭据。把该文件加进 `/XF` 排除清单（脚本里的 robocopy 行）或从 skill 正文里删掉明文，再跑一次 `-DryRun` 复核。
 - **exit 5 + `refusing to publish`**：源目录 `~\.dsh\skills` 那一刻只剩不到一半 skill（常见于另一个进程正在合并 / 重建 skill 目录）。等源树稳定后重跑；若确是有意大清理，加 `-AllowBigShrink`。
+- **远端日期分支超过 15 个**：先看 `state.json` 的 `prune_error`（删除失败只 WARN，不影响本次同步成败），再手工补删：
+  `git -C D:\repos\dsh-skills push <authUrl> --delete 2020-01-01 2020-01-02`。删除只按**日期名**匹配，`main` 和 `feature-x` 这类非日期分支永远不会被脚本碰。
 - **日期分支名撞车 / 补跑历史**：`-DateStamp 2026-10-21` 会把某个历史日期分支快进到当前内容，**不是**重建当时的内容——要真历史只能靠每天按时跑。
 - **同日多次运行**：内容变了就追加提交，当日分支随之前进；内容没变则 `NO_CHANGE`，两个 ref 原地不动。
 - **手动删远端日期分支**：`git -C D:\repos\dsh-skills push <authUrl> --delete <YYYY-MM-DD>`；删完 `main` 不受影响。
