@@ -247,6 +247,13 @@ ss -ltnp | grep :18000 || echo "PORT RELEASED"
 # 只 kill 自己端口上的 PID；绝不用 pkill -f vllm——本机 NPU0 上就有别人的 VLLMWorker
 ```
 
+- **`PORT RELEASED` ≠ 进程已退**（2026-10-22 实测）：只结束监听者时，`vllm serve` 主进程可能仍在，4 张 die 各占 ~51 GB。收尾必须再查一次**只属于自己的**进程 + 每 die HBM：
+  ```bash
+  ps -ef | grep '[v]llm serve' | grep <你的环境根> | awk '{print $2}'   # 有输出 = 残留 → kill -9
+  npu-smi info | grep -E '^\| [0-9]+ +[0-9]+ '                         # 判据是"回到空闲基线的 MB 数"
+  ```
+  空闲基线本机约 **2.8–3.2 GB/die**（别按 0 判，也别拿 `No running processes` 当已释放——HBM 回收会滞后几秒）。
+
 ## KDA 系模型（Kimi-K3 / GLM5next）的隐藏硬依赖 `fla_npu` → `references/kda-fla-npu.md`
 
 **只有模型确实会走进 KDA / GDN 导入链时才需要读。** 该文件（原正文 209 行，逐字保留）依次解答：会不会真走进 KDA 链 → 症状与报错锚点（**炸在"检视模型架构"阶段，不是运行时**）→ 谁引入的（`12e7e1cb` 实测行号，全是**模块级** import）→ 官方 CI 逐字来源 → 档位→SOC 映射与定档方法 → **先量 glibc 再决定下不下这个 wheel** → glibc < 2.32 的三条出路（出路 ③ 已端到端验证）→ K3 在 A3 上的版本配对。
@@ -289,6 +296,10 @@ ss -ltnp | grep :18000 || echo "PORT RELEASED"
 15. **HTTP 调 `/sleep` 时 body 里的 level 不生效**：level **只从 query string 读**，JSON body 里的 level 被忽略 → 写成 `POST /sleep?level=2`。
 16. **`pkill -f '<模式>'` 会杀掉自己的 ssh 包装进程**：现象是命令无输出、只得到 `[exit code: 1]`（模式串匹配到了自己那条命令行）。
     → 修法：把模式写成不自匹配的形式，例如 `pkill -f "[t]est_x"`（字符类让模式本身不再包含字面量 `test_x`）。
+17. **共享机 HCCL 端口被别人占了 → `Communication_Error_Bind_IP_Port(EI0020)`**（2026-10-22 实测，与你的代码/参数/die 全无关）
+    → 原文（三行连看才定性）：`RuntimeError: create_config:../torch_npu/csrc/distributed/HCCLUtils.cpp:140 HCCL function error: hcclCommInitRootInfoConfig(...), error code is 7` ／ `ERR02200 DIST call hccl api failed.` ／ `Communication_Error_Bind_IP_Port(EI0020): Failed to enable listening for the NPU network adapter socket. Reason: The IP address 192.0.2.195 and port 16666 have already been bound.`
+    → 修法（纯 opt-in，不设就沿用默认端口段）：`export HCCL_NPU_SOCKET_PORT_RANGE=61230-61250`。实测同一条命令加上它就从 `hcclCommInitRootInfoConfig` 失败变成正常起服务。
+    → 判据：见到 `EI0020` / `already been bound` / `error code is 7` 就是这一类，**别去查驱动、CANN 或 NPU 状态**；重跑也常自己就好。
 17. **强杀（`kill -9`）进程后该 die 残留 HBM**：现象是服务已不在，`npu-smi info` 里该 die 的 HBM 却明显高于基线。
     → 修法：强杀后必须复查 `npu-smi info`（步骤 5 的收尾三查之一），确认进程真退出、HBM 回落到基线；别以为"进程没了显存就没了"。
 18. **图模式下 `reload_weights` / `update_weights` 可能丢值**：上游尚未闭合（vllm issue #15648、RFC #16558，原话 "pointer stability does not imply value preservation"）。

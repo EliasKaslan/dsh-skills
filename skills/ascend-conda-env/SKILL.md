@@ -1,6 +1,6 @@
 ---
 name: ascend-conda-env
-description: 昇腾服务器 conda 环境的检测 / 新建 / 激活与换 python 版本（默认 a3=192.168.13.188，备用 a3b=.190）——共享 miniconda3 在 /mnt/share/x00886548/miniconda3（conda 26.7.1，base py3.14.7），新建环境默认落 /mnt/share/vllm/conda_envs、必须显式带 NJU 镜像，不激活可直接用绝对路径 python。适用于"建 conda 环境 / 激活环境 / 换 python 版本 / python -V 不是共享 conda / 环境该放哪个盘 / conda create 走官方源很慢"。不适用：CANN 装哪、版本、set_env.sh 不生效 → 用 `ascend-cann-env`；torch 或 torch_npu 装不上 → 用 `ascend-torch-npu`。
+description: 昇腾服务器 conda 环境的检测 / 新建 / 激活与换 python 版本（默认 a3=192.168.13.188，备用 a3b=.190）——共享 miniconda3 在 /mnt/share/x00886548/miniconda3（conda 26.7.1，base py3.14.7），新建环境默认落 /mnt/share/vllm/conda_envs、必须显式带 NJU 镜像，不激活可直接用绝对路径 python。适用于"建 conda 环境 / 复用已有环境拷到新根 / 激活环境 / 换 python 版本 / python -V 不是共享 conda / 环境该放哪个盘 / conda create 走官方源很慢"。不适用：CANN 装哪、版本、set_env.sh 不生效 → 用 `ascend-cann-env`；torch 或 torch_npu 装不上 → 用 `ascend-torch-npu`。
 whenToUse: 需要 conda 本体（建/激活环境、装 conda 包、改 .condarc）或要确定 python 解释器绝对路径、判断环境放哪个盘时。CANN 见 ascend-cann-env，torch 见 ascend-torch-npu。模型看不到本节。
 ---
 
@@ -118,6 +118,28 @@ $L/envs/vllm312/bin/python -V
 - **环境落点也必须在 `/home/vllm`**（`-p` 显式指定）：`conda create -n` 的默认落点是 `/mnt/share/vllm/conda_envs`（系统盘），大环境会把 `/` 推满。
 - **多 lane 并行时，不能拿 `$ROOT/log/lane_pids` 的行数判"有没有重复实例"（2026-10-10 实测）**：它是**各 lane 共享的 append 文件**（`ascend-env` §3.3 记的就是它），行数只等于"被记录过几次"，与"现在有几个实例在跑"无关。**判重复要对每条 lane 自己的日志做特征计数**——脚本里给本 lane 打一个唯一开始标记，然后 `grep -c 'P2 START' $L/lane_p2_conda.log` **必须 == 1**；`>1` 就是真起了两个实例（本轮实测出现过两个同名长任务实例互抢同一个日志文件、新实例截断旧日志，据此误判过"旧实例已死"，见 `ascend-env` §5 末）。
 
+### 步骤 4b：复用已有环境——整目录拷到新根（比重装 torch 栈快一个量级）
+
+场景：要一个**独立根**（不与已交付环境互相踩），但已有环境里的 torch 栈与难装的包（`fla_npu` / `xgrammar` / `llguidance` / `fastokens`）不想重来。实测 3.8 GB 的环境 `cp -a` **4 秒**。
+
+```bash
+OLD=/home/vllm/x00886548/<旧根>/envs/<name>
+NEW=/home/vllm/x00886548/<新根>/envs/<name>
+mkdir -p "$(dirname "$NEW")" && cp -a "$OLD" "$NEW"
+"$NEW/bin/python" -c "import attr, pip; print('COPY_OK')"        # ① 先证拷贝本身没坏
+for f in "$NEW"/bin/*; do                                         # ② 只改带 shebang 的文本脚本
+  [ -f "$f" ] || continue
+  head -c 2 "$f" 2>/dev/null | grep -q '#!' || continue
+  head -c 300 "$f" 2>/dev/null | grep -q "$OLD" && sed -i "s|$OLD|$NEW|g" "$f"
+done
+"$NEW/bin/python" -c "import attr, pip; print('REWRITE_OK')"      # ③ 改完再验一次
+```
+
+- 判据：①②③ 三次都打 OK，且 `grep -rl "$OLD" "$NEW/bin" | wc -l` 归零（或只剩二进制）。
+- **只改 `bin/`，绝不对 site-packages 做 `grep -rl | xargs sed -i`**（2026-10-22 实测，代价是白拷一次）：`.pyc` / `.so` 里也含旧根字符串，二进制被改写后任何 import 都炸 `ValueError: bad marshal data (unknown type code)`——本轮由 `import attr` 先爆，**看着像环境本身坏了，其实是自己的 sed 干的**。
+- 旧根字符串留在 `.pyc` 的 `co_filename` 与 `dist-info/RECORD` 里**无害**（只影响 traceback 路径），别为"干净"去清。
+- 真正必须处理的只有两处：`bin/` 的 shebang（本机 3.12 环境实测 **133 个文件里 97 个以 `#!` 开头**），以及**继承来的 editable 安装**——`__editable__*.pth` / `*_finder.py` 指向**旧源码树**，必须先 `pip uninstall -y vllm vllm-ascend` 再在新根重装（见 `vllm-ascend-source-install`）。
+
 ### 步骤 5：pip 源
 ```bash
 pip config get global.index-url     # -> https://mirrors.aliyun.com/pypi/simple/（生效的那个）
@@ -158,6 +180,9 @@ PATH 里留了 conda 不认识的裸路径，`conda activate` 只把 env 的 bin
 - `ZSH_VERSION: unbound variable`（`set -u` + conda.sh）：实测 `bash -c 'set -u; . .../miniconda3/etc/profile.d/conda.sh; echo ok'` → `ok-after-condash`，新旧两套 conda.sh 都不报；且 `.188` `command -v zsh` 无输出（没装 zsh）。脚本头留一行 `set +u` 作防御即可，别当实测坑。
 - `libp11-kit.so.0: undefined symbol: ffi_type_pointer`（`LD_LIBRARY_PATH=<env>/lib` 后 git 崩）：实测 `LD_LIBRARY_PATH=/mnt/share/vllm/conda_envs/xmz_0921/lib git --version` → `git version 2.20.1` 无报错。机制上不可能：`xmz_0921/lib` 无 `libp11-kit.so.0`、无 `libffi.so.6`（只有 .7/.8），且 `ldd /usr/bin/git` 不含 p11-kit/gnutls。
 - 路径环境 activate 后 `CONDA_PREFIX` 仍指 base：实测 `conda activate /home/vllm/x00886548/vllm_build_0921/conda_envs/bi_0921` 后 `CONDA_PREFIX` / `CONDA_DEFAULT_ENV` / `python` **全部正确**（conda 26.7.1 已修）。
+
+**坑 6｜搬环境后 `import` 炸 `ValueError: bad marshal data (unknown type code)`**
+症状是**随机某个包**先爆（本轮是 `import attr`，pip 自己也是 python 包，紧随其后全崩），很容易误判成"环境装坏了"。真因见步骤 4b 的第二条：对 site-packages 做 `grep -rl | xargs sed -i` 把 `.pyc` / `.so` 改坏了。修法：删 `__pycache__`/`*.pyc` 只能救回纯 python 的字节码损坏，**救不了被改写的 `.so`** ⇒ 唯一稳妥解是重拷一份，然后**只改 `bin/`**。
 
 ## 不要做什么
 

@@ -316,6 +316,27 @@ python3 -m pip check        # 仅供了解；**不是验收判据**（可用环�
   ⇒ **不需要**为了让它为 `True` 而导出 `VLLM_VERSION`；它判 `False` 才说明配错了版本（如坑 10 照抄 `vllm-main-verified.commit`）。判据仍然只有这一条命令，但期望值按版本线读。
 - 只有**在别的 vllm 版本上现场核实过**该版本的开关名与 `vllm_version_is` 语义，才照那个版本的实际行为处理。
 
+#### 5.1.1 v0.31 线：`vllm_version_is` 是**严格相等**，版本串必须精确等于目标值（2026-10-22 实测）
+
+- **先判语义再动手**（两代语义相反，照抄旧结论会装出"能 import 但分支全错"的环境）：
+  ```bash
+  grep -n "def vllm_version_is" -A 12 <vllm-ascend>/vllm_ascend/utils.py
+  grep -rn 'vllm_version_is("' <vllm-ascend>/vllm_ascend | wc -l      # 7045193 上 = 10，全部写 "0.31.0"
+  ```
+  `v0.23.0` 那代比 `parsed.base_version` 前缀（"版本线"）；**`v0.31.0` 这代是 `Version(parsed.public) == Version(target)`**，且 `vllm_ascend/envs.py` 的 `VLLM_VERSION` 一旦 export 就顶替 `vllm.__version__` 参与比较。⇒ 数出调用点个数，就知道版本串错一位会连带错多少处（本例 10 处，**且全程不报错**）。
+- **dirty tree 会让 setuptools_scm 猜成下一个版本**：`git describe --tags --dirty` 得 `v0.31.0-dirty` → guess-next-dev → `0.31.1.dev0+g…` ⇒ 严格相等判 `False`。所以"照 §1.1 在 HEAD 打本地 tag"**不足以**拿到正确版本串——改过 pin 的工作树必然是脏的。
+- 修法（顺序固定，缺一步不生效）：
+  ```bash
+  cd <vllm-src>
+  rm -f vllm/_version.py                          # 不删则沿用旧串
+  export VLLM_TARGET_DEVICE=empty VLLM_VERSION_OVERRIDE=0.31.0
+  pip install -e . --no-build-isolation --no-deps --force-reinstall
+  python -c "import vllm; from vllm_ascend.utils import vllm_version_is as v; print(repr(vllm.__version__), v('0.31.0'))"
+  # 期望 '0.31.0' True
+  ```
+  `VLLM_VERSION_OVERRIDE` 由 `setup.py` 转成 `SETUPTOOLS_SCM_PRETEND_VERSION`（`grep -n VLLM_VERSION_OVERRIDE setup.py`）。
+- **装完立刻跑上面那条 print**，别等起服务时才发现分支走错（vllm-ascend 必须已装，否则第二条 import 失败——那就先只验 `repr(vllm.__version__)`）。
+
 ### 5.2 AscendC 算子编出来没有 / 是哪套 CANN 编的（**别看 `$ASCEND_OPP_PATH/vendors/`**）
 
 `COMPILE_CUSTOM_KERNELS=1` 的产物落在**包内**，不在 CANN 的 opp/vendors 下：
@@ -460,7 +481,8 @@ unset VLLM_TARGET_DEVICE        # 若为 cpu，在本 shell 清掉后重跑 §5 
 16. **版本串形态「正常劣化」不要修**（2026-10-09 实测）：
     - `pip install -e .` 会用 setuptools_scm 往**源码树**写 `vllm_ascend/_version.py`（`setup.py:416` 的 `get_version(write_to=…)`）——源码树里多出这个文件属正常，别当脏改动清掉。
     - **`--depth 1` 且 clone 里没有 tag ⇒ 拼不出 `.devNNNN+gSHA` 后缀**：实测得到 `0.29.0rc1`（§8 记的正常形态是 `0.19.1rc2.dev2317+gbf439330c`）⇒ **形态差异、无功能影响**，不要为它重 clone 或补打 tag。
-    - `vllm.__version__` 实测 `0.30.1.dev0+gced6857af.d20261009`（合成 tag 不在真实 HEAD 可达路径 + dirty tree 导致 scm 降级）——**不要设 `VLLM_VERSION_OVERRIDE` 去"修"这个串**：它只是显示值，§5.1 的 `vllm_version_is` 判的是**版本线**。
+    - `vllm.__version__` 实测 `0.30.1.dev0+gced6857af.d20261009`（合成 tag 不在真实 HEAD 可达路径 + dirty tree 导致 scm 降级）。
+    - ⚠️ **2026-10-22 证伪本条原结论「不要设 `VLLM_VERSION_OVERRIDE`，它只是显示值」**：`vllm_version_is` 在 **v0.31 线是严格相等**（见 §5.1.1），这个"显示值"直接决定全仓 10 处版本分支走哪边 ⇒ 该版本线上**必须**把它改成精确目标版本，否则分支全错且不报错。
 
 17. **vllm 自己的 `[build-system].requires` 会钉死 torch（2026-10-22 实测，新坑）**：
     - 现象：`pip install -e . --no-build-isolation`（vllm 侧）直接失败在 build 依赖校验，报 `build dependencies ... missing` 一类，与"torch 已装 2.10.0"完全无关。

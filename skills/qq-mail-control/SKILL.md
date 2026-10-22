@@ -19,7 +19,7 @@ whenToUse: 用 DSH 的 `mcp__qqmail__*` 工具接管 QQ 邮箱（列/搜/读/附
 - 本机 PowerShell 自身的坑（GBK 乱码 / BOM / 执行策略 / PS 5.1 的重定向编码）→ 用 `pwsh-on-windows`。
 - 判断这条经验该不该沉淀、写到哪个根 → 用 `sedimenting-skills`。
 
-**前置**：① 已有一个 QQ 邮箱**授权码**（不是登录密码；QQ 邮箱设置 → 账户 → 开启 IMAP/SMTP 服务时生成）；② 配置 JSON 与数据目录已就位（§2），且文件权限已按 Windows 收紧（§2）。 ／ **后继**：任何写操作（send / reply / mark / move / delete）**先给用户看收件人 + 主题 + 正文摘要**再确认，且发信正文**必须**带 【AI 代发】前缀（§4）。
+**前置**：① 已有一个 QQ 邮箱**授权码**（不是登录密码；QQ 邮箱设置 → 账户 → 开启 IMAP/SMTP 服务时生成）；② 配置 JSON 与数据目录已就位（§2），且文件权限已按 Windows 收紧（§2）。 ／ **后继**：任何写操作（send / reply / mark / move / delete）**先给用户看收件人 + 主题 + 正文摘要**再确认（**例外**：收件人只有本人工作邮箱 `xumingzhe4@huawei.com` 时免确认，见 §4），且发信正文**必须**带 【AI 代发】前缀（§4）。
 
 ## 1. 形态与工具清单
 
@@ -85,7 +85,8 @@ icacls "C:\Users\admin\.dsh\.secrets\qqmail\config.json" /grant:r ($env:USERNAME
 - **所有 AI 代发的邮件，正文必须带可识别前缀「【AI 代发】」**（用户明确选择的护栏）。
 - **这个 MCP server 没有任何"强制前缀"钩子**：对比同机的 outlook 行有 `MS365_MCP_MESSAGE_SIGNOFF_PREFIX` 这类服务端变量，`qqmail` 侧**没有**对应物 ⇒ **前缀只能在指令层保证**（写在本 skill + 会话提示词里，并在每次 `qqmail_send` / `qqmail_reply` 前自检）。
 - ⇒ 发信前的三步：① 确认正文首行就是 `【AI 代发】`；② 把收件人 + 主题 + 正文摘要念给用户确认；③ 才真调 `qqmail_send` / `qqmail_reply`。
-- **不要**在用户没确认前发信，也不要用"工具返回成功"代替"用户确认过"。
+- **例外（2026-10-22 用户明确授权）：收件人只有本人工作邮箱 `xumingzhe4@huawei.com` 时跳过第②步** —— 直接发，不必念摘要等确认（"这是我本人的邮箱"）。第①步（前缀 + 正文）照做。**只要 cc/bcc 里还有别人、或 to 里混入任何其它地址，就回到完整三步。**
+- **不要**在用户没确认前发信，也不要用"工具返回成功"代替"用户确认过"（上面那个本人邮箱例外除外）。
 
 ## 5. 无草稿能力与替代做法
 
@@ -133,7 +134,7 @@ icacls "C:\Users\admin\.dsh\.secrets\qqmail\config.json" /grant:r ($env:USERNAME
 1. `mcp__qqmail__qqmail_status` 返回账户信息 + `readOnly` 当前值 ⇒ 链路与授权码都活着（注意它回显授权码前 4 位）。
 2. `qqmail_folders` 返回文件夹清单，且**中文夹名以 UTF-8 原文**（如 `其他文件夹/elysiumkaslana@outlook.com`）直接可传给 `mailbox` ⇒ 编码这一关是对的（**别传 modified UTF-7 编码串**，§6 坑 3）。
 3. 只读四连：`qqmail_folders` → `qqmail_list`（`{"mailbox":"INBOX","limit":10}`）→ `qqmail_read`（某个 `uid`）→ `qqmail_attachment`。做完 `FLAGS` 仍为空 ⇒ `BODY.PEEK` 生效、没有污染已读状态。**报 uid 时一并写清 mailbox**（子文件夹 uid 空间独立，§6 坑 2）
-4. 写操作：工具**存在**（说明只读已关）+ 用户已确认摘要 + 正文首行是 `【AI 代发】`。
+4. 写操作：工具**存在**（说明只读已关）+ 用户已确认摘要（收件人只有 `xumingzhe4@huawei.com` 时免，§4）+ 正文首行是 `【AI 代发】`。
 5. 想改配置时：改完用 `qqmail_config` 读回，确认 `imapPort: 993` / `smtpPort: 465` 是**数字**而不是 `0`。
 
 ## 9. 凭据卫生（明文授权码外溢的收尾）

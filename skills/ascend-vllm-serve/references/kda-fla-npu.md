@@ -191,7 +191,9 @@ args = --dtype bfloat16 --max-model-len 512 --enforce-eager --load-format dummy
 
 ### K3 在 A3 上能不能跑：先认版本配对，别把它当环境问题
 
-**判据一句话**：Kimi-K3 的 MLA decode 在 mainline 上走的是 **A5（Ascend950）的非连续 KV cache 契约**，A3（本文默认的 `.188`，soc 253）没有对应实现 ⇒ 用"今天的主线"装出来的环境**服务能起、首个请求必 500**。
+**判据一句话**：Kimi-K3 的 MLA decode 在 mainline 上走的是 **A5（Ascend950）的非连续 KV cache 契约**，A3（本文默认的 `.188`，soc 253）走不到那条实现 ⇒ 用"今天的主线"装出来的环境**服务能起、第 1 个请求能成功、第 2 个请求起必 500**。
+
+> **2026-10-22 修正原结论「首个请求必 500」**：`vllm 0.31.0` + `vllm-ascend 704519368` 上，A/B 三轮都挂在 bench 的 warmup#2（第 1 个请求 200），但插探针后**第 1 个请求的第 2 个 decode step 就挂**（4 个 rank 都打出 `#1`、`#2` 才抛错）⇒ 判据要写成「**能不能连续 decode**」，别写成「第几个请求」；也别因为"第一个请求过了"就判环境没问题。
 
 - 先确认环境没问题（这些都该是绿的）：`Resolved architecture: KimiK3ForConditionalGeneration` / `Setting kv cache block size to 128 for ASCEND_MLA backend(s)` / `MLA decode backend …: FIA` / `Available KV cache memory: … GiB` / `Application startup complete`。
 - 首个 `/v1/chat/completions` 的报错原文（逐字）：
@@ -208,6 +210,9 @@ args = --dtype bfloat16 --max-model-len 512 --enforce-eager --load-format dummy
   ```
   `mla_v1.get_kv_cache_shape()` 返回 `(num_blocks, block_size, num_kv_heads, kv_lora_rank + qk_rope_head_dim)` ⇒ **融合 cache 是设计如此**，不是现场 bug。对它 `.contiguous()` = 复制整块 cache（本例 1.2 GB/层/步），不可行。
 - 上游定性：vllm-ascend **#16464 [RFC] A5 non-contiguous KV cache and Flash MLA/KDA integration for DSpark**（open，2026-09-13）逐字写了 `Scope: A5/Ascend950`、`it does not introduce a new A2/A3 implementation`，待办正是 import Flash MLA + stride-aware `ScatterPaKvCache` 以支持 **non-contiguous page axis**。
+- **为什么 A3 拿不到 stride-aware 实现（可直接引用的门控）**：`vllm_ascend/attention/mla_v1.py` 的 `_uses_strided_kv_adapter()`（`7045193` 上约 1718 行）条件是 **`support_fp8_attention and is_draft_model`** ⇒ A3 + bf16 + 非 draft 恒为 `False`（`support_fp8_attention` 来自 `device/hardware_profile.py` 的能力表，`FP8_ATTENTION` / `MLA_FLASH` 只挂在 A5 profile 上）。同文件 `_gather_current_kv_from_cache()` 已有「按 slot 只取当前 token 行」的便宜实现（O(num_tokens) 而非 O(整张 cache)）——将来给 A3 补支持应复用它，而不是对整块 cache 做 `.contiguous()`。
+- **最省时间的判据：数一下同文件里 `key_rope` 的赋值处有没有 `.contiguous()`**。实测 `grep -n 'key_rope"\] = ' mla_v1.py` → 三处：`_compute_prefill_context` 与 `_forward_prefill` **都带 `.contiguous()`**，只有 `_forward_decode` 是裸 `k_pe`（HEAD `:2684` / origin/main `:2883`，两边一样）⇒ 这是**漏改**，不是"有意支持非连续"，而且解释了"prefill 能过、decode 一进来就炸"。要上报上游就用这个证据，比贴栈更有效。
+- **插入只读探针的配方**（不修改语义、跑完还原）：在 `_forward_decode` 的 `npu_fused_infer_attention_score_v2` 调用前插 `print(k_nope.shape/stride/is_contiguous, k_pe..., block_size)`，并用 `if os.environ.get("K3_MLA_DEBUG")=="1"` 门控 + 只在文件里出现一次的那行做锚点替换（替换前 `cp -a` 留 `.bak`，收尾 `cp -a` 还原并 `grep -c` 复核归零）。`--enforce-eager` 下插 print 不影响图捕获。
 - **A3 本身能跑 K3 —— 是主线回归**：同机、同减层模型、同参数，用 10-09 那套配对 `vllm 0.30.1.dev0+gced6857af` + `vllm-ascend 12e7e1c` 实测 **`HTTP=200` 且 content 非空**（dummy 权重，文本无意义）。
 - ⇒ **要在 A3 上跑 K3，就别用"今天的主线"**（vllm-ascend 钉到 `12e7e1c` 一带 + 它的 verified commit）；要保今天的主线，就去 A5 跑。配对怎么选见 `vllm-ascend-source-install`。
 

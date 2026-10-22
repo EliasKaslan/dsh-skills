@@ -3,7 +3,7 @@
   "generated_by": "publish-dsh-skills.ps1",
   "skill_count": 35,
   "file_count": 70,
-  "total_bytes": 1381174,
+  "total_bytes": 1389924,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -36,9 +36,9 @@
     {
       "name": "ascend-conda-env",
       "path": "skills/ascend-conda-env",
-      "description": "昇腾服务器 conda 环境的检测 / 新建 / 激活与换 python 版本（默认 a3=192.168.13.188，备用 a3b=.190）——共享 miniconda3 在 /mnt/share/x00886548/miniconda3（conda 26.7.1，base py3.14.7），新建环境默认落 /mnt/share/vllm/conda_envs、必须显式带 NJU 镜像，不激活可直接用绝对路径 python。适用于\"建 conda 环境 / 激活环境 / 换 python 版本 / python -V 不是共享 conda / 环境该放哪个盘 / conda create 走官方源很慢\"。不适用：CANN 装哪、版本、set_env.sh 不生效 → 用 `ascend-cann-env`；torch 或 torch_npu 装不上 → 用 `ascend-torch-npu`。",
+      "description": "昇腾服务器 conda 环境的检测 / 新建 / 激活与换 python 版本（默认 a3=192.168.13.188，备用 a3b=.190）——共享 miniconda3 在 /mnt/share/x00886548/miniconda3（conda 26.7.1，base py3.14.7），新建环境默认落 /mnt/share/vllm/conda_envs、必须显式带 NJU 镜像，不激活可直接用绝对路径 python。适用于\"建 conda 环境 / 复用已有环境拷到新根 / 激活环境 / 换 python 版本 / python -V 不是共享 conda / 环境该放哪个盘 / conda create 走官方源很慢\"。不适用：CANN 装哪、版本、set_env.sh 不生效 → 用 `ascend-cann-env`；torch 或 torch_npu 装不上 → 用 `ascend-torch-npu`。",
       "files": 1,
-      "bytes": 18038
+      "bytes": 20524
     },
     {
       "name": "ascend-env",
@@ -87,7 +87,7 @@
       "path": "skills/ascend-vllm-serve",
       "description": "在昇腾 A3（.188/.190）上把装好的 vllm + vllm-ascend 跑起来——三层自检、按 HBM 挑空闲 die、起 OpenAI 兼容服务、离线推理冒烟、sleep/wake_up 显存释放与重载、运行时排障。适用于\"在昇腾上起 vllm 服务 / 跑离线推理冒烟 / sleep mode 释放显存 / sleep level 1 还是 2 / wake_up 后输出乱码 / reload_weights 热更新权重 / 报 MemoryError 或 dtype / import torch_npu 报 No module named 'acl' / 别设 VLLM_TARGET_DEVICE / 报 aclInit 107001 / Kimi-K3 在 A3 上 500 EZ0037 / 模型太大单卡放不下要 TP=2\"。不适用：装/重装/编译 vllm-ascend → 用 `vllm-ascend-source-install`；栈装不上（torch_npu、pip） → 用 `ascend-torch-npu`。",
       "files": 2,
-      "bytes": 50018
+      "bytes": 53660
     },
     {
       "name": "dingxiang-slider-captcha",
@@ -206,7 +206,7 @@
       "path": "skills/qq-mail-control",
       "description": "QQ 邮箱接管（IMAP/SMTP，`mcp__qqmail__*`）——发一封 QQ 邮件、查收件箱、搜邮件、读某封邮件的参数配方与坑：文件夹名编码（回显中文原文、UTF-8 原文直传可用，传 `&UXZO1mWHTvZZOQ-` 这类 modified UTF-7 串报 `Error： Command failed`）、FETCH 只读铁律、中文搜索只覆盖本地窗口、发信必须带【AI 代发】前缀、凭据位置与 `--read-only` 静默陷阱。适用于\"发一封 QQ 邮件 / 查一下 QQ 邮箱收件箱 / 搜一下 QQ 邮箱里的邮件 / QQ 邮箱 MCP 怎么用 / 帮我读某封 QQ 邮件 / QQ 邮箱文件夹名乱码 / QQ 邮箱只能读不能发\"。不适用：Outlook / MSA 邮箱 → 用 `outlook-mailbox-control`；改 patch 与 MCP 接入层生效时机 → 用 `dsh-agent-customization`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。",
       "files": 1,
-      "bytes": 17486
+      "bytes": 18026
     },
     {
       "name": "sedimenting-skills",
@@ -241,7 +241,7 @@
       "path": "skills/vllm-ascend-source-install",
       "description": "从源码装 vllm + vllm-ascend 配对流程——main 按 `.github/vllm-main-verified.commit` 配 vllm（VLLM_TARGET_DEVICE=empty）；release tag 配同名 tag；VLLM_VERSION 在 v0.23.0 失效，改用 VLLM_VERSION_OVERRIDE；torch 家族 pin 先注释；VLLM_BATCH_INVARIANT 默认不导出。适用于\"装或重装 vllm-ascend / 报 vllm_version_is 为 False / 报 ResolutionImpossible 或 numpy 冲突 / pip 卡在 llguidance / 复用已有 torch_npu / 报 build 依赖不满足（torch pin/nanobind）/ 报 metadata-generation-failed\"。不适用：起服务排障 → 用 `ascend-vllm-serve`；torch 栈装不上 → 用 `ascend-torch-npu`。",
       "files": 3,
-      "bytes": 91376
+      "bytes": 93458
     },
     {
       "name": "win-scheduled-task-forensics",
