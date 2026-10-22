@@ -1,6 +1,6 @@
 ---
 name: dsh-skills-publish
-description: 把本机 ~/.dsh/skills 的全部 skill 每天凌晨 2 点发布到 GitCode 公开仓 EliasKaslan/dsh-skills——脚本 publish-dsh-skills.ps1 先快照再扫活密钥，然后提交 main 并让当日 YYYY-MM-DD 分支与 main 指向同一 commit；计划任务 DSH-Skills-Publish，退出码 0/3/4/5/6/7/8，状态落 .skill-publish\state.json 与 ALERT.md。适用于"把 skill 发到 GitCode / 建个公开 skill 仓 / 每天自动同步 skill / 今天的日期分支建了吗 / main 和日期分支不一致 / 发布脚本报错 / 手动跑一次 skill 发布 / 停掉每日发布任务"。不适用：DSH 配置与私仓同步 → 用 `dsh-repo-sync`。
+description: 把本机 ~/.dsh/skills 的全部 skill 每天凌晨 2 点发布到 GitCode 公开仓 EliasKaslan/dsh-skills——脚本 publish-dsh-skills.ps1 先快照再扫活密钥，然后提交 main 并让当日 YYYY-MM-DD 分支与 main 指向同一 commit，只保留最近 15 个日期分支、更早的自动删除；计划任务 DSH-Skills-Publish，退出码 0/3/4/5/6/7/8，状态落 .skill-publish\state.json 与 ALERT.md。适用于"把 skill 发到 GitCode / 建个公开 skill 仓 / 每天自动同步 skill / 今天的日期分支建了吗 / main 和日期分支不一致 / 分支太多了怎么清理 / 旧日期分支还在吗 / 发布脚本报错 / 手动跑一次 skill 发布 / 停掉每日发布任务"。不适用：DSH 配置与私仓同步 → 用 `dsh-repo-sync`。
 whenToUse: 发布 skill 到公开仓、排查每日同步失败、改发布范围或计划任务时用。模型看不到本节。
 ---
 
@@ -47,6 +47,7 @@ whenToUse: 发布 skill 到公开仓、排查每日同步失败、改发布范�
 3. **密钥扫描**——把 `token_file` 与 `extra_secret_files` 里的每个字符串读进内存（**不落盘、不打印**），在快照树上做字面量匹配；另扫 `ghp_` / `github_pat_` / `-----BEGIN ... PRIVATE KEY-----` / `AKIA` 四类模式。命中即 **exit 4**，绝不推送。
 4. **提交与推送**——`main` 与 `<YYYY-MM-DD>` 各推一次，refspec 是 `HEAD:refs/heads/<branch>`。**clone 走公开 URL，令牌只出现在推送的内联 URL 里**（`<user>:<token>@`，GitCode 只认这种形态）；脚本每次启动都会检查 `remote.origin.url`，一旦发现带凭据就 `set-url` 洗掉，令牌永不进 `.git/config`。
 5. **验收**——`git ls-remote` 回读两个 ref，断言 `main` == 当日分支 == 本地 HEAD，否则 exit 7。
+6. **保留期清理**——再拉一次 `ls-remote --heads`，**只挑名字能被 `date_format` 成功解析的分支**（`main` 与任何非日期名分支一律跳过），按日期倒序保留最新 `keep_date_branches` 个（默认 **15**），更早的用一次 `git push <url> --delete b1 b2 …` 批量删除。删除失败只记 WARN + `state.json.prune_error`，不改变本次同步的成败（下次运行会重试）。
 
 ## 2. 可直接复制的命令
 
@@ -75,6 +76,13 @@ git -c credential.helper= ls-remote "https://EliasKaslan:<token>@gitcode.com/Eli
 
 # 立即触发一次计划任务（最便宜的真实凭据与权限验证）
 schtasks /Run /TN "DSH-Skills-Publish"
+
+# 看远端分支分布（日期分支应 ≤ keep_date_branches，另加 main）
+git -c credential.helper= ls-remote --heads https://gitcode.com/EliasKaslan/dsh-skills.git
+
+# 读本次清理结果
+(Get-Content "C:\Users\admin\.dsh\.skill-publish\state.json" -Raw | ConvertFrom-Json) |
+    Select-Object branch_count_after, pruned, prune_error
 ```
 
 注册 / 恢复计划任务（本 skill 不代注册，由人决定）：

@@ -8,6 +8,8 @@
     * commit on <branch_main>, push it, then push the same commit to a
       date-named branch (<date_format>, default YYYY-MM-DD)
     * verify that both remote refs point at the local HEAD
+    * delete the oldest date-named branches so that at most
+      <keep_date_branches> (default 15) of them remain
 
   Exit codes
     0  success (pushed, or NO_CHANGE with refs already consistent)
@@ -55,6 +57,9 @@ $script:State    = [ordered]@{
     main_remote_sha  = ''
     date_branch      = ''
     date_remote_sha  = ''
+    branch_count_after = 0
+    pruned           = @()
+    prune_error      = ''
     skill_count      = 0
     file_count       = 0
     total_bytes      = 0
@@ -605,6 +610,53 @@ try {
         Fail 7 ('ref mismatch: head=' + $headSha + ' main=' + $mainSha + ' ' + $DateStamp + '=' + $dateSha)
     }
 
+    # ---- retention: keep only the newest N date-named branches -----------
+    $script:Stage = 'prune'
+    $keep = 15
+    if ($cfg.keep_date_branches) { $keep = [int]$cfg.keep_date_branches }
+    if ($keep -lt 1) { $keep = 1 }
+
+    $lsAll = Invoke-RepoGit -ArgList @('ls-remote', '--heads', $authUrl) -TimeoutSec 120
+    if ($lsAll.Code -ne 0) {
+        $script:State.prune_error = ('ls-remote --heads failed: ' + $lsAll.Out)
+        Write-Log ('prune skipped: ' + $lsAll.Out) 'WARN'
+    }
+    else {
+        $dated = @()
+        foreach ($line in ($lsAll.Out -split "`r?`n")) {
+            if ($line -notmatch '^([0-9a-f]{40})\s+refs/heads/(.+)$') { continue }
+            $bName = $matches[2]
+            if ($bName -eq $mainBranch) { continue }
+            $parsed = [datetime]::MinValue
+            if ([datetime]::TryParseExact($bName, $dateFormat, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$parsed)) {
+                $dated += [pscustomobject]@{ Name = $bName; When = $parsed }
+            }
+        }
+        $dated = @($dated | Sort-Object When -Descending)
+
+        $victims = @()
+        if ($dated.Count -gt $keep) {
+            $victims = @($dated[$keep..($dated.Count - 1)] | ForEach-Object { $_.Name })
+        }
+        if ($victims.Count -gt 0) {
+            Write-Log ('pruning ' + $victims.Count + ' date branch(es) beyond the newest ' + $keep + ': ' + ($victims -join ', '))
+            $delArgs = @('push', $authUrl, '--delete') + $victims
+            $del = Invoke-RepoGit -ArgList $delArgs -TimeoutSec 300
+            if ($del.Code -ne 0) {
+                $script:State.prune_error = (Redact-Text $del.Out)
+                Write-Log ('prune failed: ' + $del.Out) 'WARN'
+            }
+            else {
+                $script:State.pruned = @($victims)
+                Write-Log ('pruned ' + $victims.Count + ' branch(es)')
+            }
+        }
+        else {
+            Write-Log ('branch retention ok: ' + $dated.Count + ' date branch(es), keep=' + $keep)
+        }
+        $script:State.branch_count_after = $dated.Count - @($script:State.pruned).Count
+    }
+
     $script:State.exit_code = 0
     Save-State
     $alertPath = Join-Path $script:StateDir 'ALERT.md'
@@ -620,6 +672,8 @@ try {
     Write-Host ('HEAD=' + $headSha)
     Write-Host ('MAIN=' + $mainSha)
     Write-Host ('DATE_BRANCH=' + $DateStamp)
+    Write-Host ('PRUNED=' + (@($script:State.pruned).Count))
+    Write-Host ('DATE_BRANCHES=' + $script:State.branch_count_after)
     Write-Host 'EXIT=0'
     exit 0
 }

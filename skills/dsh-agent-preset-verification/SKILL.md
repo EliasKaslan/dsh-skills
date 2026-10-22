@@ -7,7 +7,7 @@ whenToUse: 离线（还没起会话）校验 preset 能不能挂载、plugins �
 # 离线校验自定义 agent preset
 
 > 本 skill 是总纲 `dsh-agent-customization` 的子 skill：只负责「离线静态校验」这一段；DSH 的分层、生效时机与上线纪律见总纲。
-> **阶段二（会话级验收）与「验收入口该选哪个」（headless 不能验 preset） → 见本文末「阶段二」一节与其 `references/online-session.md`**。原独立 skill `dsh-agent-preset-verification` 已于 2026-10-22 并入本 skill。
+> **阶段二（会话级验收）与「验收入口该选哪个」（headless 不能验 preset） → 见本文末「阶段二」一节与其 `references/online-session.md`**。原独立 skill `dsh-agent-preset-live-verification` 已于 2026-10-22 并入本 skill。
 
 **先读这条（旧版整篇已被证伪）**：本 skill 曾建立在「`$DSH_HOME/.agent-presets/<id>/` 目录式 preset + `scanRoot` 权威健康检查」之上。**那套在 0.2.0-rc.2 上已完全失效**：`@deepseek-ai/dsh-agent-presets` 这个包**不存在**，全树唯一提到 `.agent-presets` 的地方是官方说明里的一句 *"Nothing reads that directory any more."*。现行载体是 **bundle patch 里的 `@deepseek-ai/dsh-agent-preset` 声明行**。
 
@@ -321,7 +321,7 @@ $txt = $out | Out-String
 
 ## 阶段二：在线会话级验收（真会话才能验）
 
-> 本节是**阶段一（离线静态校验）全绿之后**才走的一步。原独立 skill `dsh-agent-preset-verification` 已于 2026-10-22 并入本 skill：**完整操作手册在 `references/online-session.md`**，本文件只留阶段门与判据。
+> 本节是**阶段一（离线静态校验）全绿之后**才走的一步。原独立 skill `dsh-agent-preset-live-verification` 已于 2026-10-22 并入本 skill：**完整操作手册在 `references/online-session.md`**，本文件只留阶段门与判据。
 
 **阶段门（不满足就别往下走）**
 

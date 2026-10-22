@@ -8,6 +8,7 @@
   "extra_secret_files": [],
   "branch_main": "main",
   "date_format": "yyyy-MM-dd",
+  "keep_date_branches": 15,
   "author_name": "<owner>",
   "author_email": "<owner>@example.com"
 }
