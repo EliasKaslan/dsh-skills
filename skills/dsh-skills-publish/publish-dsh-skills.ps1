@@ -31,6 +31,7 @@
 param(
     [switch]$DryRun,
     [switch]$NoPush,
+    [switch]$AllowBigShrink,
     [string]$DateStamp = ''
 )
 
@@ -485,6 +486,22 @@ try {
     $script:State.skill_count = $skills.Count
     $script:State.file_count = $fileCount
     $script:State.total_bytes = $totalBytes
+
+    # Sanity floor: /MIR deletes, so a half-empty snapshot would silently wipe
+    # skills from the public repo.  Refuse catastrophic shrinks unless asked.
+    if ($skills.Count -eq 0) { Fail 5 'snapshot contains zero skill directories' }
+    $prevCount = 0
+    $prevStatePath = Join-Path $script:StateDir 'state.json'
+    if (Test-Path -LiteralPath $prevStatePath) {
+        try {
+            $prevState = [IO.File]::ReadAllText($prevStatePath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+            if ($prevState.skill_count) { $prevCount = [int]$prevState.skill_count }
+        }
+        catch { }
+    }
+    if (-not $AllowBigShrink -and $prevCount -ge 10 -and $skills.Count -lt [math]::Floor($prevCount / 2)) {
+        Fail 5 ('refusing to publish: skill count dropped from ' + $prevCount + ' to ' + $skills.Count + ' (pass -AllowBigShrink to override)')
+    }
 
     $templatePath = Join-Path $PSScriptRoot 'readme.template.md'
     Write-GeneratedFiles -RepoRoot $root -Skills $skills -FileCount $fileCount -TotalBytes $totalBytes -TemplatePath $templatePath
