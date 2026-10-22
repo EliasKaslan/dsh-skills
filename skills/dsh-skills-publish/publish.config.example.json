@@ -1,0 +1,13 @@
+{
+  "source_dir": "C:\\Users\\<you>\\.dsh\\skills",
+  "work_repo": "D:\\repos\\dsh-skills",
+  "state_dir": "C:\\Users\\<you>\\.dsh\\.skill-publish",
+  "remote_url": "https://gitcode.com/<owner>/dsh-skills.git",
+  "user": "<owner>",
+  "token_file": "D:\\key\\gitcode_token.txt",
+  "extra_secret_files": [],
+  "branch_main": "main",
+  "date_format": "yyyy-MM-dd",
+  "author_name": "<owner>",
+  "author_email": "<owner>@example.com"
+}
