@@ -19,9 +19,9 @@ whenToUse: 需要一个不污染真实 ~/.dsh、不占 3080 的第二 host 来�
 
 **不要用本 skill（转交）：**
 - 要判定 preset 挂载是否正确、配置键 / 工具名对不对 → 用 `dsh-agent-preset-verification`（离线静态）。
-- 已起会话，要核对 persona、工具裁剪、委派结果与会话日志 → 用 `dsh-agent-preset-live-verification`。
+- 已起会话，要核对 persona、工具裁剪、委派结果与会话日志 → 用 `dsh-agent-preset-verification` 的「阶段二」（手册在其 `references/online-session.md`）。
 
-**前置**：本机能跑 `node`，且**已按第 0 步从进程命令行取到 `$BIN`**（`~/.dsh/profiles/node_modules/.../bin.js` **不存在**，别照抄旧路径）；已知真实 host 的端口占用情况（3080 是否在跑）。 ／ **后继**：host 起来并 401 判就绪后，进 `dsh-agent-preset-live-verification` 做会话级验收；实验结束按本 skill 第 8 步 taskkill 收尾。
+**前置**：本机能跑 `node`，且**已按第 0 步从进程命令行取到 `$BIN`**（`~/.dsh/profiles/node_modules/.../bin.js` **不存在**，别照抄旧路径）；已知真实 host 的端口占用情况（3080 是否在跑）。 ／ **后继**：host 起来并 401 判就绪后，进 `dsh-agent-preset-verification` 的「阶段二」做会话级验收；实验结束按本 skill 第 8 步 taskkill 收尾。
 
 ## 前置检查
 

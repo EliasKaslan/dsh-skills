@@ -20,7 +20,7 @@ whenToUse: 非平凡子任务收尾做沉淀判定时，或用户说"把这个�
 - 只是要在单仓库里改一处已存在的技术正文 → 直接改，不走沉淀流程。
 - 要定期体检整个 skill 集合（重复正文 / 失效指针 / description 预算），而不是沉淀某一条新经验 → 用 `dsh-skill-self-audit`。
 - 本机 PowerShell 的坑（编码 / CRLF / BOM / PS7 语法） → 用 `pwsh-on-windows`。
-- 派活前先确认子代理到底有哪些工具 → 用 `subagent-toolset-precheck`。
+- 派活前先确认子代理到底有哪些工具 → 用 `orchestrating-subagents` §3.1.1。
 
 **前置**：有**已跑通**的证据包（真命令 + 输出要点 + 错误原文）。 ／ **后继**：写完按 `## 7.` 自验证；后续同类任务由 `orchestrating-subagents` 派活时复用本 skill 的规则。
 
@@ -36,7 +36,7 @@ whenToUse: 非平凡子任务收尾做沉淀判定时，或用户说"把这个�
 
 - **有归属却新建 = 过度沉淀**：等于制造两份将来必然不一致的真相 → 这是**错误**，不是风格问题。
 - ② 的门槛是**族**，不是"相关"：两个 skill 只是同领域、可以分别单独使用 → **不建总纲**，做 ① 的交叉引用就够了。
-- ② 的实例（实测）：DSH「改造 agent 行为」这个主题族由总纲 `dsh-agent-customization` 编排，子 skill 是 `dsh-isolated-web-host` / `dsh-agent-preset-verification` / `dsh-agent-preset-live-verification`——三者构成一条阶梯（起环境 → 离线 → 在线），各管一段，正文互不复制。
+- ② 的实例（实测）：DSH「改造 agent 行为」这个主题族由总纲 `dsh-agent-customization` 编排，子 skill 是 `dsh-isolated-web-host` / `dsh-agent-preset-verification`（含「阶段二」在线验收）——两者构成一条阶梯（起环境 → 离线 → 在线），各管一段，正文互不复制。
 
 ## 1. 判定（三个都"是"才写）
 
@@ -156,7 +156,7 @@ whenToUse: <≤150 字，给人和 API 看的一句话导航；模型看不到�
 2. **用旁证替代自测，并显式标注"这是旁证不是实测"**：改前 `read` 全量、改后**立即重读 + `grep` 唯一锚点命中**（锚点要选每次改动都唯一的那句）；本会话 skill 目录里该条**不再显示截断 `...`** ⇒ 尾部完整 ⇒ ≤500（**只否掉截断线，证不了 ≤480**，如实写清界）。
 3. **把跑不了的闸门逐条列给 Lead，并附可直接复制的命令**（形状即：`python -c "…len(description)…"`、`python -c` 读 hunk、`Get-FileHash -Algorithm SHA256`）。**判据留在 Lead 侧**——这是分工，不是失败，也不是"绕"。
 4. **声称落盘的文件若没搬，就如实说不落**：原因 + 替代位置**写进 SKILL.md 正文**（本轮对 `FORMULAS.md` 就是这样：正文写明"未复制进本目录、仍在 `<原路径>`"），**不在正文里谎称已落盘**；同理，凡"读源 + 逐字重写"搬运（本写手无 `cp`）都要在正文标注**未做 sha256 逐字节比对**、有差异以源文件为准。
-5. **反向纪律（Lead 侧）**：**不得把"有 shell"当成默认前提下发**。需要 shell 的验收判据（哈希 / 长度 / 真跑校验器 / 逐字节比对）**要么写在 Lead 侧、要么派给表内带 `pwsh` 的通道**；并在 prompt 里**不要把工具面广告成"完整工具集"**（本轮该广告即被证伪）。工具面预检 → `subagent-toolset-precheck`。
+5. **反向纪律（Lead 侧）**：**不得把"有 shell"当成默认前提下发**。需要 shell 的验收判据（哈希 / 长度 / 真跑校验器 / 逐字节比对）**要么写在 Lead 侧、要么派给表内带 `pwsh` 的通道**；并在 prompt 里**不要把工具面广告成"完整工具集"**（本轮该广告即被证伪）。工具面预检 → `orchestrating-subagents` §3.1.1。
 
 **收敛判据**：无 shell 的沉淀子代理，**合格交付 = 内容写对 + 闸门空缺如实标注 + 可复现命令交给 Lead**；**不是**"自己造一个数字把闸门填满"。
 
@@ -202,7 +202,7 @@ first-party `write`/`edit` 会同步让 skill provider 失效，因此：
 2. **落地检索**：拿经验里的**高区分度锚点**（报错原文片段 / 命令名 / 平台名 / 版本号）扫**全部** skill 正文。
    **首选 `grep` 工具**（`path` = `~/.dsh/skills`、`include` = `SKILL.md`）——它不踩本机 PowerShell 的编码坑；
    要在 `pwsh` 里手跑就用下面这条（**实测通过**：锚点 `TEAM_NOT_MEMBER` 命中 `dsh-agent-customization`
-   与 `dsh-agent-preset-live-verification`）：
+   与 `dsh-agent-preset-verification`）：
    ```powershell
    Get-ChildItem "$env:USERPROFILE\.dsh\skills" -Directory | ForEach-Object {
      $f = Join-Path $_.FullName 'SKILL.md'

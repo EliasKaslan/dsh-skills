@@ -54,7 +54,7 @@ whenToUse: 当你要编排子代理——生产全下发、主 Agent 只做交�
 | 子任务性质 | 用哪个工具 | 角色约束 |
 |---|---|---|
 | 只读侦察：定位代码、查调用链（**纯仓内 glob/grep/read**） | `explore`（若可用）否则 `subagent` | 只回情报，不回贴文件 |
-| 要**联网**、要跑命令、要**落盘交付文件** | 必须 `subagent` | `explore` 实测只有 4 个工具（glob/grep/read/subagent），无 web_fetch/web_search/pwsh/write/edit/`skill` → 用 `subagent-toolset-precheck` 先探测 |
+| 要**联网**、要跑命令、要**落盘交付文件** | 必须 `subagent` | `explore` 实测只有 4 个工具（glob/grep/read/subagent），无 web_fetch/web_search/pwsh/write/edit/`skill` → 按 §3.1.1 先探测 |
 | 单模块改动 + 跑测试 | `implement`（若可用）否则 `subagent` | 给死边界：可写哪些路径 |
 | 验证某个结论是否成立 | `verify`（若可用）否则 `subagent` | **只读**，任务就是"反驳它" |
 | 对 N 个文件/条目做同一件事 | `workflow` | 每个 agent 独立上下文，结果结构化 |
@@ -63,7 +63,7 @@ whenToUse: 当你要编排子代理——生产全下发、主 Agent 只做交�
 
 > 没有 `explore`/`implement`/`verify` 这些工具名时，用 `subagent` 并把角色约束写进 prompt 的【边界】里。
 >
-> `explore` 的工具面（2026-10-09 实测 schema，共 **4 个**）：`glob` / `grep` / `read` / `subagent`；**没有** `write` / `edit` / `pwsh` / `web_search` / `web_fetch` / `skill` / `list_subagent_models`。联网 / 跑命令 / 落盘一律用 `subagent`；**怕派错就先用 `subagent-toolset-precheck` 探一次**。
+> `explore` 的工具面（2026-10-09 实测 schema，共 **4 个**）：`glob` / `grep` / `read` / `subagent`；**没有** `write` / `edit` / `pwsh` / `web_search` / `web_fetch` / `skill` / `list_subagent_models`。联网 / 跑命令 / 落盘一律用 `subagent`；**怕派错就按 §3.1.1 探一次**。
 >
 > **成本理由（换角色就省工具面）**：工具面字符量**实测**（2026-10-09；口径 = 会话日志 `request/header` 的 `$.data.header.tools`；脚本 `artifacts\orchestration-opt-2\20261009\toolface_cost.py`，复跑 `python toolface_cost.py --report`）：
 > `explore`（4 工具）**2,993** ｜ `implement`（8 工具）**9,290** ｜ `subagent`（106 工具，其中 MCP 占 **53,419（72 个）**）**82,044**。
@@ -74,7 +74,7 @@ whenToUse: 当你要编排子代理——生产全下发、主 Agent 只做交�
 >
 > **风险**：`explore` 手里**有** `subagent` 工具 ⇒「只读子代理不会再派活」**只由 `maxDepth:1` 保证，不是工具面保证**。
 >
-> **反例〔已实测证伪〕：`toolFilter.allow` 不能用来反推子代理工具面。** patch 里 explore 那行写的是 `allow: [read, glob, grep]`（**3 个**，生效件 `:238`），而 **2026-10-09 探针实测 explore 的工具面是 4 个**（多一个 `subagent`）；同日 **11:59 的备份**（`artifacts\backups\orchestration-opt-20261009\016__workspace__agent__dsh_base__artifacts__presets__orchestrator-bundle__cordis.patch.yml`，24,503 B，其 `:250` 同样只列 3 个）时期探针仍报 **4 个** ⇒ **两者不对应，已实测证伪**。判工具面只认 schema 探测（`subagent-toolset-precheck`），**不要读 patch 的 `allow`**。
+> **反例〔已实测证伪〕：`toolFilter.allow` 不能用来反推子代理工具面。** patch 里 explore 那行写的是 `allow: [read, glob, grep]`（**3 个**，生效件 `:238`），而 **2026-10-09 探针实测 explore 的工具面是 4 个**（多一个 `subagent`）；同日 **11:59 的备份**（`artifacts\backups\orchestration-opt-20261009\016__workspace__agent__dsh_base__artifacts__presets__orchestrator-bundle__cordis.patch.yml`，24,503 B，其 `:250` 同样只列 3 个）时期探针仍报 **4 个** ⇒ **两者不对应，已实测证伪**。判工具面只认 schema 探测（§3.1.1），**不要读 patch 的 `allow`**。
 > （机制上的**观察、非判据**：4 个已探角色都满足 `工具面 = allow ∪ {subagent}`——4=3+1、5=4+1、8=7+1 ⇒ `subagent` 疑似由 provider 在过滤**之后**注入。这只解释现象；**未经探测的角色不得据此断言工具面**。）
 
 ## 2. 拆解标准（不满足就别派）
@@ -115,7 +115,7 @@ whenToUse: 当你要编排子代理——生产全下发、主 Agent 只做交�
 
 **实测事实（2026-10-09 本机，本轮亲自探针）**：`subagent` 子代理**有** `skill` 工具，其上下文里带**完整 skill 目录**（实测 32 条），`skill(name)` 实测返回完整正文（24932 B / 245 行）。
 
-**`explore` 类只读子代理没有 `skill` 工具**：其工具面**已实测**（2026-10-09 schema 探测）= 4 个（`glob` / `grep` / `read` / `subagent`），确实没有 `skill` ⇒ 只能靠 prompt 给绝对路径让它 `read`。勘误：`subagent-toolset-precheck` 旧文记的"5 个只读工具、含 `list_subagent_models`"**已被该探测证伪**（`list_subagent_models` 不存在），现行值以本行为准。
+**`explore` 类只读子代理没有 `skill` 工具**：其工具面**已实测**（2026-10-09 schema 探测）= 4 个（`glob` / `grep` / `read` / `subagent`），确实没有 `skill` ⇒ 只能靠 prompt 给绝对路径让它 `read`。勘误：早期独立 skill 记的"5 个只读工具、含 `list_subagent_models`"**已被该探测证伪**（`list_subagent_models` 不存在），现行值以本行为准。
 
 **但子代理不会自己想到去加载**——它只看到目录里的一行 description，不加载就只有那一行。⇒ **委派 prompt 必须点名它要加载哪些 skill**（模板里的【技能】行就是干这个的）。
 
@@ -127,6 +127,38 @@ whenToUse: 当你要编排子代理——生产全下发、主 Agent 只做交�
 - 反模式：写「照着你的 skill 做」「按你了解的流程办」——子代理没有你的流程。
 
 **已挂上这条供给线的 skill（8 个；新增/删除委派段时同步这张表）**：`ascend-env`（4 条 lane 各取对应子 skill）、`ascend-conda-env`、`ascend-model-adaptation-recon`、`ai-vendor-official-source-audit`、`upstream-docs-refresh-audit`、`github-org-delta-watch`、`dsh-skill-self-audit`、`sedimenting-skills`。
+
+### 3.1.1 工具面预检（派活前必做；原独立 skill `subagent-toolset-precheck` 已于 2026-10-22 并入本节）
+
+**基线（当次必须核实，别背数字）**
+
+| 下发方式 | 实测拿到的工具 | 关键缺失 |
+|---|---|---|
+| `explore` | glob / grep / read / subagent（2026-10-09 schema 探测） | 无 web_search / web_fetch / pwsh / write / edit / `skill` / `list_subagent_models` |
+| `subagent` | 全套（含 web_fetch / web_search / pwsh / write / `skill`） | — |
+
+- 数字与「有哪几个」会随 DSH 版本、agent preset、`toolFilter` 漂移 ⇒ **只认当次探测回报**。
+- **决定工具面的是「用哪个委派工具」，不是「角色名」**。血证：用 `distill_skill` 通道下发沉淀任务，prompt 里明写"你有完整工具集（含 pwsh）"——**这句广告是错的**：该通道实际只有 `read`/`write`/`edit`/`grep`/`glob`/`skill`/`subagent`，无 pwsh、无 `web_*`、无 `job_*`。
+- **有工具 ≠ 能用**：同一通道里 `subagent` 在函数清单内，但调用被 `Error: subagent depth 2 exceeds maxDepth 1` 拦下。**能力存在性**与**运行时限制**分开记。
+
+**探测指令（二选一，塞进 prompt 的【交付】段）**
+
+- 形状 A（要求罗列）：`先回报你本会话可用的工具函数清单（逐个名称），并明确回答：是否有 web_fetch / web_search / pwsh / 写文件工具？没有就直说"无"，不要用其它方式代替。`
+- 形状 B（能力断言，更硬）：`在动任何检索之前，先尝试一次 web_fetch 抓 https://api.github.com/rate_limit 并回报 HTTP 状态码；若你没有 web_fetch 工具，直接回报"无 web_fetch 工具，停止执行"。`
+
+**按回报处置**
+
+1. 回报里出现**逐条函数名**、并对缺的工具明确说"无" = 合格；只回"我尽量试试" = 不合格，直接改派。
+2. 出现关键缺失 → 同一任务改用 `subagent` 重派，prompt 里带明确工具要求与**目标文件绝对路径**。
+3. 已用 `explore` 跑过一轮的：把它的"未验证"条目当**线索**而非结论，重派时要求**逐条给原始出处**（URL / HTTP 码 / 文件:行号）。
+4. 它拒的是"能力"不是"指令"（写入照做、只把跑不了的测量标成"无该能力"）⇒ 属 `PARTIAL` 成因②，**不是任务失败**，不要回炉重派、也不要要求"再试一次"。
+
+**不要做什么**
+
+- 不要把联网调研、外部来源核查、要产出文件的活派给 `explore`——缺 web_fetch / web_search / write，必然退化成"从工作区文件倒推"。
+- 不要让 `explore` "写个文件到磁盘"当交付：它没有写工具，只会失败或改写结论。
+- 不要把测量类验收判据（哈希 / 长度 / 真跑校验器）写进无 shell 通道的 prompt——那等于制造必然 `PARTIAL`；判据放 Lead 侧，或派给表内带 `pwsh` 的通道。
+- 不要用嵌套 `explore → subagent` 当常规方案；能一次下发就别多绕一跳（那是补救路径，不是首选）。
 
 ## 4. 结果校验（必做，子代理会自信地出错）
 

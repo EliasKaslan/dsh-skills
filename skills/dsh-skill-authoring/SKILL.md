@@ -167,13 +167,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.dsh\s
 
      | 根 | 条数 | 性质 |
      |---|---|---|
-     | `~\.dsh\skills` | **36** | 用户可改（唯一该写的根） |
+     | `~\.dsh\skills` | **现场数**（2026-10-22 为 35，会随新增/合并变动，**别写死**） | 用户可改（唯一该写的根） |
      | `@deepseek-ai\dsh-agent-preset\skills` | **4** | 包内，**不进**目录 |
      | `@deepseek-ai\dsh-sandbox-windows-acl\assets` | **1** | 包内，**进**目录 |
      | `@deepseek-ai\dsh-skill-office\assets` | **3** | 包内，**不进**目录 |
      | `config\skills`（快照池） | **6** | 池，不是会话根 |
 
-     ⇒ **36 个文件根 + 1 个注册型 provider + 包内 office 族 7 条 = 目录 44 条**（2026-10-22 实测）。目录里第 32 条 `diagnose-windows-sandbox-acl` **不是文件系统根**，而是 `dsh-sandbox-windows-acl` 包内**进程内注册**的：`…\dsh-sandbox-windows-acl\lib\types-*.js` 的 `registerAclDiagnosisSkill`（L1090）→ `ctx.skills.registerProvider(...)`（L1138）；该包 `README.md:78` 亦写明"Registration ... contributes it when a skill registry is available"，L171"One extra catalog entry on Windows"。**⇒ 数磁盘文件永远对不上目录条数，别拿"目录 32 条"去反推"磁盘有 32 个 skill"。** 包内只读根**只做引用链检查、不出修改建议**（改了会被包升级覆盖）。
+     ⇒ **文件根 N（现场数）+ 1 个注册型 provider + 包内 office 族 7 条 = 目录条数**（2026-10-22 实测 N=35 ⇒ 目录 43 条；**别把 N 写死**）。目录里第 32 条 `diagnose-windows-sandbox-acl` **不是文件系统根**，而是 `dsh-sandbox-windows-acl` 包内**进程内注册**的：`…\dsh-sandbox-windows-acl\lib\types-*.js` 的 `registerAclDiagnosisSkill`（L1090）→ `ctx.skills.registerProvider(...)`（L1138）；该包 `README.md:78` 亦写明"Registration ... contributes it when a skill registry is available"，L171"One extra catalog entry on Windows"。**⇒ 数磁盘文件永远对不上目录条数，别拿"目录 32 条"去反推"磁盘有 32 个 skill"。** 包内只读根**只做引用链检查、不出修改建议**（改了会被包升级覆盖）。
    - **校验器判据 = 输出末行 `YAML_SKIP=0`，不是 `exit code`**（退化时 exit 仍为 `0`，那次结果 NOT TRUSTWORTHY，见 §4）。**优先显式传 `-YamlModule`**；不传时默认已内置候选自动探测，**探测不到才静默退化**——别把判据挂在"默认值/探测顺序"这类实现细节上，要挂在结果本体上。
    - 三重独立 oracle 各答一问，别互相替代：**磁盘**答"写没写"、**会话目录**答"加载得了吗"、**校验器**答"frontmatter 能不能解析且合规吗"。
    - **三者的共同点（本轮主线）：全都读「结果本体」**——磁盘路径、目录里的那条目、末行的计数；**没有一个读「状态名 / 退出码 / 上一步说成功」**。本轮两次假 OK（skill 被加载器静默丢弃、YAML round-trip 压根没跑）**都长着成功的脸**（`status=ok`、`FAIL=0`、`exit=0`）——凡是"没报错"就下结论的地方，先问一句"我读的是产物的本体，还是它的状态名"。

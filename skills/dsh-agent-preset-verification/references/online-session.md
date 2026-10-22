@@ -1,8 +1,7 @@
----
-name: dsh-agent-preset-live-verification
-description: DSH agent preset 在线会话级验收——已起隔离 host 且真建会话才能做：RPC 核对 agentPreset、persona、权威工具清单，真跑一次委派核对子代理 config/persona/toolFilter 与父会话 turn/end。入口不能选 headless——one-shot 不合成 preset，且会改写真实 home（建 sessions、重写 profiles、吞 settings.yaml）⇒ 必须另给 DSH_HOME。适用于"离线过了但插件行为不对 / preset 在真会话里 persona 和工具对不对 / 委派为什么失败 / 能不能用 headless 验收 preset / headless 会污染 home 吗"。不适用：只想先验能不能挂载 → 用 `dsh-agent-preset-verification`；只要干净实验环境 → 用 `dsh-isolated-web-host`；不知改哪层、何时生效、怎么撤 → 用 `dsh-agent-customization`。
-whenToUse: 离线校验已通过、要在真会话里核对 preset 的 persona、工具裁剪与委派是否符合预期，或要解压会话日志取证时用。模型看不到本节。
----
+# 在线会话级验收（阶段二）· 完整操作手册
+
+> 本文件原为独立 skill `dsh-agent-preset-live-verification`（218 行），2026-10-22 并入 `dsh-agent-preset-verification` 作为**阶段二**。正文逐字保留，只去掉 frontmatter。
+> 触发词、阶段门与三条验收判据见父 skill 正文「阶段二」一节。
 
 # 在线验收 agent preset
 

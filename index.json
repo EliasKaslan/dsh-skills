@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "publish-dsh-skills.ps1",
-  "skill_count": 37,
-  "file_count": 60,
-  "total_bytes": 1366982,
+  "skill_count": 35,
+  "file_count": 59,
+  "total_bytes": 1360030,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -101,28 +101,21 @@
       "path": "skills/dsh-agent-customization",
       "description": "DSH 改造 agent 行为的入口总纲——改了 AGENTS.md 为何不生效、插件行坏了怎么回滚、settings.yaml 改了为何没反应、这次改动属于哪一层；含五层生效时机、热重载≠冷启动、坏 row 三形态、MCP 挂载与会话日志找回旧版本。适用于\"改 DSH 的行为该改哪一层 / 改了 AGENTS.md 为何不生效 / 插件行坏了怎么回滚 / settings.yaml 改了为何不生效 / MCP 怎么挂进来 / 实验包怎么挂 profile / 中文 UI 不是中文提示词 / 会话日志里能不能找回旧版本 / 会话日志怎么解压 / 本轮运行失败 / finish_reason 报错怎么判 / 上游还是 DSH 的 bug\"。不适用：只离线验负载挂载 → 用 `dsh-agent-preset-verification`；只要干净实验环境 → 用 `dsh-isolated-web-host`。",
       "files": 1,
-      "bytes": 88562
-    },
-    {
-      "name": "dsh-agent-preset-live-verification",
-      "path": "skills/dsh-agent-preset-live-verification",
-      "description": "DSH agent preset 在线会话级验收——已起隔离 host 且真建会话才能做：RPC 核对 agentPreset、persona、权威工具清单，真跑一次委派核对子代理 config/persona/toolFilter 与父会话 turn/end。入口不能选 headless——one-shot 不合成 preset，且会改写真实 home（建 sessions、重写 profiles、吞 settings.yaml）⇒ 必须另给 DSH_HOME。适用于\"离线过了但插件行为不对 / preset 在真会话里 persona 和工具对不对 / 委派为什么失败 / 能不能用 headless 验收 preset / headless 会污染 home 吗\"。不适用：只想先验能不能挂载 → 用 `dsh-agent-preset-verification`；只要干净实验环境 → 用 `dsh-isolated-web-host`；不知改哪层、何时生效、怎么撤 → 用 `dsh-agent-customization`。",
-      "files": 1,
-      "bytes": 23175
+      "bytes": 88618
     },
     {
       "name": "dsh-agent-preset-verification",
       "path": "skills/dsh-agent-preset-verification",
       "description": "DSH agent preset 验收两阶段——preset 没生效但看不出哪错了、到底挂载对没对、改完先离线确认；离线过了但插件行为不对、persona 与工具在真会话里对不对、委派为什么失败；headless 不能验 preset 且会污染 home。阶段一离线逐行解析 plugins 与 config，阶段二干净 host 真会话 RPC 核对。适用于\"preset 到底挂载对没对 / 改完 preset 先离线确认能不能挂 / preset 没生效但看不出哪错了 / 离线过了但插件行为不对 / 委派为什么失败 / 能不能用 headless 验收 preset / maxDepth 写 0 为什么让工具全废\"。不适用：只要干净实验环境 → 用 `dsh-isolated-web-host`；不知改哪层、何时生效、怎么撤 → 用 `dsh-agent-customization`。",
-      "files": 2,
-      "bytes": 33619
+      "files": 3,
+      "bytes": 57458
     },
     {
       "name": "dsh-isolated-web-host",
       "path": "skills/dsh-isolated-web-host",
       "description": "起个隔离 DSH host 做实验——想不污染真实 ~/.dsh 就验证插件行或 patch、真实 host 占着 3080 不能重启时用它：必加 --no-open、启动先落盘 pid 与端口、不带 token 的 401 判就绪、taskkill /PID 收尾；本机端口枚举是盲的（netstat / Get-NetTCPConnection 恒空），判就绪与判清理只认 HTTP 探针与落盘 pid。适用于\"起个隔离 host 试试 / 想不污染真实环境就验证插件行或 patch / 真实 host 占着 3080 不能重启 / 端口枚举查不到监听 / netstat 找不到 3080 / 改了 preset 想找干净环境挂载看看\"。不适用：只想验能不能挂载 → 用 `dsh-agent-preset-verification`；改哪层/何时生效/怎么撤 → 用 `dsh-agent-customization`。",
       "files": 1,
-      "bytes": 16827
+      "bytes": 16903
     },
     {
       "name": "dsh-repo-sync",
@@ -136,7 +129,7 @@
       "path": "skills/dsh-skill-authoring",
       "description": "DSH skill 文件本身的写法契约——skill 没被触发或加载不上时先看这条：模型每步只看到目录里的一行「`name` + 半角冒号 + description」（正文与 whenToUse 都不进目录），description 被折成单行、超 500 字符截断为前 497+\"...\"，旧 invocation 键（camelCase，3 个）会让整个 skill 拒载；含\"适用于…/不适用：…→用 `<兄弟skill>`\"句式模板、正文 `## 何时调用` 四要素、以及只读校验脚本 check-skill-frontmatter.ps1。适用于\"写/改/新建一个 skill 的 frontmatter / 统一 skill 的何时调用与触发词 / 目录里哪个 skill 会被想起来 / skill 没被触发或加载不上 / description 字符数超限 / 校验脚本跑不起来报 Unexpected token\"类任务。不适用：判断该不该沉淀、写到哪个根目录 → 用 `sedimenting-skills`。",
       "files": 3,
-      "bytes": 53867
+      "bytes": 53995
     },
     {
       "name": "dsh-skill-self-audit",
@@ -192,7 +185,7 @@
       "path": "skills/orchestrating-subagents",
       "description": "编排手册——两通道模型：生产动作（读文件、跨模块检索、跑命令、联网、试错、写代码/文档、改配置）一律下发子代理，主 Agent 保留全套工具、只做交付前独立复核（真跑验收命令、核\"文件:行号\"、读本体与 exit code）；判据权威出处是宪法 §2/§3，本 skill 只写操作配方。适用于\"任务很大一次读不完 / 该不该派子代理 / 帮我并行跑几件事 / 上下文快满了 / 子代理说没有 web_fetch 或说工具受限 / explore 和 subagent 怎么选 / 子代理说的对不对 / 它答错了要不要重派 / 怎么关掉自己起的进程 / 运行台账该怎么记 / 子代理写域重叠怎么办 / 长时间编译怎么等 / 子代理说完成了我怎么验 / 复核旧结论行号一致算不算没过时\"。不适用：任务收尾判定\"值得沉淀\"、要动手写 skill → 用 `sedimenting-skills`。",
       "files": 1,
-      "bytes": 67821
+      "bytes": 70764
     },
     {
       "name": "outlook-mailbox-control",
@@ -220,14 +213,7 @@
       "path": "skills/sedimenting-skills",
       "description": "Skill 沉淀协议——先过目录税预算（目录字符总量 ≤ 20,000，默认值可调），每次非平凡运行收尾都**自动**复盘，并**全库匹配**找归属（三段决策 ①融合已有 skill ②建/更新总纲 ③都没有才新建）——默认首选融合：有归属主题就追加一节，或**修正已被证伪的断言**；含全库检索配方（拿报错原文 / 命令名扫全部 SKILL.md）、防过度沉淀、单一归属（只写一个 skill 正文，别处留指针）、description 才是决定\"何时调用\"的字段（≤480）、允许空手而归、写完自验证。适用于\"这套流程以后还会用 / 把刚才那套步骤写成 skill / 这条经验该并进哪个已有 skill / 要不要新建 skill / 这个坑值得记下来 / 每次任务收尾自动复盘 / 怎么在全部 skill 里找这条经验的归属\"。不适用：还在执行任务、要先拆解派活 → 用 `orchestrating-subagents`；只改 frontmatter 与 description 的写法契约 → 用 `dsh-skill-authoring`。",
       "files": 1,
-      "bytes": 21330
-    },
-    {
-      "name": "subagent-toolset-precheck",
-      "path": "skills/subagent-toolset-precheck",
-      "description": "子代理工具集预检——子代理说没有 web_fetch、工具受限怎么办：派活前先让它如实回报函数清单，避免把联网调研或要求落盘的任务派给工具受限的 `explore` 子代理（2026-10-09 实测只拿到 glob/grep/read/subagent 4 个，无 web_search/web_fetch/pwsh/写文件工具），否则产出一堆\"未验证\"且交付文件落不了盘。适用于\"子代理说没有 web_fetch / 子代理说工具受限 / 子代理回了一堆未验证条目 / 没生成交付文件 / 联网调研派给谁 / explore 和 subagent 怎么选 / 子代理到底有哪些工具\"。不适用：拆解、派发、校验与上下文预算的通用编排规则 → 用 `orchestrating-subagents`；把跑通的流程写成 skill → 用 `sedimenting-skills`。",
-      "files": 1,
-      "bytes": 10823
+      "bytes": 21334
     },
     {
       "name": "univpn-vpn",

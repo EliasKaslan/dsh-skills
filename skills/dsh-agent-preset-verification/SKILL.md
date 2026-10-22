@@ -7,7 +7,7 @@ whenToUse: 离线（还没起会话）校验 preset 能不能挂载、plugins �
 # 离线校验自定义 agent preset
 
 > 本 skill 是总纲 `dsh-agent-customization` 的子 skill：只负责「离线静态校验」这一段；DSH 的分层、生效时机与上线纪律见总纲。
-> **会话级验收、以及"验收入口该选哪个"（headless 不能验收 preset） → 见 `dsh-agent-preset-live-verification`**（本 skill 不复制）。
+> **阶段二（会话级验收）与「验收入口该选哪个」（headless 不能验 preset） → 见本文末「阶段二」一节与其 `references/online-session.md`**。原独立 skill `dsh-agent-preset-verification` 已于 2026-10-22 并入本 skill。
 
 **先读这条（旧版整篇已被证伪）**：本 skill 曾建立在「`$DSH_HOME/.agent-presets/<id>/` 目录式 preset + `scanRoot` 权威健康检查」之上。**那套在 0.2.0-rc.2 上已完全失效**：`@deepseek-ai/dsh-agent-presets` 这个包**不存在**，全树唯一提到 `.agent-presets` 的地方是官方说明里的一句 *"Nothing reads that directory any more."*。现行载体是 **bundle patch 里的 `@deepseek-ai/dsh-agent-preset` 声明行**。
 
@@ -23,10 +23,10 @@ whenToUse: 离线（还没起会话）校验 preset 能不能挂载、plugins �
 - 还没起会话（或不想起会话），只想要"这份 preset 静态上到底对不对"的结论。
 
 **不要用本 skill（转交）：**
-- 已经起了会话，要验运行时真相（system prompt persona 原文、真实工具裁剪、委派是否跑通、`turn/end`），或要**选验收入口** → 用 `dsh-agent-preset-live-verification`。
+- 已经起了会话，要验运行时真相（system prompt persona 原文、真实工具裁剪、委派是否跑通、`turn/end`），或要**选验收入口** → 用本文「阶段二」。
 - 只是要一个干净的隔离实验环境（重定向 `DSH_HOME`、401 判就绪、taskkill 收尾） → 用 `dsh-isolated-web-host`。
 
-**前置**：这台机器上能跑 `node`（本机 v24）。 ／ **后继**：静态结论为"能挂载"后，进 `dsh-agent-preset-live-verification` 做会话级验收。
+**前置**：这台机器上能跑 `node`（本机 v24）。 ／ **后继**：静态结论为"能挂载"后，进本文「阶段二」做会话级验收。
 
 ## 0. 先认机制：当前这个 dsh 用哪套 preset 载体
 
@@ -319,6 +319,23 @@ $txt = $out | Out-String
 - 不要用 shell 自己复现 `install_bundle` 的安装步骤；也不要以为审批被禁用的会话能装 bundle。
 - 不要在没有备份 patch、没有 host 外探活的情况下部署实验插件行。
 
+## 阶段二：在线会话级验收（真会话才能验）
+
+> 本节是**阶段一（离线静态校验）全绿之后**才走的一步。原独立 skill `dsh-agent-preset-verification` 已于 2026-10-22 并入本 skill：**完整操作手册在 `references/online-session.md`**，本文件只留阶段门与判据。
+
+**阶段门（不满足就别往下走）**
+
+- 阶段一结论必须是"能挂载"。静态全绿**只说明配置层没问题**——persona / 工具裁剪 / 委派是否真对，只有本节能验。
+- 入口**不能选 headless**：one-shot 不合成 preset，且会改写真实 home（建 sessions、重写 profiles、吞 `settings.yaml`）⇒ **必须另给 `DSH_HOME`**（起隔离 host 见 `dsh-isolated-web-host`）。
+
+**验什么（三条，缺一条就等于没验）**
+
+1. **RPC 核对**：`agentPresets/read`，以及会话 `request/header` 里的 `data.header.tools[].name`——**服务端权威，模型自述不算**。
+2. **persona 原文**：从会话日志本体判「persona 真生效」，不要只看配置里写了什么。
+3. **真跑一次委派**：核对子代理 `config` / `persona` / `toolFilter` 与父会话 `turn` / `end` 是否与声明一致。
+
+**判据**：每条结论都要能指到 `文件:行号` 或 RPC 返回字段；只有"看起来对"不算通过。
+
 ## 验收标准
 
 - 第 0 步有结论：**本次用哪套机制、`<install>` 是哪条路径**（写下来，后面每条命令都依赖它）。
@@ -326,4 +343,4 @@ $txt = $out | Out-String
 - 每个 row 都跑过对应入口：有 `Config` 的跑 `Config(cfg)`，有 `resolveConfig` 的跑 `resolveConfig(cfg)`，两者都没有的按源码键集人工核对，且全部不抛错。
 - 装完后 `list_plugins` 里能看到 `preset-<id>` 行且状态正常；有诊断就逐行读它的 `rowId (pkgName): detail`。
 - 部署实验 row 前：patch 已备份、host 外的判活手段已就绪、失败还原路径明确。
-- 静态全绿**只说明"配置层没问题"**——persona / 工具裁剪 / 委派是否真对，仍须走 `dsh-agent-preset-live-verification`。
+- 静态全绿**只说明"配置层没问题"**——persona / 工具裁剪 / 委派是否真对，仍须走本文「阶段二」。
