@@ -242,65 +242,9 @@ whenToUse: 要改 DSH 自身行为（行为宪法 / 流程 skill / agent 组合 
 - **挂实验包先查官方 bundle，别自己 vendoring + 手写 row**：官方已把 `@deepseek-ai/dsh-experimental-agent-team-profile` 做成 bundle（带 `cordis.patch.yml` + `dsh.bundle.patch`）并列入 `dsh-app-boot\lib\index.js:552-557` 的 `OPTIONAL_BUNDLES`（该数组的注释原文 `offered switched off by the plugin manager`，:548）⇒ 直接走官方路径。反例（实测）：手工方案那批 `*.tgz` 与 `staged\` 备料全是**过时的 0.1.5-rc.2**，比运行时装着的 0.2.0-rc.2 落后一整代。
 - **失效模式（实测）：手工 row 方案会随 patch 长出真实 row 而整体失效。** 那套 apply / watchdog 脚本以「`cordis.patch.yml` 必须恰为裸 `[]`」为硬门槛；本机 patch 现为 **1311 B / 4 条真实 row**（`llm-pi-ai` / `agent-default-model` / `ui-settings-general` / `permission`）⇒ `apply-team-live.ps1` / `team-live-watchdog.ps1` 在 guard 处 `exit 3`；更坏的是 `deploy-team.ps1` **先污染后拒绝**（第 1 步真会创建 `profiles\node_modules\@deepseek-ai` 并拷入过时的 0.1.5 包，第 3 步才 throw `profile patch is not a bare [] and has no team rows; refusing to clobber.`）。⇒ 判据：**凡以"某个文件必须是空 / 必须是某个形状"为前提的自动化，动手前先验证那个前提还成立**，并默认它**在拒绝之前可能已经改过磁盘**。
 
-### 2.12 从会话日志回收被覆盖的旧版本（DSH 自身的记录面，实测）
+### 2.12 从会话日志回收被覆盖的旧版本（DSH 自身的记录面）→ `references/session-log-forensics.md`
 
-文件被**覆盖 / 没备份**时，**旧版本仍能从会话日志里逐字节重建**——日志记着每一次 `read` 的**逐行快照**。
-
-**1) 日志在哪、什么形状**
-
-- 路径：`$DSH_HOME\sessions\<workspace-slug>\<agentId>\session.v4.jsonl.zstd`（实测形态 `--D-workspace-agent-dsh_base--\<uuid>\session.v4.jsonl.zstd`；**一个会话一个目录，子代理也各有一份**）。
-- 它是**多帧 zstd 拼接**（每帧 magic `28 B5 2F FD`）⇒ **`zstdDecompressSync` 单次只解第一帧**，只拿到开头那一小段；必须按 magic **切帧循环**解压再拼。本仓现成工具 `tools\session\read-session-log.mjs` 已这么做（实测一次解出 **126 帧 / 235 条记录 / 1283123 字节**），但它**只按 pattern 打印行**，要取证得自己解析 JSONL。
-- 日志是 JSONL，逐行一条：`tool/call`（`data.callId` / `data.name` / `data.arguments` 是 **JSON 字符串**，还得再 `JSON.parse` 一次）与 `tool/result`（用 `data.message.toolCallId` 配对）。
-
-**2) `read` 的结果就是一份可逐字节重建的快照**
-
-关键字段是 **`tool/result` 里的 `data.meta`**（不是 `message.meta`，实测那里是 `null`）：
-
-- `meta.path` / `meta.totalLines` / `meta.lang` / **`meta.offset`** / **`meta.lines` = `[{number, text}]`**。
-- 重建写法：**`meta.lines.map(l => l.text).join('\n') + '\n'` 逐字节等于当时的文件**（本轮实测 sha256 对上）。
-- **注意 `meta.lines` 可能是"窗口"而不是全文**：带 `offset` 的读只回一段（实测 `lines` 40 项而 `totalLines` 是 234）⇒ 直接 `join` 会**静默**产出 40 行的假文件（4690 B 冒充 234 行）。**重建前必须断言 `offset === 1 && lines.length === totalLines`**。
-- `content[0].text` 里那份带 `N: ` 行号前缀的正文是**给人看的**，要重建得先剥前缀；**优先用 `meta.lines`**。
-
-**3) 用途 + 自证（本轮实测：`orchestrating-subagents`）**
-
-- 用途：取"**该写手在首次写入之前的那次 `read`**"，就是被覆盖前的旧版本。
-- **自证必须双向，只对一个方向不算证明**：
-  - **正向** = 对**写手自己在磁盘上实测的** `bytes` / `sha256`（日志原文：`bytes=22962 sha256=3f6a9dd800b622fb BOM=False CR=0 LF=234`）。
-  - **反向** = 把日志里它的每一次 `edit`（`old_string` / `new_string`；`replace_all` 决定全替换还是只中首个）**依次回放**到重建文本上，看能否精确复现它**改后**的状态。
-- 本轮两个方向都命中：重建 **12860 B**（153 行）+ **5 次 `edit` 全部命中、0 失败** ⇒ 回放终态 **22962 B / sha256 `3f6a9dd800b622fb…c89916`**，与写手自测、以及**我在 PowerShell 里独立算的**磁盘哈希**三者逐字节一致**。顺带一条判据纪律：真值是实测的 **12860 B**，而不是任何"估算的尺寸带"——拿自己估的区间当验收判据会把**正确的交付误判为失败**（见 `orchestrating-subagents` §9.7）。
-- 边界：最后一帧可能在追加中被截断 ⇒ 单帧解压失败要**容忍并跳过**，别把整次取证判失败；日志只记**被读写过的内容**——从没被 `read` 过的文件不在里面。
-
-> 会话 id / 隔离 home 路径等属**会话专属证据**，留报告，不进本 skill。
-
-### 2.12.1 全会话扫某个错误串的复现配方（zstd 流式精确匹配）
-
-**要回答"这个报错在本机历史上出过几次、命中哪些会话"** 时用它。会话文件散布在 `C:\Users\admin\.dsh\sessions\<工作区转义名>\<agentId>\` 下，名字有 `session.jsonl.zstd` / `session.v3.jsonl.zstd` / `session.v4.jsonl.zstd` 三种以上 ⇒ **按扩展名 `.zstd` 全树扫**最稳，别按文件名猜。
-
-**必须用精确 JSON 模式匹配**：`content_filter` 这类子串会在**排查会话自己的正文里**反复出现（本轮实测：子串命中 49 行，其中 **39 行**是排查会话里的普通文本巧合）⇒ 裸子串计数会把"我自己的排查过程"当成事件数。
-
-```powershell
-$code = @'
-import os, zstandard
-d = zstandard.ZstdDecompressor()
-for dp, _, fn in os.walk(r"C:\Users\admin\.dsh\sessions"):
-    for f in fn:
-        if f.endswith(".zstd"):
-            p = os.path.join(dp, f)
-            lines = d.stream_reader(open(p, "rb")).read().split(b"\n")
-            for i, l in enumerate(lines, 1):
-                if b'"Provider finish_reason: content_filter"' in l:
-                    print(p, i, len(lines))
-'@
-$code | python -X utf8 -
-```
-
-- **匹配用 bytes 字面量**（`b'"…"'`）而不是子串技巧：抓的是日志里那个**带引号的 JSON 字段值**，这正是"精确模式"的落地方式。
-- **必须流式**（`stream_reader`）：会话日志是**多帧拼接** zstd，单帧 API 只回第一帧且不报错（假否定，逐字配方与证据 → `pwsh-on-windows` 陷阱表"多帧拼接 zstd"行）；`stream_reader` 顺带满足**不落盘**。
-- **事件计数判据：行数 ÷ 2 = 事件数**——真实事件在一条 `assistant/attempt` 里**成对出现**（`finish` chunk 行 + 紧随的 `turn/end` 行）⇒ 别把命中行数直接当次数报。本轮实跑：**677 个文件 / 264,383,956 B → 10 行 / 5 事件 / 4 会话**。
-- **依赖**：python 的 `zstandard` 模块（无它直接 ImportError）。**本机 zstd 会话合计约 260 MB 量级**（时刻值）⇒ 耗时在解压、不在匹配。
-- **坑**：别用 `d.decompress(b)`（单帧，多帧文件只有第一帧）；别按文件名（`session.v4.jsonl.zstd`）找，要按扩展名扫；别忘"÷2"。
-- 本节的**下游**：拿到命中的会话后再判"这错误是不是 DSH 的 bug"→ 见 **2.17**（错误串的实装链路行号**单一归属在 2.17**，本节只写扫描配方、不复制链路）。
-
+会话日志是 DSH 唯一的"改前版本"来源。三条要点：日志按会话分目录、正文是 **zstd 帧**、`request/header` 里存着当轮的**完整工具面与 system prompt 原文**。完整配方（含 §2.12.1 全会话扫某个错误串的 **zstd 流式精确匹配**）在该文件。
 ### 2.13 改"正在运行 host"的 registry 行：已存在会话的工具面**当场静默崩塌**（实测，全库最隐蔽的一种）
 
 **这是与 2.1 相反方向的坑**：2.1 的坏 row 是"**当场无感、重启才死**"；本节是"**当场就坏、重启才活**"。
@@ -341,145 +285,15 @@ $code | python -X utf8 -
 
 > 本节所有行号取自本机 `node_modules/@deepseek-ai/*`（`0.2.0-rc.2` 线）；升级后行号会漂，**判据与错误原文**才是可迁移的部分。
 
-### 2.14 `config\` 快照池是「分发源」不是「回滚库」：一次 `-Apply` = 一次无声的教义回退（实测）
+### 2.14 `config\` 快照池是「分发源」不是「回滚库」→ `references/config-pool-is-not-rollback.md`
 
-> 编号说明：本节原拟编入 **2.13**，但 2.13 已被上节（registry 行崩塌）占用 ⇒ **顺延为 2.14**。
+一次 `-Apply` = 一次**无声的教义回退**（把 `config\` 里的旧快照重新盖到生效件上，且不报任何错）。**动手 `-Apply` 之前必读该文件**：判据、实测反例与恢复路径都在里面。
+### 2.15 skill 根卫生：清理 `~/.dsh/skills` 时，**被正文引用的凭据文件就地保留**→ `references/skill-root-hygiene.md`
 
-**它到底是哪一侧的源。** `D:\workspace\agent\dsh_base\config\manifest.json` 是「repo 侧 → live 侧」的映射表：`path` = **仓库侧写入源**，`source` = **live 溯源记录**；而决定"写到哪"的 `Get-DshLivePath`（`tools\sync-to-dsh-home.ps1:84-97`）**只按 `path` 前缀推导、完全不看 `source`**。方向由开关定（`:9-11`）：`-Capture` = live → 快照；`-Apply` = 快照 → live；**不带开关就是 dry-run，只打印不动手**（`:6-7` / `:357`）。两个真读它的消费者：写手 `tools\sync-to-dsh-home.ps1`（`config/skills/* → <live>\skills\*` 的映射在 `:92-95`；池只认 `dsh-*` 目录，`:130`）与比对器 `tools\check-drift.ps1`（`:110` 注释逐字 `snapshot -> live`；`:159-161` 证明 `config/AGENTS.global.md` 与 `<live>\AGENTS.md` 是同一份东西的两侧）⇒ **它是分发源（安装源），不是回滚库。**
+删掉正文引用到的凭据 / 数据文件后，skill 仍然"存在且校验通过"，但**跑起来就断**——这是最难在事后归因的一种坏。实测反例与清理前检查清单在该文件。
+### 2.16 `toolFilter.allow` 只筛继承面、own 层注册无条件可见→ `references/toolfilter-allow-semantics.md`
 
-**开关的逐字语义与 `-Capture` 的覆盖面（本轮实测 `tools\sync-to-dsh-home.ps1`）。** `:9-10` 逐字 `-Capture   live -> snapshot   (copy live files over the snapshot, then rewrite` + `config\manifest.json so it describes the result)`；`:11` 逐字 `-Apply     snapshot -> live   (back up every target file first, then copy)`；`:6-7` 无开关 = **dry-run**（`:357` 逐字 `DRY RUN -- no switch given, nothing was read from or written to the snapshot/live home.`，`:359` 打印 `-Capture would copy N file(s) live -> snapshot:`）。⇒ 语义有两点必须说全，别只记成"重新 capture"：**① 方向 = 把 live 盖到快照上**；**② 覆盖面 = 逐文件 copy（只写快照侧）+ 整份重写 `config\manifest.json`**。实现即"只写快照侧"：`:232-249` 的 Capture 分支只写 `$c.To`，`:242` 用 `Copy-Item -LiteralPath … -Destination … -Force` ⇒ **字节保真、无重编码**（不会给 skill 文件加 BOM）。
-
-**实锤危害（同一机制、不同时刻；下面每个数字都是时刻值，别背成常量）。** `-Capture` **之前**有两次独立读数：Lead 复核得 `matched=8 drift=8`（**8 条全部 `live-newer`** = 1 个 `AGENTS.md` + 6 条 live `dsh-*` SKILL.md + 1 个脚本 `dsh-skill-authoring\check-skill-frontmatter.ps1`），**exit=2**；我上一轮复跑读到的条数比它少 1（差在那条期间刚被人改过的脚本）——**同一个池、两次读数就能差一条**。当时 dry-run 逐字打印 `-Apply would copy N file(s) snapshot -> live (with backup)`（N = 漂移条数）⇒ **那一刻的任何一次 `-Apply` 都是一次无声回退**。**重新 `-Capture` 之后**实测 `matched=16 drift=0 snapshot-only=0 live-only=0` + 脚本自己的原文 `No drift: the snapshot matches the live DSH home.`，**exit=0**（`:247` 脚本自己就写着 `Run check-drift.ps1 to confirm the result shows no drift.`）⇒ 池此刻已是真快照、`-Apply` 与 live 相等。**但风险只是被判据化，没有被消除**：`AGENTS.md` 是热刷新的、live 随时在动 ⇒ 只要 live 再前进一次，同一条 `-Apply` 就又是一次回退（**本节这次改稿本身就让池落后 1 条**）。
-
-**为什么这叫"教义回退"而不只是"版本回退"（这段历史可当场复核，不必信本节的旧数字）。** 改造前两侧 `AGENTS.md` 的**章节编号完全一致（都 §0–§12）**，语义却相反——快照侧 §2 = 「触发即委派」、§3 = 「可以自己做」；live 侧 §2 = 「生产权在子代理」、§3 = 「审计通道」。**两份改造前原件都还在磁盘上**（只读），可直接逐字复核：`artifacts\backups\orchestration-opt-20261009\001__Users__admin__.dsh__AGENTS.md` 与同目录 `014__workspace__agent__dsh_base__config__AGENTS.global.md`（我本轮已按这两份复核过它们的 `## 0`–`## 12` 标题）。⇒ 那些**按编号引"宪法 §2 / §3"** 的 skill，回退之后会指向**相反语义**，而且**没有任何报错**。**现值**（2026-10-09 改造前实测）：两侧**逐字节相等 = 12,955 B / sha256 `C9AE86A3…`**——改造后本值必然失效，属时刻值；同样是时刻值，会随每次改造再变。
-
-**两个必须一起说的限定（别夸大）**：
-
-1. **这不是自动路径，是"装了子弹没扣扳机"。** `config\_backup` 目录**不存在**（`Test-Path` = False；备份根由 `-Apply` 才创建，`:263`）⇒ 历史上**从未 `-Apply` 过**。全机唯一与 DSH 相关的计划任务是 `DSH-Skill-SelfAudit`，在其 skill **全部文件**里 grep `-Apply|-Capture|sync-to-dsh-home|check-drift` = **0 命中**（本轮实测）⇒ 回退只会由人手动敲。
-2. **池自己不会告诉你它旧了。** manifest 的 `bytes` / `sha256` 字段是**死数据、无人校验**——`check-drift.ps1:134-139` 是**现算** `Get-FileHash` 后比对，**从不读 `$e.sha256`**。⇒ **字段过期不产生任何 drift**（本轮就是这样被抓到的：两条失效字段一直躺着，`check-drift` 一声不吭，只有自己现算才看得见）。失效样例（`-Capture` **之前**实测；`-Capture` 会重写 manifest ⇒ 现值已刷新，样例只作形态参考）：`agent.cordis.yml` 记 21867 B / `d1e9f32a` 而磁盘 22980 B / `e8873211`；`preset.yml` 记 360 B / `dad344d4` 而磁盘 553 B / `9b6691f3`。⇒ 判据：**别把"manifest 没报错"当成"快照是新的"**；要判同步只能跑 `check-drift` 或自己现算。
-
-**纪律：方向裁定没做完，任何人不得跑 `-Apply`。** 裁定 = 二选一：① **重新 `-Capture`**（让池重新成为真快照，推荐）或 ② **删池**；`-Capture` 也是写操作（它改的是池、并重写 manifest），同样在裁定之后做。**两个开关一起给 = 直接失败**（`:57-59` 逐字 `FATAL: pick one direction. -Capture and -Apply are mutually exclusive.`，`exit 1`）。
-
-**本轮实测读数（2026-10-09，范例；每个数字都是时刻值）。** `-Capture` **之前**：`check-drift.ps1` 得 `matched=13 drift=3 snapshot-only=0 live-only=0` + **`EXIT=2`**；`sync-to-dsh-home.ps1` **dry-run** 逐字打印 `-Capture would copy 3 file(s) live -> snapshot:`（**恰好 3 个目标，没有附带拉入**）；**先备份再**跑 `-Capture`，**复跑** `check-drift.ps1` 得 `matched=16 drift=0` + 原文 `No drift: the snapshot matches the live DSH home.` + **`EXIT=0`**。**退出码定义：`0` = 无漂移 ／ `2` = 有漂移 ／ `1` = 用法或环境错误。** ⇒ **标准四步法（顺序不能换）**：① `check-drift.ps1` 判方向 → ② `sync-to-dsh-home.ps1` dry-run 先量（确认 copy 集合**恰好等于**漂移条数）→ ③ **先备份再** `-Capture` → ④ 复跑 `check-drift.ps1` 验收 `drift=0 + EXIT=0`。
-
-**执行 + 验收配方（四条命令，顺序不能换）**
-
-```powershell
-$R='D:\workspace\agent\dsh_base'
-# ① 先定方向：看 live-newer / snapshot-newer（exit=0 无漂移 / exit=2 有漂移）
-powershell -NoProfile -ExecutionPolicy Bypass -File "$R\tools\check-drift.ps1"
-# ② dry-run（不带开关，不动任何文件）
-powershell -NoProfile -ExecutionPolicy Bypass -File "$R\tools\sync-to-dsh-home.ps1"
-# ③ 裁定后真跑（写操作；实现见 sync-to-dsh-home.ps1:232-249）
-powershell -NoProfile -ExecutionPolicy Bypass -File "$R\tools\sync-to-dsh-home.ps1" -Capture
-# ④ 验收：必须以 drift=0 + exit=0 收尾
-powershell -NoProfile -ExecutionPolicy Bypass -File "$R\tools\check-drift.ps1"
-```
-
-- **验收判据 = 第 ④ 步 `drift=0` 且 `exit=0`**（收尾行 `No drift: the snapshot matches the live DSH home.`）。**别拿"capture 输出说 copy 了 N 个文件"当验收**——它只说明第 ③ 步动过 N 个文件，不说明结果对。
-- **前提：动手前先确认所有写手都已停**（`AGENTS.md` 是热刷新的、live 随时在动）⇒ **`drift=0` 是时刻、不是属性**：live 再改一次就得**重跑 `-Capture`**，否则池立刻又落后。**纪律：改完 live 必须 capture**——只改了 live 侧却把漂移留着，等下一次谁跑 `-Apply`，就会**把 live 静默回退成旧快照**（刚改的内容没有任何报错地消失）。
-- **坑：dry-run 会把两个方向都列出来，且对"两侧都存在但不同"的文件，两份清单是同一批**（`:196-229` 两个 plan 共用同一条"hash 不等"判据，`:359` / `:363` 分别打印）⇒ **光看清单分不出谁新、也就选不出开关**，方向只能由第 ① 步判。
-- **坑：判"manifest 被重写"必须看 `generated_at`，不能看字节数。** `-Capture` **哪怕只 copy 1 个文件也会整份重算 manifest**（`sync-to-dsh-home.ps1:246` 打印 `manifest.json rewritten: 17 entries`），但 manifest 的**字节数可能完全不变**（Lead 实测：重算前后都是 **7,260 B**——只有 `sha256` / `bytes` 字段在换值）⇒ 拿"文件大小没变"当"没重写"会得出**假结论**，让人误以为 capture **静默失败**。同理，manifest 里那条过期的 59027 B 旧记录，在重算前后**都产生不了 drift**（`check-drift.ps1:134-139` 从不读 `$e.sha256`）。**更硬的一条实测**：四轮 `-Capture` 下来 manifest **恒为 7,260 B**，而 `generated_at` **四次各不同**；根因 = `Write-DshManifest` 各字段长度守恒（只有 `bytes` 跨位数时才偶然变）⇒ **字节数对"是否被重写"零信息量**。**并且不要手工改 manifest**：它只是 `-Capture` 的产物——`:244` 每次整份重写（`Write-DshManifest`）、`:246` 打印 `manifest.json rewritten: N entries`；而判漂移**从不读**它的 `sha256` 字段（`check-drift.ps1:134-135` 逐字 `$sh = Get-DshHash $snapPath` / `$lh = Get-DshHash $livePath`，现算后比对）⇒ **手改任何字段都不会影响判漂移的结果**，只会制造一份更不可信的记录。
-- **非 `dsh-*` skill 不产生 drift 是设计内过滤、不是漏报**（本轮实测）：`sync-to-dsh-home.ps1:130` 与 `check-drift.ps1:176` 是**逐字同一句** `if ($d.Name -notlike 'dsh-*') { continue }`，后者上游 `:155` 的注释还写明 `deliberately`。⇒ `pwsh-on-windows` / `sedimenting-skills` 本轮被改过，但**既不入池、也不报 `[LIVE-ONLY]`**——这是设计，别当漏报去"修"。**推论（重要）**：改这类 skill（例如 `orchestrating-subagents`、`sedimenting-skills`）时，`check-drift` **不会报警**、快照里也**没有备份** ⇒ 对它们而言 `artifacts\backups\<name>.<日期>.bak` 是**唯一**回滚源；另一个会话正在改的技能也全在这类池外 ⇒ **它们的改动在 `check-drift` 里完全不可见**。
-- **`check-drift` 的 `matched` 是动态值，不能进验收判据**（旧文把它定义成"可比文件数"是**错的**，以本轮实测为准更正）：`matched` = **hash 逐条相等的文件数**（`check-drift.ps1:136-137` 只在 `$sh -eq $lh` 时 +1，汇总打印 `:193-194`）⇒ `matched + drift` 才等于可比文件数（本轮 capture 前 `13 + 3 = 16`、capture 后 `16 + 0 = 16`）；只有 `drift=0` 时它才恰好等于"条目数 − `[SKIP]` 数"（17 − 1 = 16）。⇒ **验收只认 `drift=0` 与 `EXIT=0`**；把 `matched=16` 当常数写进判据，条目数一变就会误判。
-- **判"池真同步"只能靠三件套**：`file_count` 与实际条数一致（`check-drift.ps1:104-105`；本轮实测 17/17）+ `generated_at` 是本次（本轮实测 `2026-10-09T14:52:01+08:00`）+ **现算 hash** 逐条相符。两个脚本都**不打印、也不写任何 `STALE` 标记**（`check-drift.ps1` 只有 `[SKIP]` `:117` / `[BROKEN]` `:122` / `[SNAP-ONLY]` `:128` / `[DRIFT]` `:147` / `[LIVE-ONLY]` `:186` 五种标签；manifest 里 `(?i)stale` 匹配 0）⇒ **根本不存在"检查有没有 STALE 行"这一步**，别照着一个不存在的前提下结论。
-- `config\_backup\` 子树不进 manifest（`:144` / `:163`）。
-
-**池的覆盖边界（池的定义权威 = 现存产物 `D:\workspace\agent\dsh_base\config\manifest.json`：本轮 recapture 后 **17 条 / `file_count=17` / `generated_at=2026-10-09T14:52:01+08:00**；宪法 §9 只讲**备份与回滚纪律**、**已不再定义池**，别再去宪法里找这句话）**：池**覆盖不到真正生效的编排 preset**。池里 preset 那半边指向**已死的** `~/.dsh\.agent-presets`（运行时全部 `.js` 里 `.agent-presets` 出现 0 次，见 `02-mechanics.md` 的 Q3 / Q7）；**真正生效**的是 **`artifacts\presets\orchestrator-bundle\cordis.patch.yml`**（经 `profiles\web\package.json:5` 的 `link:` 挂载 + `profiles\web\cordis.patch.yml:69-73` 的 `selectedDefault: orchestrator` 选中）——**bundle patch 与 profile patch 都不在池内** ⇒ **`-Apply` 无法恢复现网真正生效的编排 preset**，只能恢复一个没人读的目录式旧件。⇒ 「重建 home = 跑一次 `-Apply`」是**错的**。**同一条边界还有第二半**：同步与漂移检测**只认 live `skills\dsh-*`**（`sync-to-dsh-home.ps1:130` 逐字 `shared cross-project library, not ours`）⇒ `orchestrating-subagents` / `pwsh-on-windows` / `sedimenting-skills` 这类**非 `dsh-*` 的 skill 根本不在池内**——改它们**不产生任何 drift**（`check-drift` 永远显示"无漂移"，给的是**假安心**），同时它们也**没有自动回滚源**（改前必须自己留副本）。
-
-**与第 1 节表格的呼应**：`AGENTS.md` 是**热刷新**的（第 1 节表格：改完当轮即收到 `Updated instructions from: ~/.dsh/AGENTS.md …`）⇒ **回退宪法的影响面不只新会话**，而是每个正在跑的会话**下一轮**就开始按旧教义行事。
-
-> 本节行号取自 `tools\sync-to-dsh-home.ps1` / `tools\check-drift.ps1`（本机当前版本）；脚本一改行号就漂，**可迁移的是判据**（方向由字段定、drift 方向定生死、manifest 哈希字段不可信、池覆盖不到生效 preset）。
-
-### 2.15 skill 根卫生：清理 `~/.dsh/skills` 时，**被正文引用的凭据文件就地保留**（实测反例）
-
-> 编号说明：接 2.14 顺延为 **2.15**。
-
-`~/.dsh/skills` 是**多会话共享**目录（一次清理立刻对所有会话生效），而 skill 正文是用**相对路径**点名自己目录里的文件的 ⇒ **移走被引用者 = 制造假指针**：会话照着正文去找一个不存在的文件，**而且没有任何报错**。更重的一层：它可能**推翻用户的既有决策**。
-
-**实测反例（本轮）**：`ascend-env\credentials.txt`（2,011 B）全库被 **6 处**引用——
-
-| 引用方 | 行 | 性质 |
-|---|---|---|
-| `ascend-env` | `:38` / `:244` | 凭据本体所在 skill（"新值只写在 `credentials.txt`"） |
-| `vllm-ascend-source-install` | `:11` | 密码 fallback 指过去 |
-| `github-pr-flow` | `:32` / `:154` | **2026-10-08 用户决策的单一出处**（凭据允许放 skill 目录内、就地保留） |
-| `dsh-skill-self-audit` | `:132` | **点名要求校验该文件真实存在，找不到按 FAIL 报** |
-
-⇒ 移走一个 2 KB 文件 = **1 个 FAIL + 3 条假指针 + 推翻一条用户决策**。
-
-**对照**：两枚 15,395 B 的编辑器残留（`.bak`）全库 **0 命中**引用 ⇒ 才属可移；本轮取证时它们**已被并行清理者移走**（该目录只剩 `SKILL.md` 21,580 B）——这也正说明**清单与行号都会漂，判据只能是"动手前 grep 一次"**。
-
-**纪律（清理前逐条执行）**
-
-1. **只移明确的编辑器残留**：`.bak` / `.orig` / `.tmp` 这类；即便如此也要**先看引用命中**再移，不要凭扩展名好看就动。
-2. **任何 `*credentials*` / `*.key` / `*.pem` / `*.token` 一律先 grep 全库引用**；**被任何 skill 正文引用的就地保留**——被引用者移走等于制造假指针，还可能推翻用户的既有决策。
-3. **移动一律是"移入 `artifacts\backups\skill-hygiene-<日期>\`、保留原相对路径、记 sha256"**，**不删除**（"移走"必须可逆）。
-
-**取证（只读，可抄）**
-
-```powershell
-# 1) 全库谁被点名（列引用方 + 行号；数次数别用 Select-String -AllMatches，它恒为 0）
-Get-ChildItem 'C:\Users\admin\.dsh\skills' -Recurse -File -Filter *.md |
-  Select-String -Pattern 'credentials\.txt' -Encoding utf8 |
-  ForEach-Object { "{0}:{1}" -f $_.Path, $_.LineNumber }
-# 2) 残留候选（显式计数，不要从目录外观下结论）
-Get-ChildItem 'C:\Users\admin\.dsh\skills' -Recurse -File |
-  Where-Object { $_.Name -match 'credentials|\.bak$|\.orig$|\.tmp$' } |
-  ForEach-Object { "{0}  {1} B  sha={2}" -f $_.FullName, $_.Length, (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower().Substring(0,8) }
-```
-
-> 凭据的**登记与存在性校验规则**单一归属在 `dsh-skill-self-audit`，凭据**存放策略**的单一出处是 `github-pr-flow` §0；本节只写"清理时怎么不制造假指针"。
-
-### 2.16 `toolFilter.allow` 只筛继承面、own 层注册无条件可见（源码实证；纠正的是运行时 doc comment，**不是本 skill 的旧文**）
-
-> 本节纠正的**不是本 skill 的旧文**（该 skill 里 `toolFilter` / `allow` **0 命中**），而是**运行时 doc comment 这个"唯一权威措辞来源"**：`dsh-tools\lib\index.js:2888-2894` 的 `Restrict global tools` / `global-tool mask` **与实现不符**（`:2891` 的 `scoped registrations remain visible` 与它**自相矛盾**）。
-
-**C9-1｜可机判的结论。** **`toolFilter.allow` 只筛"继承面"（global + 祖先层）；agent 自己 scope 里注册的工具无条件可见，任何 `toolFilter` 都裁不掉。**
-
-- 误判之源（`C:\Users\admin\.dsh\launcher\runtime\node_modules\@deepseek-ai\dsh-tools\lib\index.js:2888-2894`，逐字）：
-
-  ```js
-  /**
-   * Restrict global tools for the calling agent scope. Empty filters, unknown
-   * names, scope-local names, and reserved transport names fail. Restrictions
-   * intersect; scoped registrations remain visible.
-   * @param filter - global-tool mask: `allow` (keep only) and/or `deny` (remove).
-   * @returns the exact disposer that lifts this restriction.
-   */
-  ```
-  `Restrict global tools…` 与 `global-tool mask` 两处措辞会把人带向"**allow 裁的是全局工具名**"——**照注释推必误判**；真相藏在第三行 `scoped registrations remain visible`（`:2891`），它**与首句自相矛盾**、且太隐晦。
-- 实现（`view(scope)`，同文件 `:2959-2979`）：
-  - `:2963-2965`：`inherited` = `layers.global.tools` + 各祖先层；`if (layer === own) continue;`（`:2964`）⇒ **遍历继承面时显式跳过 own 层**；
-  - `:2973`：`if (layers.every((layer) => layer.admits(name))) visible.set(name, definition);` ⇒ **`admits`（allow / deny 过滤）只作用于"继承面"**；
-  - `:2975-2978`：`if (own !== void 0) for (const [name, definition] of own.tools.entries()) { knownNames.add(name); visible.set(name, definition); }` ⇒ **own 层直加 `visible`，完全不过 `admits`**。
-- 附带解释：`dsh-tools:2907-2908` 报 `names unknown global tool…`（`const unknown = [...allow ?? [], ...deny ?? []].filter((name) => !known.has(name));` + `throw new Error(...)`），校验的是"**可裁名单**"（`restrictableNames`）——**own 层名字根本不在里面**。
-
-**C9-2｜为什么 `explore` 实测 4 个工具而那行 `allow` 只写 3 个**：`modelSelectionSettings` 豁免
-
-- bundle 侧：`artifacts\presets\orchestrator-bundle\cordis.patch.yml:193` 逐字 `modelSelectionSettings: true`（`tool-subagent` 行）。**全 patch 只此一处** ⇒ **`modelSelectionSettings` 1 / 10 条 `tool-subagent*` 行**（实测：patch 共 **36** 条 `- id:`、`- id: tool-` **23** 条、`- id: tool-subagent*` **10** 条）。
-  > **口径更正**：早期记录用的是另一个分母（"若干行里只有这一行有该键"）——**"只有这一行有该键"成立**（实测 1 处），但**那个分母已弃用**（复算不出、与实测对不上）⇒ 本节**不写它**，只认上面两种可复算写法。
-- 运行时侧（`@deepseek-ai\dsh-tool-subagent\lib\index.js`）：该键触发**逐 agent 安装**分支 ——
-  - `:614` `if (agents === void 0) throw new Error("tool-subagent: standing \`modelSelectionSettings\` requires the Agent registry");`
-  - `:618-632` `const installScoped = (candidate) => { … const policy = selectForSession(candidate.session); fiber = candidate.ctx.inject(["tools", "subagents", "systemPrompt"], (runtimeCtx) => { install(runtimeCtx, policy); }); }` ⇒ 工具注册进**该 agent 自己的 scope**（`candidate.ctx`）；
-  - 注册点 `:398` `disposeTool: runtimeCtx.tools.register(defineTool({ name: toolName, …`。
-- 两件事叠加 = 豁免：注册落在 **own 层**（`candidate.ctx`）× own 层**不过 `admits`**（C9-1 的 `:2975-2978`）⇒ **`toolFilter` 裁不掉这个 `subagent` 工具**。这给 `orchestrating-subagents §1` 那句"疑似 provider 在过滤**之后**注入"补上机制（不再是猜测）；**"未经探测的角色不得据此断言工具面"这条纪律保留**。
-- 其余 **9** 条 `tool-subagent*` 行（4 个角色行 + `control` / `list-agents` / `fork` / `codex` / `claude-code`）的工具住在**挂载 scope** ⇒ 落在继承面 ⇒ **被 allow 裁掉**。
-
-**C9-3｜"提示词分层"的全貌：子代理侧有现成口子，主 Agent 侧没有一等公民口子**
-
-- 子代理侧四个现成口子：① 子 persona（`@deepseek-ai\dsh-subagent\lib\index.js:517-519` `if (composition.persona !== void 0) childCtx.systemPrompt.section({ order: childCtx.systemPrompt.getSectionOrder("DEPLOYMENT_PERSONA_PREFIX"), …})`）；② `toolFilter`；③ `maxDepth`（`:401` `const childDepth = delegationDepthOf(parent) + 1;` / `:479` `delegationDepth: childDepth`，守卫在 `types\depth.js`）；④ `SUBAGENT_DELEGATION_CONTEXT`（常量 `:487`，注入 `:512-515` `childCtx.systemPrompt.context({ order: childCtx.systemPrompt.getContextOrder("SUBAGENT_DELEGATION"), text: SUBAGENT_DELEGATION_CONTEXT })`；同一注入另见 `types\child-agent.js:159-162`）。**第一手佐证**：`:487` 那个常量**逐字**就是子代理会话里的 `You are a delegated subagent: your permission scope was fixed when you were started …` ⇒ 这条注入路径确实在跑，且**与深度无关**。
-- **主 Agent 侧：未发现一等公民口子（负向结论 = "未发现"，不是穷尽证明）**：grep `delegationDepth` 扫 runtime `@deepseek-ai` 全树（1,007 个 `.js/.mjs/.cjs`）⇒ **89 命中 / 34 文件**，逐类归位**全部**落在 ①会话与深度守卫（`dsh-subagent\lib\types\depth.js`、`dsh-session*`）②RPC/schema（各 `typert.host.js`、`dsh-api-*`）③序列化与格式转换——**没有一处是"按 `origin` / `delegationDepth` 拼提示词"的分支**。
-- 唯一近似做法及其漏洞：条文写进 **preset persona** ⇒ 只覆盖**写了 `persona:` 的行**：bundle 里 `persona:` 只出现 **5 次**（`cordis.patch.yml:195 / :229 / :247 / :270 / :288`），而 `- id: tool-subagent-fork`（`cordis.patch.yml:303-308`，只有 `provider` / `toolName` / `backgroundMode`）**没有 `persona`** ⇒ **走 `subagent_fork` 的派发会漏掉这段条文**。生效时机也不可混用：preset persona 走 **preset/bundle 冷启动**（§1 例外段），**与 `AGENTS.md` 的热刷新不同层**。
-- 第四条机制事实（顺带登记）：`@deepseek-ai\dsh-tool-skill\lib\index.js:207` 按"该 agent 是否看得见 `skill` 工具"**逐 agent 门控**目录：`const snapshot = ctx.tools.get(skillTool.name, agent) === skillTool ? await ctx.skills.snapshot({ cwd: agent.session.header.cwd, signal, scope: agent }) : { skills: [], complete: true };` ⇒ **看不见 `skill` 工具 ⇒ 目录快照恒为空（`{ skills: [] }`）**——这正是 `explore` / `implement` / `verify` 注入 **0 条**目录的直接原因，也与"`allow` 里写不写 `skill` 都不等于有 `skill` 工具"互为印证。
-
-**C9-4｜两条工具陷阱（归本 skill 的坑段，**不是** `pwsh-on-windows` 的坑）**
-
-1. **`grep` 工具跳过点目录、且不跟随 Junction ⇒ "全树 0 命中"可能是假阴性。** 实测：在 `C:\Users\admin\.dsh` **全树** grep `at most 40 lines` 得 **0 命中**，而 `C:\Users\admin\.dsh\.agent-presets\orchestrator\agent.cordis.yml` 里实际有 **6 处**（`:58` / `:238` / `:272` / `:292` / `:313` / `:333`）⇒ **判引用必须显式给绝对路径**（`Select-String -Path <文件>`）。
-2. **判"有没有第二份安装副本"不能用全树 grep**，要用 `Get-Item -Force` 看 `LinkType` / `Target`。实测：`C:\Users\admin\.dsh\profiles\web\node_modules\@local\dsh-orchestrator-preset` → `LinkType=Junction`、`Target=D:\workspace\agent\dsh_base\artifacts\presets\orchestrator-bundle` ⇒ 全树 grep 找不到 persona 文本**不是"没有副本"，而是"没跟过去"**。
-
-> **锚点会漂，靠名字找回来**：上面每个源码位置都同时给了**函数名 / 常量名**（`view(scope)` / `admits` / `installScoped` / `SUBAGENT_DELEGATION_CONTEXT`）而不只是行号，行号漂了还能按名字定位（同 §2.15 口径）。`dsh-tools:2888-2894` 的注释与实现不符**本轮不改源码**（不在写域内），只在此登记——如需上游修注释，另派。
-
+**结论（可当纪律用）**：`allow` 只作用于**继承来的**工具面；agent preset 自己在 **own 层**注册的工具**无条件可见**。⇒ 不许用 `allow` 反推某个 agent 的工具面（详见 `orchestrating-subagents` §3.1.1）。这条纠正的是**运行时 doc comment 的口径**，不是本 skill 的旧文；源码行号与推导在该文件。
 ### 2.17 「本轮运行失败」+ `Provider finish_reason: <X>`：透传 / 可重试 / 致命三分，以及"是不是 DSH 的 bug"判据
 
 > 承接 **2.12.1**（扫出错误串之后怎么判读）。本节只写**判据与实装链路**，不写扫描配方。
@@ -541,7 +355,6 @@ Provider finish_reason: content_filter
 - 不要**去找**"MCP 的配置文件"或写 `mcpServers` 键——DSH 没有那一层，唯一入口是 patch 里的一行 `@deepseek-ai/dsh-mcp-client`（2.7）；也不要指望 `sse`，它只支持 `stdio` / `streamable-http`，且**不桥** resources / prompts。
 - 不要在**没量过**工具面注入量之前就把 MCP server 挂上去——工具 schema 每轮重发，成本按轮线性付（2.8）；也不要先假定"`--discovery` 类开关 + 工具白名单能叠加"，**必须三组对照实测**（单开 / 单开 / 同开），否则可能白付"能力消失"的代价。
 - 不要把"隔离 host 打得开（401）"当成 MCP 接入成功——**形态①/②都**是 host 正常但工具没来，**必须点名核对工具**（2.1 / 2.7）。
-- 触发信号：用户说"把某个实验包 / 官方 bundle 挂进 profile / 手工 row 还管不管用"，或你正要写 `- id: … disabled: true` + `- insert:` 这种替换式 patch（先读 **2.11**）。
 - 不要以为**中文 UI 就等于中文系统提示词**：四个团队包的中文只在 `locale\zh.json`（每包 2 行）与 `README.zh.md`（实测 108 / 72 / 47 / 50 行）里，`lib\*.js` 的 **CJK 行数为 0**（三个包实测 0；只有 UI 包的 `client-ui-agent-team\lib\client.js` 24 行是界面词条）⇒ 注入给模型的 `team:policy` 仍是**纯英文**（`tool-agent-team\lib\index.js:21` 起）。要改策略文本就改 `lib\*.js`，改 locale 不会动系统提示词。
 - 不要把 README 里交叉引用的文档当可用来源：`agent-team` / `tool-agent-team` 的 README 指向 `../../../docs/subsystems/agent-team.md`、`../../../docs/config-catalog.md`、`../../../docs/tool-catalog.md`、`../../../.agents/notes/implemented/...`，在 npx 安装根的 `node_modules` 下**逐条 `os.path.exists` 全为 False**（全树只有无关的 `undici\docs`）⇒ **只能依据 `README*`（含 `README.zh.md` / `README.i18n.yaml`）与 `lib/`**，别照 README 的路径去找文档。
 - 不要在本总纲里找具体命令——按第 3 节进对应子 skill；本总纲不复制它们的正文。

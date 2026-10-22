@@ -555,7 +555,6 @@ git push --force-with-lease origin HEAD:refs/heads/<branch>
 | 导出的 diff 被 read 工具判为 binary | 本机 PowerShell 的 `>` 写 UTF-16（见 `pwsh-on-windows`）；**改用 `cmd /c "git grep ... > out.txt 2>&1"` 拿原始 UTF-8 字节**（`\| Out-File -Encoding utf8` 仍带 BOM） |
 | 内容已改却用 `git commit --amend --no-edit` 提交 | message 会留在旧内容上、与实际 diff 矛盾（实测：提交标题仍写"新增英文版OVERVIEW.md"，而该提交已不新增任何英文文件）；内容一变必须 `git commit --amend -m "<新 message>"`，再用 `git rev-parse 'HEAD^{tree}'` 确认 tree OID 未变，然后 `--force-with-lease` + 补发 `compile`（§9.1） |
 | 已直推过的版本分支要回退，想 force-push 抹掉那个直推提交 | **不要改写共享版本分支的历史**：基于它**叠加一个回退提交**再推（实测 `fb09350..05a911c`、exit 0、无需 `--force`）；force-push 会让已 fetch 的人分叉。master 侧未合入的特性分支才可以 `amend` + `--force-with-lease`（强推代价见 §9）；版本分支的既有先例也是叠加修正提交（§12.5） |
-
 | git 报 `fatal: could not read Password for 'https://<redacted>@gitcode.com': terminal prompts disabled` | **鉴权形态错**：git 传输层只认 `https://<user>:<token>@`（把 token 当用户名必失败）；且每次 git 调用都要带 `-c credential.helper=`（否则弹 GCM GUI 挂死）（§7） |
 | `git ls-remote --exit-code` 在空仓/无匹配 ref 时回非零 | **exit=2 = 无匹配 ref，不是失败**；鉴权失败是 **exit=128 + `fatal:`**。要把它当结论必须配负控：token 截短 1 字符重跑须复现 exit=128（§7） |
 | 要建 GitCode 私仓 | `POST https://api.gitcode.com/api/v5/user/repos`、body 含 `"private":true` → **200**；响应**缺** `default_branch` 与权限字段 ⇒ 必须回读 `/repos/:owner/:repo` 与 `/collaborators?per_page=200`（`access_level=50`）（§7） |

@@ -66,21 +66,21 @@ Get-Date -Format 'yyyy-MM-dd HH:mmzzz'
    - `issues?state=all&sort=created&direction=desc&per_page=30` → 才看到真新增的 9/23 #82、9/25 #83。
    - 提醒：`/issues` 同时返回 issue 和 PR，按 `pull_request` 字段分流后再计数。
 
-## 免额度取证通道（未认证 core 耗尽后）
+## 步骤 8：core 耗尽后的免额度取证通道
 
 2026-10-05 对 `vllm-project/vllm` 与 `vllm-project/vllm-ascend` 做 RL×LoRA 侦察时全程实测（共享出口 IP）。下面 1 条讲额度、2~6 条是 0 额度通道。
 
-1. **额度是共享的、比预期更紧**：`rate_limit` 的 `Date` 头同时给出"今天"与额度；本轮共享 IP **16/60 起步，3 次 core 调用即归零**（`git/trees` + `releases` 之后 `commits?path=` 立刻 403 `API rate limit exceeded for <ip>`）⇒ core 只留给"定全局"的两次聚合调用：`git/trees?recursive=1` 定全树、`releases` 定版本列表。
-2. **路径提交时间线（主力，0 额度）**：`https://github.com/<O>/<R>/commits/<branch>/<path>.atom` 给该路径完整提交时间线（日期 + commit SHA + 标题）。可抄写法：
+8.1 **额度是共享的、比预期更紧**：`rate_limit` 的 `Date` 头同时给出"今天"与额度；本轮共享 IP **16/60 起步，3 次 core 调用即归零**（`git/trees` + `releases` 之后 `commits?path=` 立刻 403 `API rate limit exceeded for <ip>`）⇒ core 只留给"定全局"的两次聚合调用：`git/trees?recursive=1` 定全树、`releases` 定版本列表。
+8.2 **路径提交时间线（主力，0 额度）**：`https://github.com/<O>/<R>/commits/<branch>/<path>.atom` 给该路径完整提交时间线（日期 + commit SHA + 标题）。可抄写法：
    ```powershell
    $x=[xml](Invoke-WebRequest 'https://github.com/<O>/<R>/commits/main/<path>.atom' -UseBasicParsing -Headers @{'User-Agent'='x'}).Content
    $x.feed.entry | ForEach-Object { $_.updated.Substring(0,10) + ' | ' + $_.title }
    ```
    （`link[@rel=alternate]` 即 commit URL。）
-3. **tag / release 列表（0 额度）**：`https://github.com/<O>/<R>/releases.atom`、`https://github.com/<O>/<R>/tags.atom`。
-4. **发布日期 / 预发布 / "最新"三件事的 oracle（0 额度）**：单条 release 页 HTML 里 `<relative-time … datetime="…">` 是**发布时间**，页面另有 `Pre-release` / `Latest` 字样；`https://github.com/<O>/<R>/releases/latest` 会 **302** 到"最新**非**预发布"的 tag（PS 5.1 取最终 URL：`$r.BaseResponse.ResponseUri.AbsoluteUri`）。⚠️ 两种页头措辞都要兼容：`released this` 与 `tagged this`（否则会把正常 release 页误判成 404）。
-5. **单条 issue / PR 的正文与元数据（0 额度）**：抓 `/issues/<n>`、`/pull/<n>` 的 HTML，从**页面嵌入 JSON** 里取 `"state"`、`ClosedEvent.createdAt`、`linkedPullRequests`、`bodyHTML`（分块）；react 后的页面**没有** `comment-body` 类名、**没有** Status 徽章、**没有** `mergedAt` 字段，别按旧 DOM 找。
-6. **全树快照（0 额度）**：`https://codeload.github.com/<O>/<R>/tar.gz/refs/heads/main` 直接下 tarball（本轮实测 17.5 MB → 4425 文件 + 845 目录 = 5270 节点），本地做"某字符串在全仓出现几次"的内容级检索。
+8.3 **tag / release 列表（0 额度）**：`https://github.com/<O>/<R>/releases.atom`、`https://github.com/<O>/<R>/tags.atom`。
+8.4 **发布日期 / 预发布 / "最新"三件事的 oracle（0 额度）**：单条 release 页 HTML 里 `<relative-time … datetime="…">` 是**发布时间**，页面另有 `Pre-release` / `Latest` 字样；`https://github.com/<O>/<R>/releases/latest` 会 **302** 到"最新**非**预发布"的 tag（PS 5.1 取最终 URL：`$r.BaseResponse.ResponseUri.AbsoluteUri`）。⚠️ 两种页头措辞都要兼容：`released this` 与 `tagged this`（否则会把正常 release 页误判成 404）。
+8.5 **单条 issue / PR 的正文与元数据（0 额度）**：抓 `/issues/<n>`、`/pull/<n>` 的 HTML，从**页面嵌入 JSON** 里取 `"state"`、`ClosedEvent.createdAt`、`linkedPullRequests`、`bodyHTML`（分块）；react 后的页面**没有** `comment-body` 类名、**没有** Status 徽章、**没有** `mergedAt` 字段，别按旧 DOM 找。
+8.6 **全树快照（0 额度）**：`https://codeload.github.com/<O>/<R>/tar.gz/refs/heads/main` 直接下 tarball（本轮实测 17.5 MB → 4425 文件 + 845 目录 = 5270 节点），本地做"某字符串在全仓出现几次"的内容级检索。
 
 ## 坑与修法
 
@@ -88,7 +88,7 @@ Get-Date -Format 'yyyy-MM-dd HH:mmzzz'
 - **旧闻 ≠ 增量**：InfoQ" H3 团队 Reddit 回应一切 / Apache-2.0 在考虑"看似最新热点 → 原因：转载 URL 日期段是 `...20260808...`，早于基准日 2026-09-20 → 修法：转载 URL 里的 `YYYYMMDD` 作低成本日期兜底，早于基准日一律归入"旧闻"，不进热点榜。
 - **`license` 为 `null` ≠ 无许可证**：MiniMax-H3 用非 SPDX 的 "MiniMax H3 Community License"，GitHub API `license=null` → 原因：自定义许可无 SPDX id → 修法：`null` 时必须回 README 看许可证正文。
 - **字段名拼错会静默返回空，不报错**：`stargazers_forks_count`（臆造）返回空 → 原因：PowerShell `Select-Object` 对不存在属性不报错 → 修法：字段名为 `stargazers_count` / `forks_count` / `open_issues_count`；关键数字先 `ConvertFrom-Json` 再显式取字段并做存在性断言。
-- **未认证限流 60 次/小时**：先看 `rate_limit` 余额（本次 19 次 / 余额 54）→ 403 时**改走下面的「免额度取证通道（未认证 core 耗尽后）」**；"抓 `commits` 页 HTML 兜底"这条路已被实测证伪（只回导航栏 + `(Content truncated.)`，拿不到提交列表）。
+- **未认证限流 60 次/小时**：先看 `rate_limit` 余额（本次 19 次 / 余额 54）→ 403 时**改走下面的「步骤 8」**；"抓 `commits` 页 HTML 兜底"这条路已被实测证伪（只回导航栏 + `(Content truncated.)`，拿不到提交列表）。
 - **别把子代理报告当独立信源**：两个子代理读过同一份本地缓存时，其"交叉核对一致"是**循环引用**，不构成独立验证。
 - **纯联网 / 需落盘的任务不要派给只读型子代理**：实测某类子代理无联网工具也无写权限，会静默降级为读本地缓存 → 派发前要求子代理自检工具可用性。
 - **`updated` ≠ 发布日期**：实测 `vllm` v0.31.0 的 release 页发布时刻是 `2026-10-05T06:44:55Z`，而同名 atom 条目的 `<updated>` 是 `2026-10-06T06:49:35Z`；`vllm-ascend` 侧受检 3 条两者恰好相同 ⇒ **不是每次都差，必须两条都取**，只取 `updated` 会算错"最新版本 / 最新动作"。

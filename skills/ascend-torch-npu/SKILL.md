@@ -54,6 +54,8 @@ df -h / /home/vllm
 | torch | `2.10.0+cpu` | `2.12.0+cpu` |
 | torch_npu | `2.10.0.post4` | `2.12.0` |
 | torchvision / torchaudio | `0.25.0` / `2.10.0` | `0.27.0+cpu` / `2.11.0+cpu` |
+
+> ⚠ **「默认」不等于「已验证」**：车道 A 是本机默认车道，但本轮**只在车道 B 上做过隔离复跑**（验收第 1 条的逐字串也是车道 B 的）。两车道差别**仅在版本号字符串**（见本节开头的替换表），所以 A 可照推；但**不要说"车道 A 已验证"**，除非当次真跑过验收第 1 条。
 | triton-ascend | `3.2.2` | `3.2.2` |
 | 依据 | `.188` 上 `.../batch_inv_qwen35/vllm-ascend/requirements.txt` 第 16–20 行 + `pyproject.toml` 第 21–23/33 行 pin 原文（被上次构建注释掉，原文保留在注释里）：`torch==2.10.0` / `torch-npu==2.10.0.post4` / `torchvision==0.25.0` / `torchaudio==2.10.0` / `triton-ascend==3.2.2` | 官方 COMPATIBILITY 推荐组合：TorchNPU 2.12.0 + PyTorch 2.12.0 + CANN 9.1.0 + Python 3.10–3.14；**本车道已实测跑通** |
 

@@ -84,7 +84,7 @@ $rl.resources.core | Select-Object limit,remaining   # 未认证 60/h；本轮�
 - **新模型代码不在 `vllm/model_executor/models/` 了**：vLLM 0.27+ 已改为分层目录 `vllm/models/<model>/{common,nvidia,amd}/`。本轮实测 `vllm/model_executor/models/` 下**已无** `kimi_k3.py`（只剩 kimi_audio / kimi_k25 / kimi_vl）⇒ **按旧路径判"上游无代码"会误判**。修法：全树过滤时同时匹配 `model_executor/models/<name>` 与 `models/<name>/`。
 - **上游与插件两层注册表对勘**：光看主仓文件树不够，还要同时读 `vllm/model_executor/models/registry.py` 与 `vllm_ascend/models/__init__.py`，**两处都命中才算"上游有 + 昇腾有"**（本轮 K3 两处都命中）。
 - **API 额度分两档**：`raw.githubusercontent.com` **不占** GitHub API 额度，`api.github.com` 未认证 **60/h**（本轮开工 59 → 收工 38）⇒ 抓正文走 raw 并 **pin SHA**，只有 tree/branch 才用 API；一次 `rate_limit` 调用同时拿剩余额度与 `Date`（见前置检查）。
-- **无 UA 头访问 `api.github.com` 返回 403**；未认证 60/h（本轮一度只剩 12）→ 先查 `/rate_limit`，并用它的 `Date` 头同时拿"今天"，不要为问日期多花一次调用。
+- **无 UA 头访问 `api.github.com` 返回 403；未认证 60/h**。额度紧时的**免额度取证通道**（atom 时间线 / codeload tarball / release 页 HTML 等 0 额度换法）**单一归属在 `github-org-delta-watch` 步骤 8**，此处不复述；也别为问日期多花一次 core 调用。
 - **`merged_at=null` 但 `merge_commit_sha` 非空 ≠ 已合入**（那是 test-merge）→ 必须 `state` 与 `merged_at` 一起看。
 - **`pushed_at` 冻结 ≠ 仓无活动**（vllm-ascend 9/28 仍在 push）；反过来 H3 官方仓 8/15 后冻结是"发布即冻结"的公告型仓设计，**不能**读成"官方停摆"。
 - **`license=null` ≠ 无许可证**：非 SPDX 自定义许可（MiniMax H3 Community License）在 GitHub API 就是 `null` → 回 README/模型卡看许可证正文。
@@ -106,13 +106,6 @@ $rl.resources.core | Select-Object limit,remaining   # 未认证 60/h；本轮�
 - 不要把 `merge_commit_sha` 非空当合入信号；不要把 `pushed_at` 冻结当"仓已死"。
 - 不要为"确认今天日期"额外调接口。
 
-## 验收标准
-
-1. 四段结论齐备：①主仓有无代码（带全树计数 + 过滤命令 + 命中清单）②跨仓分工（带 import 链或栈回溯原文）③硬件×能力矩阵（每行挂 PR/issue/recipe）④未闭合缺口（带 issue 号与勾选状态）。
-2. 每条否定结论都有排除性证据（`contents/*` 清单、`minimax.{0,3}h3` 0 命中、search `total_count`），不是"我没搜到"。
-3. 媒体口径与一手证据分表；第三方仓/包与官方兑现分开表述；404/401 反证注明认证状态。
-4. 缺口清单每项可执行（合入状态、assignee 有无、未完成勾选框数），并显式区分同族模型的成熟资产。
-
 ## 可复用片段（本轮真跑过）
 
 ```powershell
@@ -127,3 +120,10 @@ $pr=Invoke-RestMethod "https://api.github.com/repos/<ORG>/<REPO>/pulls/<N>" -Hea
 # ④ search 必须带类型限定
 Invoke-RestMethod "https://api.github.com/search/issues?q=repo:<ORG>/<REPO>+is:issue+<model>" -Headers $H | Select-Object total_count
 ```
+
+## 验收标准
+
+1. 四段结论齐备：①主仓有无代码（带全树计数 + 过滤命令 + 命中清单）②跨仓分工（带 import 链或栈回溯原文）③硬件×能力矩阵（每行挂 PR/issue/recipe）④未闭合缺口（带 issue 号与勾选状态）。
+2. 每条否定结论都有排除性证据（`contents/*` 清单、`minimax.{0,3}h3` 0 命中、search `total_count`），不是"我没搜到"。
+3. 媒体口径与一手证据分表；第三方仓/包与官方兑现分开表述；404/401 反证注明认证状态。
+4. 缺口清单每项可执行（合入状态、assignee 有无、未完成勾选框数），并显式区分同族模型的成熟资产。

@@ -118,7 +118,7 @@ whenToUse: 要拿韩国官方一手数据（出入境/入境申告、公交时�
   → 修法：判"JS 空壳 / SPA"之前先确认自己拿到的**是不是详情页**——对比**列表页 vs 详情页的字节数**与 `<title>`；站点的"JS 渲染"结论只对**具体那类页面**成立（如 visitjeju 的 `?keyword=` 搜索页），不能从一个页面的失败推广到整站。
 - 现象：含韩文的 python 脚本用 `Out-File -Encoding ascii` 写出后，韩文变 `??`，随后正则报 `error: nothing to repeat`（正则里本该是韩文字符的位置成了 `?` 量词）。
   → 原因：`ascii` 编码**丢弃**非 ASCII 字符，把韩文换成 `?`，`?` 在正则里是量词 → 语法错误。
-  → 修法：改用 `[IO.File]::WriteAllText($path, $text, [Text.UTF8Encoding]::new($false))`（无 BOM UTF-8）；不要 `Set-Content` / `Out-File -Encoding utf8`（写 BOM）。完整陷阱表 → 用 `pwsh-on-windows`。
+  → 修法：写文件用 `[IO.File]::WriteAllText($path, $text, [Text.UTF8Encoding]::new($false))`（无 BOM UTF-8）。**编码类陷阱的完整清单不在本 skill**，见 `pwsh-on-windows`。
 - 现象：`us-losangeles`（缺连字符的驻外使馆域名段）返回 **HTTP 200**，但正文是外交部门 404 页。
   → 原因：域名段拼写错，回退到部门级 404。
   → 修法：正确段是 `us-losangeles-ko`（或 `-en`）；判存在性看 `<title>`（`페이지를 찾을 수 없습니다…`）/ 字节数（约 1557B），不看状态码。

@@ -172,4 +172,4 @@ PATH 里留了 conda 不认识的裸路径，`conda activate` 只把 env 的 bin
 1. `/mnt/share/x00886548/miniconda3/bin/conda --version` → `conda 26.7.1`；`conda info` 里 base = `/mnt/share/x00886548/miniconda3 (writable)`、python `3.14.7.final.0`、solver `libmamba`；`conda config --show-sources` 只列出 `/mnt/share/x00886548/miniconda3/.condarc`，没有 `/root/.condarc`。
 2. `$PY -V` → `Python 3.12.14` 且 `$PY -c 'import sys;print(sys.prefix)'` → `/mnt/share/vllm/conda_envs/xmz_0921`；激活后 `echo $CONDA_PREFIX` 同值，`which python` 指向该 env 的 `bin/python`。
 3. 新建环境：`ls -d /mnt/share/vllm/conda_envs/<name>` 存在，且其 `conda-meta/history` 的 `# cmd:` 行含 `mirrors.nju.edu.cn`。
-4. 放环境前 `df -h /home/vllm` 余量 ≥1T；操作后 `/` 仍 >50G 可用。
+4. 放环境前 `df -h /home/vllm` **现场判余量够不够**（本文件不记阈值）；操作后 `/` 仍有可见余量（系统盘多租户共用、长期紧张，别写满）。

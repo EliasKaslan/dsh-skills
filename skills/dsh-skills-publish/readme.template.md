@@ -11,11 +11,17 @@
 
 ## 使用
 
+同一份内容同步到多个公开站点，任意一个都能克隆：
+
 ```bash
-git clone https://gitcode.com/EliasKaslan/dsh-skills.git
+{{CLONE_COMMANDS}}
 ```
 
 本仓库公开可克隆，但只有仓库所有者可以推送。需要改动请 fork 后自行维护，或直接 `git pull` 跟随每日快照。
+
+## 站点
+
+{{REPO_LINKS}}
 
 ## 清单
 

@@ -42,9 +42,11 @@ $ErrorActionPreference = 'Stop'
 $script:Stage    = 'init'
 $script:GitExe   = 'git'
 $script:Token    = ''
+$script:SecretValues = @()
 $script:StateDir = ''
 $script:LogFile  = ''
 $script:WorkRepo = ''
+$script:Targets  = @()
 $script:State    = [ordered]@{
     last_run_local   = ''
     last_run_utc     = ''
@@ -54,12 +56,8 @@ $script:State    = [ordered]@{
     dry_run          = [bool]$DryRun
     changed          = $false
     head_sha         = ''
-    main_remote_sha  = ''
     date_branch      = ''
-    date_remote_sha  = ''
-    branch_count_after = 0
-    pruned           = @()
-    prune_error      = ''
+    targets          = @()
     skill_count      = 0
     file_count       = 0
     total_bytes      = 0
@@ -74,7 +72,9 @@ function Redact-Text {
     param([string]$Text)
     if ([string]::IsNullOrEmpty($Text)) { return '' }
     $t = $Text
-    if ($script:Token.Length -ge 8) { $t = $t.Replace($script:Token, '<redacted>') }
+    foreach ($s in $script:SecretValues) {
+        if ($s -and $s.Length -ge 8) { $t = $t.Replace($s, '<redacted>') }
+    }
     $t = [regex]::Replace($t, 'https://[^/@\s]+@', 'https://<redacted>@')
     return $t
 }
@@ -299,6 +299,15 @@ function Write-GeneratedFiles {
     $readme = $readme.Replace('{{FILE_COUNT}}', [string]$FileCount)
     $readme = $readme.Replace('{{TOTAL_BYTES}}', [string]$TotalBytes)
     $readme = $readme.Replace('{{SKILL_TABLE}}', $table)
+
+    $cloneLines = @()
+    $linkLines = @()
+    foreach ($t in $script:Targets) {
+        $cloneLines += ('git clone ' + $t.RemoteUrl)
+        $linkLines += ('- [' + $t.Name + '](' + $t.WebUrl + ')')
+    }
+    $readme = $readme.Replace('{{CLONE_COMMANDS}}', ($cloneLines -join "`n"))
+    $readme = $readme.Replace('{{REPO_LINKS}}', ($linkLines -join "`n"))
     $readme = ($readme -replace "`r`n", "`n").TrimEnd("`n") + "`n"
     [IO.File]::WriteAllText((Join-Path $RepoRoot 'README.md'), $readme, $encoding)
 }
@@ -397,16 +406,12 @@ try {
     Write-Log ('publish-dsh-skills start (dry_run=' + [string][bool]$DryRun + ', no_push=' + [string][bool]$NoPush + ')')
 
     if (-not (Test-Path -LiteralPath $cfg.source_dir)) { Fail 3 ('source_dir not found: ' + $cfg.source_dir) }
-    if (-not (Test-Path -LiteralPath $cfg.token_file)) { Fail 3 ('token_file not found: ' + $cfg.token_file) }
     if (-not (Test-Path -LiteralPath $cfg.work_repo)) {
         $parent = Split-Path -Parent $cfg.work_repo
         if ($parent -and -not (Test-Path -LiteralPath $parent)) {
             New-Item -ItemType Directory -Force -Path $parent | Out-Null
         }
     }
-
-    $script:Token = ([IO.File]::ReadAllText($cfg.token_file, [Text.Encoding]::UTF8)).Trim()
-    if ($script:Token.Length -lt 8) { Fail 3 'token_file is empty or too short' }
 
     $mainBranch = [string]$cfg.branch_main
     if ([string]::IsNullOrEmpty($mainBranch)) { $mainBranch = 'main' }
@@ -417,22 +422,61 @@ try {
     if ($DateStamp -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') { Fail 3 ('invalid date branch name: ' + $DateStamp) }
     $script:State.date_branch = $DateStamp
 
-    $remoteUri = [Uri]$cfg.remote_url
-    $authUrl = 'https://' + $cfg.user + ':' + $script:Token + '@' + $remoteUri.Host + $remoteUri.AbsolutePath
+    # ---- targets: one block per hosting site -----------------------------
+    foreach ($t in @($cfg.targets)) {
+        if (-not $t) { continue }
+        $tMain = [string]$t.branch_main
+        if ([string]::IsNullOrEmpty($tMain)) { $tMain = $mainBranch }
+        $tKeep = 15
+        if ($t.keep_date_branches) { $tKeep = [int]$t.keep_date_branches }
+        elseif ($cfg.keep_date_branches) { $tKeep = [int]$cfg.keep_date_branches }
+        $script:Targets += [pscustomobject]@{
+            Id         = [string]$t.id
+            Name       = [string]$t.name
+            RemoteUrl  = [string]$t.remote_url
+            User       = [string]$t.user
+            TokenFile  = [string]$t.token_file
+            MainBranch = $tMain
+            Keep       = $tKeep
+        }
+    }
+    if ($script:Targets.Count -eq 0) {
+        $legacyKeep = 15
+        if ($cfg.keep_date_branches) { $legacyKeep = [int]$cfg.keep_date_branches }
+        $script:Targets += [pscustomobject]@{
+            Id='default'; Name='default'; RemoteUrl=[string]$cfg.remote_url; User=[string]$cfg.user;
+            TokenFile=[string]$cfg.token_file; MainBranch=$mainBranch; Keep=$legacyKeep
+        }
+    }
+    foreach ($t in $script:Targets) {
+        if ([string]::IsNullOrEmpty($t.Id)) { Fail 3 'target without id' }
+        if ([string]::IsNullOrEmpty($t.RemoteUrl)) { Fail 3 ('target ' + $t.Id + ': remote_url missing') }
+        if ([string]::IsNullOrEmpty($t.TokenFile)) { Fail 3 ('target ' + $t.Id + ': token_file missing') }
+        if (-not (Test-Path -LiteralPath $t.TokenFile)) { Fail 3 ('target ' + $t.Id + ': token_file not found: ' + $t.TokenFile) }
+        $tok = ([IO.File]::ReadAllText($t.TokenFile, [Text.Encoding]::UTF8)).Trim()
+        if ($tok.Length -lt 8) { Fail 3 ('target ' + $t.Id + ': token_file is empty or too short') }
+        $uri = [Uri]$t.RemoteUrl
+        $path = $uri.AbsolutePath
+        Add-Member -InputObject $t -NotePropertyName Token   -NotePropertyValue $tok -Force
+        $script:SecretValues += $tok
+        Add-Member -InputObject $t -NotePropertyName AuthUrl -NotePropertyValue ('https://' + $t.User + ':' + $tok + '@' + $uri.Host + $path) -Force
+        Add-Member -InputObject $t -NotePropertyName WebUrl  -NotePropertyValue ('https://' + $uri.Host + $path.Replace('.git', '')) -Force
+    }
+    $primary = $script:Targets[0]
 
     # ---- repository (bootstrap before the snapshot so the work tree exists)
     if (-not $DryRun) {
         $script:Stage = 'repo'
         if (-not (Test-Path -LiteralPath $script:WorkRepo)) {
-            Write-Log ('cloning ' + $cfg.remote_url + ' into ' + $script:WorkRepo)
+            Write-Log ('cloning ' + $primary.RemoteUrl + ' into ' + $script:WorkRepo)
             # Clone through the public URL on purpose: the token must never land
             # in .git/config via remote.origin.url.  Pushes pass it inline.
-            $r = Invoke-Git -ArgList @('clone', '--no-checkout', $cfg.remote_url, $script:WorkRepo) -TimeoutSec 300
+            $r = Invoke-Git -ArgList @('clone', '--no-checkout', $primary.RemoteUrl, $script:WorkRepo) -TimeoutSec 300
             if ($r.Code -ne 0) { Fail 3 ('git clone failed: ' + $r.Out) }
         }
         $originUrl = Invoke-Git -ArgList @('-C', $script:WorkRepo, 'remote', 'get-url', 'origin')
         if ($originUrl.Code -eq 0 -and $originUrl.Out.Trim() -match '@') {
-            $null = Invoke-Git -ArgList @('-C', $script:WorkRepo, 'remote', 'set-url', 'origin', $cfg.remote_url)
+            $null = Invoke-Git -ArgList @('-C', $script:WorkRepo, 'remote', 'set-url', 'origin', $primary.RemoteUrl)
             Write-Log 'scrubbed credentials from remote.origin.url'
         }
         $r = Invoke-Git -ArgList @('-C', $script:WorkRepo, 'rev-parse', '--git-dir')
@@ -514,8 +558,11 @@ try {
 
     # ---- secret scan -----------------------------------------------------
     $script:Stage = 'secret-scan'
-    $secretFiles = @($cfg.token_file)
+    $secretFiles = @()
+    foreach ($t in $script:Targets) { $secretFiles += $t.TokenFile }
+    if ($cfg.token_file) { $secretFiles += @($cfg.token_file) }
     if ($cfg.extra_secret_files) { $secretFiles += @($cfg.extra_secret_files) }
+    $secretFiles = @($secretFiles | Select-Object -Unique)
     $hits = @(Invoke-SecretScan -Root $skillsDst -SecretFiles $secretFiles)
     if ($hits.Count -gt 0) {
         foreach ($h in $hits) { Write-Log ('SECRET HIT: ' + $h) 'ERROR' }
@@ -580,82 +627,105 @@ try {
         exit 0
     }
 
-    $pushMain = Invoke-RepoGit -ArgList @('push', $authUrl, ('HEAD:refs/heads/' + $mainBranch)) -TimeoutSec 600
-    if ($pushMain.Code -ne 0) { Fail 6 ('push ' + $mainBranch + ' failed (rc=' + $pushMain.Code + '): ' + $pushMain.Out) }
-    Write-Log ('pushed ' + $mainBranch)
+    # ---- push / verify / prune, one hosting site at a time ---------------
+    $results = @()
+    foreach ($t in $script:Targets) {
+        $script:Stage = 'push'
+        Write-Log ('target ' + $t.Id + ' -> ' + $t.RemoteUrl)
 
-    $pushDate = Invoke-RepoGit -ArgList @('push', $authUrl, ('HEAD:refs/heads/' + $DateStamp)) -TimeoutSec 600
-    if ($pushDate.Code -ne 0) { Fail 6 ('push ' + $DateStamp + ' failed (rc=' + $pushDate.Code + '): ' + $pushDate.Out) }
-    Write-Log ('pushed ' + $DateStamp)
+        $pushMain = Invoke-RepoGit -ArgList @('push', $t.AuthUrl, ('HEAD:refs/heads/' + $t.MainBranch)) -TimeoutSec 600
+        if ($pushMain.Code -ne 0) { Fail 6 ('[' + $t.Id + '] push ' + $t.MainBranch + ' failed (rc=' + $pushMain.Code + '): ' + $pushMain.Out) }
+        Write-Log ('[' + $t.Id + '] pushed ' + $t.MainBranch)
 
-    # ---- verify ----------------------------------------------------------
-    $script:Stage = 'verify'
-    $ls = Invoke-RepoGit -ArgList @('ls-remote', $authUrl, ('refs/heads/' + $mainBranch), ('refs/heads/' + $DateStamp)) -TimeoutSec 120
-    if ($ls.Code -ne 0) { Fail 7 ('ls-remote failed: ' + $ls.Out) }
+        $pushDate = Invoke-RepoGit -ArgList @('push', $t.AuthUrl, ('HEAD:refs/heads/' + $DateStamp)) -TimeoutSec 600
+        if ($pushDate.Code -ne 0) { Fail 6 ('[' + $t.Id + '] push ' + $DateStamp + ' failed (rc=' + $pushDate.Code + '): ' + $pushDate.Out) }
+        Write-Log ('[' + $t.Id + '] pushed ' + $DateStamp)
 
-    $mainSha = ''
-    $dateSha = ''
-    foreach ($line in ($ls.Out -split "`r?`n")) {
-        if ($line -match '^([0-9a-f]{40})\s+refs/heads/(.+)$') {
-            if ($matches[2] -eq $mainBranch) { $mainSha = $matches[1] }
-            elseif ($matches[2] -eq $DateStamp) { $dateSha = $matches[1] }
-        }
-    }
-    $script:State.main_remote_sha = $mainSha
-    $script:State.date_remote_sha = $dateSha
-    if ([string]::IsNullOrEmpty($mainSha) -or [string]::IsNullOrEmpty($dateSha)) {
-        Fail 7 ('one of the remote refs is missing (main=' + $mainSha + ', ' + $DateStamp + '=' + $dateSha + ')')
-    }
-    if ($mainSha -ne $dateSha -or $mainSha -ne $headSha) {
-        Fail 7 ('ref mismatch: head=' + $headSha + ' main=' + $mainSha + ' ' + $DateStamp + '=' + $dateSha)
-    }
+        # ---- verify ------------------------------------------------------
+        $script:Stage = 'verify'
+        $ls = Invoke-RepoGit -ArgList @('ls-remote', $t.AuthUrl, ('refs/heads/' + $t.MainBranch), ('refs/heads/' + $DateStamp)) -TimeoutSec 120
+        if ($ls.Code -ne 0) { Fail 7 ('[' + $t.Id + '] ls-remote failed: ' + $ls.Out) }
 
-    # ---- retention: keep only the newest N date-named branches -----------
-    $script:Stage = 'prune'
-    $keep = 15
-    if ($cfg.keep_date_branches) { $keep = [int]$cfg.keep_date_branches }
-    if ($keep -lt 1) { $keep = 1 }
-
-    $lsAll = Invoke-RepoGit -ArgList @('ls-remote', '--heads', $authUrl) -TimeoutSec 120
-    if ($lsAll.Code -ne 0) {
-        $script:State.prune_error = ('ls-remote --heads failed: ' + $lsAll.Out)
-        Write-Log ('prune skipped: ' + $lsAll.Out) 'WARN'
-    }
-    else {
-        $dated = @()
-        foreach ($line in ($lsAll.Out -split "`r?`n")) {
-            if ($line -notmatch '^([0-9a-f]{40})\s+refs/heads/(.+)$') { continue }
-            $bName = $matches[2]
-            if ($bName -eq $mainBranch) { continue }
-            $parsed = [datetime]::MinValue
-            if ([datetime]::TryParseExact($bName, $dateFormat, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$parsed)) {
-                $dated += [pscustomobject]@{ Name = $bName; When = $parsed }
+        $mainSha = ''
+        $dateSha = ''
+        foreach ($line in ($ls.Out -split "`r?`n")) {
+            if ($line -match '^([0-9a-f]{40})\s+refs/heads/(.+)$') {
+                if ($matches[2] -eq $t.MainBranch) { $mainSha = $matches[1] }
+                elseif ($matches[2] -eq $DateStamp) { $dateSha = $matches[1] }
             }
         }
-        $dated = @($dated | Sort-Object When -Descending)
-
-        $victims = @()
-        if ($dated.Count -gt $keep) {
-            $victims = @($dated[$keep..($dated.Count - 1)] | ForEach-Object { $_.Name })
+        if ([string]::IsNullOrEmpty($mainSha) -or [string]::IsNullOrEmpty($dateSha)) {
+            Fail 7 ('[' + $t.Id + '] one of the remote refs is missing (' + $t.MainBranch + '=' + $mainSha + ', ' + $DateStamp + '=' + $dateSha + ')')
         }
-        if ($victims.Count -gt 0) {
-            Write-Log ('pruning ' + $victims.Count + ' date branch(es) beyond the newest ' + $keep + ': ' + ($victims -join ', '))
-            $delArgs = @('push', $authUrl, '--delete') + $victims
-            $del = Invoke-RepoGit -ArgList $delArgs -TimeoutSec 300
-            if ($del.Code -ne 0) {
-                $script:State.prune_error = (Redact-Text $del.Out)
-                Write-Log ('prune failed: ' + $del.Out) 'WARN'
-            }
-            else {
-                $script:State.pruned = @($victims)
-                Write-Log ('pruned ' + $victims.Count + ' branch(es)')
-            }
+        if ($mainSha -ne $dateSha -or $mainSha -ne $headSha) {
+            Fail 7 ('[' + $t.Id + '] ref mismatch: head=' + $headSha + ' ' + $t.MainBranch + '=' + $mainSha + ' ' + $DateStamp + '=' + $dateSha)
+        }
+
+        # ---- retention: keep only the newest N date-named branches -------
+        $script:Stage = 'prune'
+        $keep = $t.Keep
+        if ($keep -lt 1) { $keep = 1 }
+        $pruned = @()
+        $pruneError = ''
+        $branchCount = 0
+
+        $lsAll = Invoke-RepoGit -ArgList @('ls-remote', '--heads', $t.AuthUrl) -TimeoutSec 120
+        if ($lsAll.Code -ne 0) {
+            $pruneError = Redact-Text ('ls-remote --heads failed: ' + $lsAll.Out)
+            Write-Log ('[' + $t.Id + '] prune skipped: ' + $lsAll.Out) 'WARN'
         }
         else {
-            Write-Log ('branch retention ok: ' + $dated.Count + ' date branch(es), keep=' + $keep)
+            $dated = @()
+            foreach ($line in ($lsAll.Out -split "`r?`n")) {
+                if ($line -notmatch '^([0-9a-f]{40})\s+refs/heads/(.+)$') { continue }
+                $bName = $matches[2]
+                if ($bName -eq $t.MainBranch) { continue }
+                $parsed = [datetime]::MinValue
+                if ([datetime]::TryParseExact($bName, $dateFormat, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$parsed)) {
+                    $dated += [pscustomobject]@{ Name = $bName; When = $parsed }
+                }
+            }
+            $dated = @($dated | Sort-Object When -Descending)
+
+            $victims = @()
+            if ($dated.Count -gt $keep) {
+                $victims = @($dated[$keep..($dated.Count - 1)] | ForEach-Object { $_.Name })
+            }
+            if ($victims.Count -gt 0) {
+                Write-Log ('[' + $t.Id + '] pruning ' + $victims.Count + ' date branch(es) beyond the newest ' + $keep + ': ' + ($victims -join ', '))
+                $delArgs = @('push', $t.AuthUrl, '--delete') + $victims
+                $del = Invoke-RepoGit -ArgList $delArgs -TimeoutSec 300
+                if ($del.Code -ne 0) {
+                    $pruneError = Redact-Text $del.Out
+                    Write-Log ('[' + $t.Id + '] prune failed: ' + $del.Out) 'WARN'
+                }
+                else {
+                    $pruned = @($victims)
+                    Write-Log ('[' + $t.Id + '] pruned ' + $victims.Count + ' branch(es)')
+                }
+            }
+            else {
+                Write-Log ('[' + $t.Id + '] branch retention ok: ' + $dated.Count + ' date branch(es), keep=' + $keep)
+            }
+            $branchCount = $dated.Count - $pruned.Count
         }
-        $script:State.branch_count_after = $dated.Count - @($script:State.pruned).Count
+
+        $results += [pscustomobject]@{
+            id                 = $t.Id
+            name               = $t.Name
+            remote_url         = $t.RemoteUrl
+            web_url            = $t.WebUrl
+            main_branch        = $t.MainBranch
+            main_sha           = $mainSha
+            date_sha           = $dateSha
+            keep               = $keep
+            branch_count_after = $branchCount
+            pruned             = @($pruned)
+            prune_error        = $pruneError
+        }
+        Write-Log ('[' + $t.Id + '] OK ' + $t.MainBranch + '=' + $mainSha + ' ' + $DateStamp + '=' + $dateSha + ' date_branches=' + $branchCount)
     }
+    $script:State.targets = @($results)
 
     $script:Stage = 'done'
     $script:State.exit_code = 0
@@ -663,7 +733,7 @@ try {
     $alertPath = Join-Path $script:StateDir 'ALERT.md'
     if (Test-Path -LiteralPath $alertPath) { Remove-Item -LiteralPath $alertPath -Force }
 
-    Write-Log ('OK: ' + $mainBranch + ' and ' + $DateStamp + ' both at ' + $headSha)
+    Write-Log ('OK: ' + $results.Count + ' target(s) at ' + $headSha)
     Write-Host ''
     Write-Host '=== SUMMARY ==='
     Write-Host ('SKILLS=' + $skills.Count)
@@ -671,10 +741,11 @@ try {
     Write-Host ('SNAPSHOT_BYTES=' + $totalBytes)
     Write-Host ('CHANGED=' + [string]$changed)
     Write-Host ('HEAD=' + $headSha)
-    Write-Host ('MAIN=' + $mainSha)
     Write-Host ('DATE_BRANCH=' + $DateStamp)
-    Write-Host ('PRUNED=' + (@($script:State.pruned).Count))
-    Write-Host ('DATE_BRANCHES=' + $script:State.branch_count_after)
+    Write-Host ('TARGETS=' + $results.Count)
+    foreach ($r in $results) {
+        Write-Host ('TARGET_' + $r.id.ToUpper() + '=main:' + $r.main_sha + ' date:' + $r.date_sha + ' branches:' + $r.branch_count_after + ' pruned:' + @($r.pruned).Count)
+    }
     Write-Host 'EXIT=0'
     exit 0
 }

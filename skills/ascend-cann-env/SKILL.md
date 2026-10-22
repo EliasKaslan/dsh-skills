@@ -215,4 +215,4 @@ cd ${P%/cann_9_1_0}/nnal && ./nnal_uninstall.sh    # nnal（nnal 与 toolkit 同
 2. `echo $ASCEND_HOME_PATH` → `<p>/cann-9.1.0`；`echo $ASCEND_OPP_PATH` → `<p>/cann-9.1.0/opp`；`echo $ATB_HOME_PATH` → `<p>/nnal/atb/latest/atb/cxx_abi_1` 且目录存在。
 3. `atc --help` rc=0；`npu-smi info` 头部 `Version: 25.5.1`，16 个 Ascend910。
 4. `ls -d <p>/cann-9.1.0 <p>/cann <p>/ascend-toolkit <p>/nnal` 全存在；`ls <p>/ops` 应**报不存在**（正常）。
-5. `grep -n 'version_dirpath=' <p>/cann-<ver>/set_env.sh` 第 63 行等于 `<p>/cann-<ver>`；驱动未被改动：`md5sum /etc/ascend_install.info` = `e0ae42a0d046fa6a0ec8f26e9693eef8`。
+5. `grep -n 'version_dirpath=' <p>/cann-<ver>/set_env.sh` 第 63 行等于 `<p>/cann-<ver>`；驱动未被改动：`md5sum /etc/ascend_install.info` **与步骤 0 现场存档的那个值逐字一致**（**不要照抄任何硬编码 md5**）。

@@ -63,15 +63,7 @@ whenToUse: 外部热度取证：先定权威 UTC 再算 epoch，取 HN points/�
 - **搜索类结论不要写成"不存在"**：搜不到就写"未检索到"，并写上检索范围与端点。
 - **第三方 / 旧闻 / 幻觉三防**：第三方包（如 PyPI 上的同名包）不等于官方兑现；早于基准日的报道单独归"旧闻"；数字必须来自 API 响应原文。
 
-## 不要做什么
-
-- **不要用 GitHub 提交数/发版数推断外部热度**。实测同一时段 `minimax-code` 连发 7 个 release，而中英文媒体与 HN **双零命中** → 结论必须两个榜单分开列。
-- 不要把 Reddit 的二手转述量级混进量级榜。
-- 不要把 `license:other` / `license=null` 写成 Apache-2.0 或"无许可证"。
-- 不要在没先拿权威 UTC 的情况下手算 `created_at_i`。
-- 不要用 URL 里的日期段之外的信息（列表页摘要、页面 banner）判新闻新旧——正文日期优先，URL 的 `YYYYMMDD` 作低成本兜底。
-
-## 体验指标与社区情绪取证
+## 步骤 7：体验指标与社区情绪取证（AA / OpenRouter / 社区情绪分级）
 
 来源：2026-09-29 一轮"某模型实际使用体验是否真差"取证真跑通（Artificial Analysis / OpenRouter / 官方缺陷自陈 / HN / HF / 知乎 / B 站）。
 
@@ -134,7 +126,15 @@ whenToUse: 外部热度取证：先定权威 UTC 再算 epoch，取 HN points/�
      - **集合不等 ≠ 劫持**：CDN 就近应答 / GeoDNS / TTL 过期都会让两侧合法地拿到不同子集 ⇒ `两侧一致=False` 只写"两侧集合不一致，需人工判因"，**不要直接写成"被劫持"**（未验证：区分"劫持"与"GeoDNS 就近"需要额外证据链，本流程未建立该判据）。
    - **TLS 兜底**：**不要在 PS 5.1 里设 `ServicePointManager::ServerCertificateValidationCallback`**（实测会把所有 HTTPS 全挂，报"基础连接已经关闭: 发送时发生错误"）⇒ 改用 `curl.exe -k` 落 `$env:TEMP` 再**按 UTF-8 读回**。
    - **镜像站的 views 是镜像自身计数**（个位数）⇒ **不可当原站量级**。
-7. **HN 取量级用 Algolia**：`https://hn.algolia.com/api/v1/search?query=<KW>&tags=story&hitsPerPage=20`，**逐条看 `title` 再计数**（`nbHits` 含大量误报，同上面「坑与修法」第 1 条）。HF discussions 端点返回的是 **dict 不是 list**（`{discussions:[…],count,…}`），正文在 `/discussions/{num}` 的 `events[].data.latest.raw`；总条数与实际可读条数常不一致 ⇒ 分档计数（同 pin 5）。
+7. **HN 取量级用 Algolia**：`https://hn.algolia.com/api/v1/search?query=<KW>&tags=story&hitsPerPage=20`，**逐条看 `title` 再计数**（`nbHits` 含大量误报，同上面「坑与修法」第 1 条）。HF discussions 端点返回的是 **dict 不是 list**（`{discussions:[…],count,…}`），正文在 `/discussions/{num}` 的 `events[].data.latest.raw`；总条数与实际可读条数常不一致 ⇒ 分档计数（同本节第 5 条）。
+
+## 不要做什么
+
+- **不要用 GitHub 提交数/发版数推断外部热度**。实测同一时段 `minimax-code` 连发 7 个 release，而中英文媒体与 HN **双零命中** → 结论必须两个榜单分开列。
+- 不要把 Reddit 的二手转述量级混进量级榜。
+- 不要把 `license:other` / `license=null` 写成 Apache-2.0 或"无许可证"。
+- 不要在没先拿权威 UTC 的情况下手算 `created_at_i`。
+- 不要用 URL 里的日期段之外的信息（列表页摘要、页面 banner）判新闻新旧——正文日期优先，URL 的 `YYYYMMDD` 作低成本兜底。
 
 ## 验收标准
 
@@ -144,3 +144,6 @@ whenToUse: 外部热度取证：先定权威 UTC 再算 epoch，取 HN points/�
 4. HF 条目标明 `likes` / `downloads` / `lastModified`，许可照抄 `tags` 原值。
 5. Reddit 相关一律标注"无一手数据 / 二手转述"，或干脆不出现在量级榜。
 6. 阴性结果写"未检索到"（附检索范围），不写"不存在"。
+7. AA / OpenRouter 类体验指标已与**≥3 家同期竞品同口径**并列；不足 3 家只写"实测值"，不写"快 / 慢"。
+8. OpenRouter 的 `model_chart` 与 `top_apps_chart` 两个日粒度序列**未混算**；`latency_last_30m` 恒 null 时写明"该端点不供数"，不写成"很慢"。
+9. 社区情绪按 ①一手实测 / ②二手转述 / ③仅存在性 三档**分别给数**，且 ③ 未混进结论、正面与中性反馈同样计数。

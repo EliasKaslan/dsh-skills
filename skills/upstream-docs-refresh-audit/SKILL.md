@@ -152,7 +152,7 @@ git -C D:\workspace\260928_vllm资料确认\repo_main grep -F -i -c -- <VAR_OR_F
 
 10. **判「词是否存在」用 `git -C <repo> grep -F -q -- <词>`（exit 0 存在 / exit 1 不存在），且必须搜全仓**——只搜 `vllm_ascend` 会误判（`max-model-len` 在 `vllm_ascend` exit=1，但代码属性 `max_model_len` 有 51 文件命中）。**误命中与口径三件套**：① `-i A5` 回 190 行含 `Binary file ... matches` 24 行与 CSS `color: #ffa500;` 2 行 → 改 `git grep -I -l -E "\bA5\b"` 回 8 文件；② `-i 35B` 回 69 文件、其中 42 个是 `235B` / `DequantSwigluQuantV35BaseTilingData` → 改 `\b35B\b` 回 27；③ `-F -c` 是**子串**匹配（`GLM-5.2-w4a8` 会因 `w4a8c8` 得 11）→ 精确性要求高的场合改用 `\b` 或 `-w`。**`-l` 回的是文件数不是命中次数。** 本轮实测 236 词：存在 193 / **不存在 43**（env 8 + flag 6 + 类别关键词 29），关键裁决：`--master_addr/--master_port/--node_rank` 主线只有连字符写法 `--master-addr`(8)/`--master-port`(8)/`--node-rank`(10)，`--nproc_per_node` 两种写法都没有；`CUDA_VISIBLE_DEVICES` → 主线是 `ASCEND_RT_VISIBLE_DEVICES`(165 文件)；`--additional_config` 11 文件 vs `--additional-config` 298 文件（**都存在但悬殊**）。完整协议与分组清单见 `references/recon-artifacts.md`。
 
-11. **验收前主 Agent 再亲手复验一遍锚点**（步骤 7 是抽查、这里是交付前终检）：一条 pwsh 把 `git grep -F -n -- <kw> -- <path>` 与 `Get-Content -Encoding UTF8 <path> | Select-Object -Skip N -First M` 组合起来，直接看目标行原文。本轮抓到 1 处章节误标、2 处分节归属错；终检锚点清单见「验收标准」末两条。
+11. **验收前主 Agent 再亲手复验一遍锚点**（步骤 7 是过程中抽查、这里是交付前终检；命令与抽查相同）。问题类型与计数见步骤 7，此处不重复；要说明的是**终检仍抓到了问题** ⇒ 它不是走过场。终检锚点清单见「验收标准」末两条。
 
 12. **长交付物必须分次写盘**：汇总任务产出预期 >250 行时，在汇总子代理 prompt 里明写「write 首版（前 3 节）→ edit 追加第四节 → edit 追加剩余节」的三到四段式。本轮证据：第一轮一次 write 失败（workflow 返回 `synthesis_summary: null`，交付物未生成）；第二轮改分次写盘后成功产出 336 行；**第三轮 3 次全成功（317 行）**。`edit` 失败过一次，报错原文 `Error: old_string was not found`，原因是**被替换串里的全角标点不一致**（把 `，结论只有` 写成 `、结论只有`）→ 修法 = 换更短的唯一尾串重试，不要重写整段。**汇总失败 ≠ 白干**——12 份 findings 已在盘上，直接补派/补跑汇总即可，不要重跑核查。
 

@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "publish-dsh-skills.ps1",
   "skill_count": 35,
-  "file_count": 59,
-  "total_bytes": 1366495,
+  "file_count": 70,
+  "total_bytes": 1378673,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -31,28 +31,28 @@
       "path": "skills/ascend-cann-env",
       "description": "昇腾 CANN 的检测/安装/激活/换版本/卸载（默认 a3=192.168.13.188，备用 a3b=.190）——权威定位看 /etc/Ascend/ascend_cann_install.info，toolkit+ops+nnal 三件套安装序列与耗时，合一包不覆盖驱动，公开源最新非 beta = 9.1.1，beta/T 构建桶内目录名 ≠ 版本号（如 CANN 9.2.T3）。适用于\"装/换/查 CANN / import acl 或 atc 报找不到 CANN / source set_env.sh 后 ASCEND_HOME_PATH 为空 / install.info 里还记着旧路径 / 重跑安装脚本报 Permission denied / 该用合一包还是独立 toolkit 包 / 某个 CANN 版本公开源有没有 / OBS 探版本全是 403\"。不适用：conda 与 python 版本 → 用 `ascend-conda-env`；目录与磁盘红线 → 用 `ascend-server-layout`。",
       "files": 1,
-      "bytes": 30543
+      "bytes": 30600
     },
     {
       "name": "ascend-conda-env",
       "path": "skills/ascend-conda-env",
       "description": "昇腾服务器 conda 环境的检测 / 新建 / 激活与换 python 版本（默认 a3=192.168.13.188，备用 a3b=.190）——共享 miniconda3 在 /mnt/share/x00886548/miniconda3（conda 26.7.1，base py3.14.7），新建环境默认落 /mnt/share/vllm/conda_envs、必须显式带 NJU 镜像，不激活可直接用绝对路径 python。适用于\"建 conda 环境 / 激活环境 / 换 python 版本 / python -V 不是共享 conda / 环境该放哪个盘 / conda create 走官方源很慢\"。不适用：CANN 装哪、版本、set_env.sh 不生效 → 用 `ascend-cann-env`；torch 或 torch_npu 装不上 → 用 `ascend-torch-npu`。",
       "files": 1,
-      "bytes": 17935
+      "bytes": 18038
     },
     {
       "name": "ascend-env",
       "path": "skills/ascend-env",
       "description": "昇腾 NPU 服务器环境搭建入口总纲（a3=192.168.13.188 默认 / a3b=.190 备用）——**先并行再串行**的 4 lane 编排（CANN 包下载 ∥ conda 建环境 ∥ torch 栈 whl 预下载 ∥ 两仓 clone，barrier 后串行安装），含子代理写盘边界、机器怎么进、三层验收、从 Windows 驱动远端（scp 优先通道，内联引号会静默零命中）的硬规则；具体步骤一律在子 skill。适用于\"在昇腾机器上装环境 / 怎么并行搭环境省时间 / 下载和编译能不能同时跑 / 什么能并行什么必须串行 / 要不要派子代理去下载 / 不知道该先做哪一步 / 从零搭一套能跑 vllm 的环境 / 机器进不去或 ssh 假死\"。不适用：目录与磁盘、模型在哪 → 用 `ascend-server-layout`；装 CANN → 用 `ascend-cann-env`；conda 与 python → 用 `ascend-conda-env`；跑推理 → 用 `ascend-vllm-serve`。",
-      "files": 1,
-      "bytes": 52847
+      "files": 2,
+      "bytes": 53256
     },
     {
       "name": "ascend-model-adaptation-recon",
       "path": "skills/ascend-model-adaptation-recon",
       "description": "判定某模型在昇腾/vllm-ascend 生态里的适配程度（实测 MiniMax-H3）——一次全树 API 判「主仓有无代码」、追 import 链定位跨仓分工（vllm-ascend 基座 ↔ vllm-omni NPU 平台层）、查镜像与启动模式、硬件能力矩阵、未闭合缺口，并给「媒体通稿 ≠ 已适配」的存在性反证。适用于\"某模型在昇腾/vllm-ascend 侧适配到什么程度 / H3 在昇腾上能不能跑 / 该用哪个镜像 / vllm-ascend 主仓有没有这个模型的代码 / 适配缺口在哪 / 昇腾 Day-0 适配是真的吗\"。不适用：要装或跑 vllm-ascend → 用 `vllm-ascend-source-install` / `ascend-vllm-serve`；只做组织增量 → 用 `github-org-delta-watch`。",
       "files": 1,
-      "bytes": 13684
+      "bytes": 13786
     },
     {
       "name": "ascend-moe-ep-capacity-planning",
@@ -66,28 +66,28 @@
       "path": "skills/ascend-server-layout",
       "description": "昇腾服务器目录地图与磁盘红线——找模型在哪、磁盘满了该写哪个盘（a3=.188 默认 / a3b=.190 备用）——.188 只有两块真盘：系统盘 /（/mnt/share、/mnt/weight、/tmp、/root 全压在它上面，多租户共用、长期紧张）与独立大盘 /home/vllm（大文件与大环境唯一推荐落点）；**不记剩余空间数字与空闲 die 号，动手前现场 df -h / npu-smi 取**；模型分两处（/mnt/weight + /home/vllm/weights），另有工作目录约定与现成环境；npu-smi 判空闲，Process 段是 NPU id 不是 die id（判 die 用 Bus-Id）。适用于\"找模型在哪 / 新项目和大文件该写哪个盘 / 磁盘满了 / 看哪张 NPU 空闲 / npu-smi 判哪张卡忙 / 复用现成环境 / 工作目录在哪\"。不适用：装或换 CANN 版本 → 用 `ascend-cann-env`；conda 环境与 python 版本 → 用 `ascend-conda-env`。",
       "files": 1,
-      "bytes": 22712
+      "bytes": 22760
     },
     {
       "name": "ascend-torch-npu",
       "path": "skills/ascend-torch-npu",
       "description": "昇腾 NPU 上 torch + torch_npu 的检测 / 安装 / 验证 / 排障（默认 a3=192.168.13.188，备用 a3b=.190）——先定车道：A（跑 vllm-ascend，默认）torch 2.10.0+cpu + torch_npu 2.10.0.post4；B（全新机器）torch 2.12.0+cpu + torch_npu 2.12.0；含 pip 序列、验收 True 16 253、torch_npu→torch 等值依赖、pip 卡死与 GLIBCXX_3.4.26 缺失。适用于\"装 torch_npu / 该装哪个 torch 版本 / NPU 不可用或 device_count 不对 / torch 卡死零进展 / 报 GLIBCXX_3.4.26 not found / 不确定走 A 还是 B 车道\"。不适用：triton 报错 → 用 `ascend-triton-ascend`；vllm 装不上 → 用 `vllm-ascend-source-install`。",
       "files": 1,
-      "bytes": 24454
+      "bytes": 24819
     },
     {
       "name": "ascend-triton-ascend",
       "path": "skills/ascend-triton-ascend",
       "description": "昇腾 NPU（a3=.188 / a3b=.190）上 triton-ascend 的检测 / 安装 / 验证 / 排障——商发版 3.2.2 必须从 osinfra 专用源装（PyPI 上没有）；官方覆盖式共存，import triton 报 3.2.0 而非 3.2.2 属正常；被 pip install -U triton 覆盖后 `backends/ascend` 目录仍在但 `import triton` 直接崩。适用于\"装 triton-ascend / triton 版本不对或被换掉 / import triton 报错 / No matching distribution found for triton-ascend / pip install -U triton 后 NPU kernel 挂了\"。不适用：torch 与 torch_npu 本身的问题 → 用 `ascend-torch-npu`；vllm 与 vllm-ascend 装不上 → 用 `vllm-ascend-source-install`。",
-      "files": 1,
-      "bytes": 21952
+      "files": 2,
+      "bytes": 22307
     },
     {
       "name": "ascend-vllm-serve",
       "path": "skills/ascend-vllm-serve",
       "description": "在昇腾 A3（.188/.190）上把装好的 vllm + vllm-ascend 跑起来——三层自检、按 HBM 挑空闲 die、起 OpenAI 兼容服务、离线推理冒烟、sleep/wake_up 显存释放与重载、运行时排障。适用于\"在昇腾上起 vllm 服务 / 跑离线推理冒烟 / sleep mode 释放显存 / sleep level 1 还是 2 / wake_up 后输出乱码 / reload_weights 热更新权重 / 报 MemoryError 或 dtype / import torch_npu 报 No module named 'acl' / 别设 VLLM_TARGET_DEVICE / 报 aclInit 107001 / Kimi-K3 在 A3 上 500 EZ0037 / 模型太大单卡放不下要 TP=2\"。不适用：装/重装/编译 vllm-ascend → 用 `vllm-ascend-source-install`；栈装不上（torch_npu、pip） → 用 `ascend-torch-npu`。",
-      "files": 1,
-      "bytes": 48925
+      "files": 2,
+      "bytes": 50018
     },
     {
       "name": "dingxiang-slider-captcha",
@@ -100,8 +100,8 @@
       "name": "dsh-agent-customization",
       "path": "skills/dsh-agent-customization",
       "description": "DSH 改造 agent 行为的入口总纲——改了 AGENTS.md 为何不生效、插件行坏了怎么回滚、settings.yaml 改了为何没反应、这次改动属于哪一层；含五层生效时机、热重载≠冷启动、坏 row 三形态、MCP 挂载与会话日志找回旧版本。适用于\"改 DSH 的行为该改哪一层 / 改了 AGENTS.md 为何不生效 / 插件行坏了怎么回滚 / settings.yaml 改了为何不生效 / MCP 怎么挂进来 / 实验包怎么挂 profile / 中文 UI 不是中文提示词 / 会话日志里能不能找回旧版本 / 会话日志怎么解压 / 本轮运行失败 / finish_reason 报错怎么判 / 上游还是 DSH 的 bug\"。不适用：只离线验负载挂载 → 用 `dsh-agent-preset-verification`；只要干净实验环境 → 用 `dsh-isolated-web-host`。",
-      "files": 1,
-      "bytes": 88618
+      "files": 5,
+      "bytes": 90893
     },
     {
       "name": "dsh-agent-preset-verification",
@@ -122,7 +122,7 @@
       "path": "skills/dsh-repo-sync",
       "description": "我的 DSH 私仓同步——现在同步一次、昨天同步没成功、私仓内容少了或不对、ALERT.md 出现了、计划任务 DSH-Repo-Sync 报错：脚本 sync-dsh-repos.ps1 把 ~/.dsh 与编排 preset 用 robocopy 快照进私仓镜像，明文 PAT 脱敏成 redacted，退出码即结论（0 成功 / 非 0 见码表）。适用于\"私仓天天收到 workflow 失败邮件 / 手动同步我的私仓 / 现在同步一次 / 同步坏了怎么办 / ALERT.md 出现了 / 昨天同步没成功 / 私仓内容少了或不对 / 计划任务 DSH-Repo-Sync 报错 / 想改同步的排除项 / 把私仓公开\"。不适用：向 GitHub 上游仓提 PR → 用 `github-pr-flow`；向 GitCode 社区仓提 PR → 用 `gitcode-pr-flow`；计划任务注册与退役取证 → 用 `win-scheduled-task-forensics`。",
       "files": 3,
-      "bytes": 76242
+      "bytes": 76491
     },
     {
       "name": "dsh-skill-authoring",
@@ -143,28 +143,28 @@
       "path": "skills/dsh-skills-publish",
       "description": "把本机 ~/.dsh/skills 的全部 skill 每天凌晨 2 点发布到 GitCode 公开仓 EliasKaslan/dsh-skills——脚本 publish-dsh-skills.ps1 先快照再扫活密钥，然后提交 main 并让当日 YYYY-MM-DD 分支与 main 指向同一 commit，只保留最近 15 个日期分支、更早的自动删除；计划任务 DSH-Skills-Publish，退出码 0/3/4/5/6/7/8，状态落 .skill-publish\\state.json 与 ALERT.md。适用于\"把 skill 发到 GitCode / 建个公开 skill 仓 / 每天自动同步 skill / 今天的日期分支建了吗 / main 和日期分支不一致 / 分支太多了怎么清理 / 旧日期分支还在吗 / 发布脚本报错 / 手动跑一次 skill 发布 / 停掉每日发布任务\"。不适用：DSH 配置与私仓同步 → 用 `dsh-repo-sync`。",
       "files": 5,
-      "bytes": 43891
+      "bytes": 47763
     },
     {
       "name": "external-buzz-magnitude-check",
       "path": "skills/external-buzz-magnitude-check",
       "description": "外部热度量级取证——这事在外网真的火吗（HN points/评论、HF likes/下载量、Artificial Analysis/OpenRouter 体验指标、社区情绪分级）——判某事在外网是否真热、某模型是否真难用，给可复现量级数字；与 GitHub 提交活性解耦，双榜分开列。适用于\"这事在外网真的火吗 / 给我外部热度量级证据 / 这个模型是不是真的很难用 / 社区有没有人在骂 / HN 有多少 points 和评论 / 这个模型速度慢不慢 / 内部提交多但外面没动静算不算热点\"。不适用：只看 GitHub 组织内部提交增量 → 用 `github-org-delta-watch`；核查论文声称能否复现 → 用 `arxiv-paper-deep-read-and-claim-verification`。",
       "files": 1,
-      "bytes": 16998
+      "bytes": 17525
     },
     {
       "name": "gitcode-pr-flow",
       "path": "skills/gitcode-pr-flow",
       "description": "GitCode 上任意昇腾社区仓提 PR（MindSpeed-Ops 与 MindSpeed-Agent 均已完整验证）从个人 fork 到合入全流程——compile 评论触发门禁（任何 head 变化后须补发）、双 CI 判读与标签审计（operate_logs）、PR 冲突诊断（git merge-tree）、GitCode OpenAPI v5 创建/关闭 PR 与批量改 issue、版本分支 backport，以及 pre-commit 概率 FAILED 判平台抖动还是改代码。适用于\"向 GitCode 仓提 PR / PR 冲突了要 rebase / 补一下 ci-pipeline-passed / 查 PR 标签是谁打的 / 标签为什么被摘 / 评论 compile 门禁没跑 / 门禁快速失败且没有结果评论 / pre-commit 随机 FAILED / backport 到 26.1.0\"。不适用：目标仓在 GitHub 而不是 GitCode → 用 `github-pr-flow`。",
       "files": 4,
-      "bytes": 103552
+      "bytes": 103551
     },
     {
       "name": "github-org-delta-watch",
       "path": "skills/github-org-delta-watch",
       "description": "GitHub 组织增量追踪——基准日之后这个组织谁在动、这仓是不是死仓、官方那个承诺兑现了没：rate_limit 的 Date 头取\"今天\"、orgs/{org}/repos?sort=pushed 覆盖全组织找活性、pushed_at 冻结即内容冻结、issues 要 created 与 updated 各拉一遍。适用于\"组织基准日后有什么新动作 / 谁在动 / 有没有发新版 / 组织调研报告要更新增量 / 这个仓是不是死仓 / 官方那个承诺兑现了吗 / GitHub 403 额度耗尽后怎么继续取证\"。不适用：向 GitHub 仓提 PR → 用 `github-pr-flow`；到厂商官网取一手来源 → 用 `ai-vendor-official-source-audit`。",
       "files": 1,
-      "bytes": 13360
+      "bytes": 13321
     },
     {
       "name": "github-pr-flow",
@@ -178,14 +178,14 @@
       "path": "skills/korea-official-source-research",
       "description": "韩国（济州）官方一手信息源——官方页面怎么抓、没日期怎么看：web_fetch 对韩国站点多数不可用，urllib 按站点分档，pwsh 最稳；含出入境/入境申告官方源结构（e-AC 的 bbsId / flId、mofa.go.kr 详情页、无日期戳用响应头 Date 与 등록일 定锚、判废止）、假页面陷阱、公交 BIS、visitjeju、休馆日、门票 xlsx、潮汐。适用于\"韩国出入境/入境申告/法务部/关税厅/检疫 Q-CODE 官方源怎么抓 / 韩国官方页面没有日期怎么看 / 驻外使馆 mofa.go.kr 详情页怎么取 / 政策是否已废止怎么查 / 查济州公交线路和末班车 / 韩国景点开放时间与休馆日 / 抓 visitjeju 详情页字段 / 门票 xlsx 怎么解析 / 潮汐表怎么取 / 抓韩国站点全失败怎么办\"。不适用：本机 pwsh 编码坑 → 用 `pwsh-on-windows`；判厂商官网链接真假 → 用 `ai-vendor-official-source-audit`。",
       "files": 1,
-      "bytes": 21530
+      "bytes": 21504
     },
     {
       "name": "orchestrating-subagents",
       "path": "skills/orchestrating-subagents",
       "description": "编排手册——两通道模型：生产动作（读文件、跨模块检索、跑命令、联网、试错、写代码/文档、改配置）一律下发子代理，主 Agent 保留全套工具、只做交付前独立复核（真跑验收命令、核\"文件:行号\"、读本体与 exit code）；判据权威出处是宪法 §2/§3，本 skill 只写操作配方。适用于\"任务很大一次读不完 / 该不该派子代理 / 帮我并行跑几件事 / 上下文快满了 / 子代理说没有 web_fetch 或说工具受限 / explore 和 subagent 怎么选 / 子代理说的对不对 / 它答错了要不要重派 / 怎么关掉自己起的进程 / 运行台账该怎么记 / 子代理写域重叠怎么办 / 长时间编译怎么等 / 子代理说完成了我怎么验 / 复核旧结论行号一致算不算没过时\"。不适用：任务收尾判定\"值得沉淀\"、要动手写 skill → 用 `sedimenting-skills`。",
-      "files": 1,
-      "bytes": 70764
+      "files": 2,
+      "bytes": 71905
     },
     {
       "name": "outlook-mailbox-control",
@@ -219,29 +219,29 @@
       "name": "univpn-vpn",
       "path": "skills/univpn-vpn",
       "description": "UniVPN（联软 Leagsoft，C:\\Program Files (x86)\\UniVPN）——188 连不上、177.8.21.1 怎么连就看这条：蓝区网关(x00886548)推 192.168.0.0/16 → a3=192.168.13.188；A5(vpn_xmz)推 177.0.0.0/8 → a5=177.8.21.1（Ascend950DT）；两配置互斥，切配置必须先断开再真实鼠标点条目（UIA Select 无效）；含托盘态还原、APIPA 假连、路由晚于虚拟 IP 的时序坑。适用于\"188 连不上 / 177.8.21.1 怎么连 / 切到 A5 / 现在连的是哪个 VPN / UniVPN 状态怎么看 / VPN 连上了但 ping 不通 / 一直连不上 / 该连蓝区还是 A5\"。不适用：连上后装 CANN/conda/torch → 用 `ascend-env`；本机 pwsh 编码与执行策略坑 → 用 `pwsh-on-windows`。",
-      "files": 2,
-      "bytes": 33776
+      "files": 3,
+      "bytes": 34098
     },
     {
       "name": "upstream-docs-refresh-audit",
       "path": "skills/upstream-docs-refresh-audit",
       "description": "上游仓库 docs 刷新审计——这批需求在 docs 里都能检索到吗、这版主线资料要不要刷新：输入一批中文内部需求或中文转测文档，判 docs/source 是否需要刷新，产出六节结论清单 + 逐条刷新方案：三件前置产物先行、只读 worktree 隔离、代号靠 git log --grep 破解、页名看 nav_titles.py、判存在性搜全仓、findings 落盘 fan-out、分次写盘、`.po` 翻译归责与脚本存在性判据。适用于\"这批需求在 docs 里都能检索到吗 / 转测文档声明的能力主线能查到吗 / 这版主线资料要不要刷新 / 出一份资料刷新清单 / 内部代号在仓库里到底叫什么 / 转测文档写的环境变量和启动参数主线到底有没有 / 要不要顺手改 .po 翻译 / 那个脚本到底存不存在\"。不适用：要装 vllm 或 vllm-ascend → 用 `vllm-ascend-source-install`；要起服务跑推理 → 用 `ascend-vllm-serve`。",
       "files": 5,
-      "bytes": 48414
+      "bytes": 48347
     },
     {
       "name": "vllm-ascend-e2e-ci-wiring",
       "path": "skills/vllm-ascend-e2e-ci-wiring",
       "description": "vllm-ascend e2e 用例进 CI 的落位与登记——tests/e2e/pull_request 下新增 test 必须登记 estimated_times.yaml，否则 coverage.py 打印 ✗ MISSING 后 sys.exit(1)；该门禁在 Windows 上必然全报 MISSING；e2e_model 只喂报告，e2e_coverage 值错即硬失败；模型 ID 须在 ModelScope 有仓。适用于\"新增 e2e 用例怎么进 CI / 为什么 CI 报 MISSING estimated_times / 本地跑 coverage.py 全是 MISSING / 测试该放 one_card 还是 four_card / e2e_coverage 标记怎么写 / 用例怎么脱钩共享 conftest / 要不要登记 model_dataset_list\"。不适用：装或跑 vllm-ascend → 用 `vllm-ascend-source-install`。",
-      "files": 1,
-      "bytes": 26210
+      "files": 2,
+      "bytes": 27156
     },
     {
       "name": "vllm-ascend-source-install",
       "path": "skills/vllm-ascend-source-install",
       "description": "从源码装 vllm + vllm-ascend 配对流程——main 按 `.github/vllm-main-verified.commit` 配 vllm（VLLM_TARGET_DEVICE=empty）；release tag 配同名 tag；VLLM_VERSION 在 v0.23.0 失效，改用 VLLM_VERSION_OVERRIDE；torch 家族 pin 先注释；VLLM_BATCH_INVARIANT 默认不导出。适用于\"装或重装 vllm-ascend / 报 vllm_version_is 为 False / 报 ResolutionImpossible 或 numpy 冲突 / pip 卡在 llguidance / 复用已有 torch_npu / 报 build 依赖不满足（torch pin/nanobind）/ 报 metadata-generation-failed\"。不适用：起服务排障 → 用 `ascend-vllm-serve`；torch 栈装不上 → 用 `ascend-torch-npu`。",
-      "files": 2,
-      "bytes": 90929
+      "files": 3,
+      "bytes": 91376
     },
     {
       "name": "win-scheduled-task-forensics",

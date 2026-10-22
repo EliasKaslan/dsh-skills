@@ -221,7 +221,7 @@ GitCode 写回 `D:\key\gitcode_访问令牌_xmz_agent用.txt`。两个文件 202
 
 **修法（改设置，不动镜像内容）**：`PUT /repos/{o}/{r}/actions/permissions`，body `{"enabled": false}` → **204**，回读 `enabled=false`。镜像内容**逐字节不变**——这是它相对"把 workflows 从镜像里剔掉"方案的最大优点（后者会与上游 merge 反复冲突）。
 
-- **顺序：先关 Actions、再删 dependabot 分支**——dependabot 的版本更新本身就是 Actions run（`event=dynamic`）⇒ **不先关它会重建分支**。
+- **顺序：先关 Actions、再删 dependabot 分支**——dependabot 的版本更新本身就是 Actions run（`event=dynamic`），先关能减少新的 run。⚠ **但别指望它阻止分支重建**：旧措辞"不先关它会重建分支"已部分证伪（下面 2026-10-14 实测：关掉 Actions 后仍重建了 5 个分支）⇒ 删完若又冒出来，按"每轮清一次"处理，不要回头怀疑顺序。
 - 删分支：`DELETE /repos/{o}/{r}/git/refs/heads/<branch>`（**分支名含 `/`**，如 `dependabot/github_actions/actions/cache-6`）；删分支会**自动关闭**引用它的 PR。
 
 **边界**：计费问题本身是**账号级**的、与本仓内容无关——关掉本仓 Actions 只止住**这一仓**的噪声；其它仓若依赖 Actions，须自行处理 Billing & plans。

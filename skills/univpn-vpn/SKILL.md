@@ -140,7 +140,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File vpnctl.ps1 -Action ResetUi -
 - **A5 是否也能到 `192.168.x`**：实测不能（路由里没有 `192.168.0.0/16`），未尝试手工 `New-NetRoute` 强加路由——本会话**非提权**（`BUILTIN\Administrators` 是 deny-only、中完整性），加路由与 `route add` 都需要管理员。若将来要试：连 A5 后在提权窗口跑 `New-NetRoute -DestinationPrefix 192.168.0.0/16 -InterfaceIndex 13 -NextHop 0.0.0.0`，再测 `.188`；**能不能通取决于 A5 网关是否转发**，不是客户端能决定的。
 - `177.8.21.1` 上只采到 §2 那几项（hostname/核数/内存/磁盘/NPU 型号），**CANN、conda、模型目录一概未采**，别编。
 
-## 7. 维护记录
+## 7. 维护记录 → `references/maintenance-log.md`
 
-- **2026-10-22 创建**。当天纠正了一个关键误判：原先用 `x00886548` 去连 A5 全部 `LOGIN_FAIL`，且因为 §4 的 `Select()` 无效问题，几次「以为连了 A5」其实连的还是蓝区网关（日志 `send the last connect name is 蓝区网关.ini`），一度错误地得出「A5 也到不了 177.8.21.1」的结论。**换 A5 专属账号 `vpn_xmz` 登录后 `177.8.21.1:22` 立刻可达**。
-- **同一天证伪了 7 个 `ascend-*` skill 里「A5 已登记凭据但不可达、规格未采」的断言**——那些结论是在**没连 A5**的情况下测 `177.8.21.1` 得出的。真值是：**必须先连 A5，才可达**；`ascend-env` §1 已改，其余 skill 的同一句话以 `ascend-env` §1 与本 skill §2 为准。
+逐轮改动与取证时间。**用户不会问这个**，只在怀疑本文机制描述过时时才读。
