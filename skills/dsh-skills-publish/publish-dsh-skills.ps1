@@ -551,17 +551,17 @@ try {
         exit 0
     }
 
-    $pushMain = Invoke-Git -ArgList @('push', $authUrl, ('HEAD:refs/heads/' + $mainBranch)) -TimeoutSec 600
+    $pushMain = Invoke-RepoGit -ArgList @('push', $authUrl, ('HEAD:refs/heads/' + $mainBranch)) -TimeoutSec 600
     if ($pushMain.Code -ne 0) { Fail 6 ('push ' + $mainBranch + ' failed (rc=' + $pushMain.Code + '): ' + $pushMain.Out) }
     Write-Log ('pushed ' + $mainBranch)
 
-    $pushDate = Invoke-Git -ArgList @('push', $authUrl, ('HEAD:refs/heads/' + $DateStamp)) -TimeoutSec 600
+    $pushDate = Invoke-RepoGit -ArgList @('push', $authUrl, ('HEAD:refs/heads/' + $DateStamp)) -TimeoutSec 600
     if ($pushDate.Code -ne 0) { Fail 6 ('push ' + $DateStamp + ' failed (rc=' + $pushDate.Code + '): ' + $pushDate.Out) }
     Write-Log ('pushed ' + $DateStamp)
 
     # ---- verify ----------------------------------------------------------
     $script:Stage = 'verify'
-    $ls = Invoke-Git -ArgList @('ls-remote', $authUrl, ('refs/heads/' + $mainBranch), ('refs/heads/' + $DateStamp)) -TimeoutSec 120
+    $ls = Invoke-RepoGit -ArgList @('ls-remote', $authUrl, ('refs/heads/' + $mainBranch), ('refs/heads/' + $DateStamp)) -TimeoutSec 120
     if ($ls.Code -ne 0) { Fail 7 ('ls-remote failed: ' + $ls.Out) }
 
     $mainSha = ''
