@@ -419,8 +419,15 @@ try {
         $script:Stage = 'repo'
         if (-not (Test-Path -LiteralPath $script:WorkRepo)) {
             Write-Log ('cloning ' + $cfg.remote_url + ' into ' + $script:WorkRepo)
-            $r = Invoke-Git -ArgList @('clone', '--no-checkout', $authUrl, $script:WorkRepo) -TimeoutSec 300
+            # Clone through the public URL on purpose: the token must never land
+            # in .git/config via remote.origin.url.  Pushes pass it inline.
+            $r = Invoke-Git -ArgList @('clone', '--no-checkout', $cfg.remote_url, $script:WorkRepo) -TimeoutSec 300
             if ($r.Code -ne 0) { Fail 3 ('git clone failed: ' + $r.Out) }
+        }
+        $originUrl = Invoke-Git -ArgList @('-C', $script:WorkRepo, 'remote', 'get-url', 'origin')
+        if ($originUrl.Code -eq 0 -and $originUrl.Out.Trim() -match '@') {
+            $null = Invoke-Git -ArgList @('-C', $script:WorkRepo, 'remote', 'set-url', 'origin', $cfg.remote_url)
+            Write-Log 'scrubbed credentials from remote.origin.url'
         }
         $r = Invoke-Git -ArgList @('-C', $script:WorkRepo, 'rev-parse', '--git-dir')
         if ($r.Code -ne 0) { Fail 3 ('work_repo is not a git repository: ' + $script:WorkRepo) }
