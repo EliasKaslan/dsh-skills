@@ -657,6 +657,7 @@ try {
         $script:State.branch_count_after = $dated.Count - @($script:State.pruned).Count
     }
 
+    $script:Stage = 'done'
     $script:State.exit_code = 0
     Save-State
     $alertPath = Join-Path $script:StateDir 'ALERT.md'
