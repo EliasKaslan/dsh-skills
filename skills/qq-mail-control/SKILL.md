@@ -19,7 +19,7 @@ whenToUse: 用 DSH 的 `mcp__qqmail__*` 工具接管 QQ 邮箱（列/搜/读/附
 - 本机 PowerShell 自身的坑（GBK 乱码 / BOM / 执行策略 / PS 5.1 的重定向编码）→ 用 `pwsh-on-windows`。
 - 判断这条经验该不该沉淀、写到哪个根 → 用 `sedimenting-skills`。
 
-**前置**：① 已有一个 QQ 邮箱**授权码**（不是登录密码；QQ 邮箱设置 → 账户 → 开启 IMAP/SMTP 服务时生成）；② 配置 JSON 与数据目录已就位（§2），且文件权限已按 Windows 收紧（§2）。 ／ **后继**：任何写操作（send / reply / mark / move / delete）**先给用户看收件人 + 主题 + 正文摘要**再确认（**例外**：收件人只有本人工作邮箱 `xumingzhe4@huawei.com` 时免确认，见 §4），且发信正文**必须**带 【AI 代发】前缀（§4）。
+**前置**：① 已有一个 QQ 邮箱**授权码**（不是登录密码；QQ 邮箱设置 → 账户 → 开启 IMAP/SMTP 服务时生成）；② 配置 JSON 与数据目录已就位（§2），且文件权限已按 Windows 收紧（§2）。 ／ **后继**：任何写操作（send / reply / mark / move / delete）**先给用户看收件人 + 主题 + 正文摘要**再确认（**例外**：收件人只有本人工作邮箱 `xumingzhe4@huawei.com` 时免确认，见 §4），且发信正文**必须**带 【AI 代发】前缀（§4）；发往该收件人**带附件时必须用「转发」格式**（§4）。
 
 ## 1. 形态与工具清单
 
@@ -44,6 +44,7 @@ whenToUse: 用 DSH 的 `mcp__qqmail__*` 工具接管 QQ 邮箱（列/搜/读/附
 
 - **`folder` 与 `query` 都是误记的旧参数名**——真实字段是 **`mailbox`**（不是 `folder`），搜索**没有 `query`**（按 `subject` / `from` / `body` / `text` 分腿过滤）。照旧名拼参数 = 参数校验报错，白跑一轮。
 - `qqmail_attachment` / `qqmail_send` / `qqmail_reply` 的**完整参数本轮未复核**，保持真调用成功过的那次写法；要确认就先看工具自带 schema，别凭记忆拼。
+- **没有转发工具**：12 个工具名里 `forward` / `Fwd` 逐字 grep **零命中**；`qqmail_send` 的 `attachments` 只负责把**本机文件绝对路径**挂上去，**不生成转发头** ⇒ 发往 `xumingzhe4@huawei.com` 的带附件邮件必须**手工拼成转发形态**（§4）。
 - **只读模式只放 7 个**（少 `qqmail_send` / `qqmail_reply` / `qqmail_mark` / `qqmail_move` / `qqmail_delete`）。看到工具少 5 个 = 只读还开着（§3），不是接入失败。
 - 数字是**时刻值**：`qqmail_folders` 返回的 `INBOX(N 封/M 未读)`、`Sent Messages`、`Drafts`、`Junk`、`Deleted Messages` 与自定义子文件夹的计数每次都会变，**别当常量**。
 
@@ -88,6 +89,19 @@ icacls "C:\Users\admin\.dsh\.secrets\qqmail\config.json" /grant:r ($env:USERNAME
 - **例外（2026-10-22 用户明确授权）：收件人只有本人工作邮箱 `xumingzhe4@huawei.com` 时跳过第②步** —— 直接发，不必念摘要等确认（"这是我本人的邮箱"）。第①步（前缀 + 正文）照做。**只要 cc/bcc 里还有别人、或 to 里混入任何其它地址，就回到完整三步。**
 - **不要**在用户没确认前发信，也不要用"工具返回成功"代替"用户确认过"（上面那个本人邮箱例外除外）。
 
+**附件硬规则（发给 `xumingzhe4@huawei.com`，2026-10-23 用户明确告知）**：
+
+- **带附件发往该收件人，必须是一封「转发」形态的邮件**；普通格式（正常主题 + `attachments`）会被**收件侧拦截**。拦截发生在收件侧，`qqmail_send` 照样返回成功 ⇒ **工具报成功 ≠ 对方收到**。
+- **本 MCP 生成不了真正的转发**：12 个工具无 forward，`qqmail_send` 只能挂 `attachments` + 写 `subject` / `text` ⇒ 「转发格式」只能**自己拼**：
+  1. `subject` 用 `转发：<原主题>`（或 `Fwd:`）打头；
+  2. `text` 顶部写转发头块（`-------- 转发的邮件 --------` + 发件人 / 发送时间 / 收件人 / 主题），下面接原文；
+  3. `attachments` 传**本机文件绝对路径数组**，逐个 `Test-Path` 确认真在并报出体积——`qqmail_send` **没有 dry-run**，发出去了撤不回。
+- **发前自检两句**：① 主题是否 `转发：` / `Fwd:` 打头；② 正文顶部有没有那段转发头块。缺任一条先别发。
+- **若用户说的「转发」是 MIME 层真正的转发**（带 `Resent-*` 头，或把原邮件当 `message/rfc822` 附件）⇒ **本 MCP 做不到**（无转发生成能力）；这种情况只能改用邮件客户端手动转发，**别在本 skill 里硬凑**。
+- **降级路径**（确实投不进去时）：内容内嵌进正文 + 不带附件（既有实战：`send_plan_mail.py` 就是先试「正文 + 附件」，失败自动降级为「仅正文」），或把文件放到中转、正文给链接。
+- **送达判据**：`Sent Messages` 里有副本只说明 SMTP 收下了，**不说明收件侧放行**；带附件时若用户没回话，结论只能写「已发出，收件侧未确认」。
+- **仍未验证**：这套「转发形态」是否真能过华为网关——本轮没有收件侧回执。首次实发后必须向用户核实；确认有效就把实际过关的写法（主题前缀、头块样式、原始发件人地址要不要保留）补进这几条。
+
 ## 5. 无草稿能力与替代做法
 
 - 12 个工具名对 `/draft/i` **命中 0**——**没有**任何草稿工具。
@@ -128,6 +142,7 @@ icacls "C:\Users\admin\.dsh\.secrets\qqmail\config.json" /grant:r ($env:USERNAME
 - **不要**放弃 `BODY.PEEK` 去"图省事"（坑 6）。
 - **不要**把关键词腿和 `before` 一起用（恒返 0 的静默假阴性，坑 9）；**不要**用 `from:"<邮件地址>"` 判发件人（只匹配显示名，坑 11）；**不要**在"匹配 ≠ 返回"时断言"全库没有"（坑 12）；**不要**只看 INBOX 就下"无残留访问"的结论（坑 13）。
 - **不要**发不带 【AI 代发】前缀的邮件（§4）。
+- **不要**用普通格式（正常主题 + 附件）发往 `xumingzhe4@huawei.com`——带附件必须是转发形态，否则收件侧拦截（§4）；**也不要**凭 `Sent Messages` 里有副本就断言对方收到了。
 
 ## 8. 验收标准
 
@@ -136,6 +151,7 @@ icacls "C:\Users\admin\.dsh\.secrets\qqmail\config.json" /grant:r ($env:USERNAME
 3. 只读四连：`qqmail_folders` → `qqmail_list`（`{"mailbox":"INBOX","limit":10}`）→ `qqmail_read`（某个 `uid`）→ `qqmail_attachment`。做完 `FLAGS` 仍为空 ⇒ `BODY.PEEK` 生效、没有污染已读状态。**报 uid 时一并写清 mailbox**（子文件夹 uid 空间独立，§6 坑 2）
 4. 写操作：工具**存在**（说明只读已关）+ 用户已确认摘要（收件人只有 `xumingzhe4@huawei.com` 时免，§4）+ 正文首行是 `【AI 代发】`。
 5. 想改配置时：改完用 `qqmail_config` 读回，确认 `imapPort: 993` / `smtpPort: 465` 是**数字**而不是 `0`。
+6. 带附件发往 `xumingzhe4@huawei.com`：主题 `转发：` / `Fwd:` 打头 + 正文含转发头块 + `attachments` 路径逐个 `Test-Path` 存在 ⇒ 才算按格式发出；**收件侧是否放行以用户回话为准**，别拿 `Sent Messages` 当送达证据（§4）。
 
 ## 9. 凭据卫生（明文授权码外溢的收尾）
 

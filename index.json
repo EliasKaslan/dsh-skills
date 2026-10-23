@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "publish-dsh-skills.ps1",
-  "skill_count": 35,
-  "file_count": 70,
-  "total_bytes": 1389924,
+  "skill_count": 36,
+  "file_count": 73,
+  "total_bytes": 1432135,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -206,7 +206,7 @@
       "path": "skills/qq-mail-control",
       "description": "QQ 邮箱接管（IMAP/SMTP，`mcp__qqmail__*`）——发一封 QQ 邮件、查收件箱、搜邮件、读某封邮件的参数配方与坑：文件夹名编码（回显中文原文、UTF-8 原文直传可用，传 `&UXZO1mWHTvZZOQ-` 这类 modified UTF-7 串报 `Error： Command failed`）、FETCH 只读铁律、中文搜索只覆盖本地窗口、发信必须带【AI 代发】前缀、凭据位置与 `--read-only` 静默陷阱。适用于\"发一封 QQ 邮件 / 查一下 QQ 邮箱收件箱 / 搜一下 QQ 邮箱里的邮件 / QQ 邮箱 MCP 怎么用 / 帮我读某封 QQ 邮件 / QQ 邮箱文件夹名乱码 / QQ 邮箱只能读不能发\"。不适用：Outlook / MSA 邮箱 → 用 `outlook-mailbox-control`；改 patch 与 MCP 接入层生效时机 → 用 `dsh-agent-customization`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。",
       "files": 1,
-      "bytes": 18026
+      "bytes": 20953
     },
     {
       "name": "sedimenting-skills",
@@ -249,6 +249,13 @@
       "description": "Windows 计划任务/持久化项取证与安全退役——谁给我装了每日定时程序、把每日签到任务停掉、这个定时任务是谁加的：五处侦察面（计划任务全量、schtasks 旁证、Run 键、两个启动文件夹、WMI 事件订阅）缺一处就漏；退役顺序固定为 Export-ScheduledTask 留档 → Disable-ScheduledTask（保留定义优于 unregister）→ 复核 State=Disabled 且 Actions 原文未变 → 清进程 → 复核其它任务未被误碰。适用于\"找出某个 agent 建的每日定时程序 / 谁给我装了计划任务 / 把每日签到任务停掉 / 这个定时任务是谁加的 / 停用以后怎么恢复 / 雷电签到任务怎么退役\"。不适用：本机 pwsh 命令本身的坑 → 用 `pwsh-on-windows`；要拆多路并行子任务 → 用 `orchestrating-subagents`。",
       "files": 1,
       "bytes": 8900
+    },
+    {
+      "name": "yb-blue",
+      "path": "skills/yb-blue",
+      "description": "蓝区主控端（YB-Bridge）——把活拆成黄区弱模型能照做的任务包，经私有 GitHub 仓下发，轮询取回报告并按四要素验收；黄→蓝单次≤100KB 自动分块，蓝→黄不限。适用于\"给黄区派活 / 收黄区报告 / 黄蓝协同 / 跨区接力 / 黄区任务到哪了 / 黄区卡住了 / yb.py poll 没结果 / 怎么把黄区结果拿回来\"。不适用：同机子代理编排 → 用 `orchestrating-subagents`；写或改 skill → 用 `dsh-skill-authoring`。",
+      "files": 3,
+      "bytes": 39284
     }
   ]
 }

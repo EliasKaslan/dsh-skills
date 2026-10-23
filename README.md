@@ -27,7 +27,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **35** 个 skill、**70** 个文件、**1389924** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **36** 个 skill、**73** 个文件、**1432135** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -66,3 +66,4 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 33 | [`vllm-ascend-e2e-ci-wiring`](skills/vllm-ascend-e2e-ci-wiring/SKILL.md) | vllm-ascend e2e 用例进 CI 的落位与登记——tests/e2e/pull_request 下新增 test 必须登记 estimated_times.yaml，否则 coverage.py 打印 ✗ MISSING 后 s... | 2 |
 | 34 | [`vllm-ascend-source-install`](skills/vllm-ascend-source-install/SKILL.md) | 从源码装 vllm + vllm-ascend 配对流程——main 按 `.github/vllm-main-verified.commit` 配 vllm（VLLM_TARGET_DEVICE=empty）；release tag 配同... | 3 |
 | 35 | [`win-scheduled-task-forensics`](skills/win-scheduled-task-forensics/SKILL.md) | Windows 计划任务/持久化项取证与安全退役——谁给我装了每日定时程序、把每日签到任务停掉、这个定时任务是谁加的：五处侦察面（计划任务全量、schtasks 旁证、Run 键、两个启动文件夹、WMI 事件订阅）缺一处就漏；退役顺序固定为... | 1 |
+| 36 | [`yb-blue`](skills/yb-blue/SKILL.md) | 蓝区主控端（YB-Bridge）——把活拆成黄区弱模型能照做的任务包，经私有 GitHub 仓下发，轮询取回报告并按四要素验收；黄→蓝单次≤100KB 自动分块，蓝→黄不限。适用于"给黄区派活 / 收黄区报告 / 黄蓝协同 / 跨区接力 /... | 3 |
