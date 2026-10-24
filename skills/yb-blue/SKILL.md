@@ -162,3 +162,13 @@ python $YB done --all                    # 本次协同全部结束，黄区停�
 - 不要在一条消息里塞多个任务；不要在任务里夹带"顺便"。
 - 不要把黄区的 `report` 直接当最终交付；必须自己复核后再说"完成"。
 - 不要用 `git push` 往 `bus/` 写消息（会和客户端路径/分块规则不一致）；一律走 `yb.py`。
+
+## 10. 黄区执行环境的实证坑（2026-10 实战，血泪）
+
+- **`yh.ps1` 的 ssh 进的是宿主机，不是容器。** 要在业务容器里编译/起服务，必须 `docker exec <容器> bash -c "..."`；直接在 `-Cmd` 里跑 `python` / `pip` 会解析到宿主机的 anaconda，报 `metadata-generation-failed` / `No module named 'torch'` 这类看起来像代码问题的假故障。
+- **黄区脚本里不要写 `set -u`。** atb 的 `set_env.sh` 引用未定义的 `ZSH_VERSION`，`set -u` 下 `source` 会**整个 shell 退出（RC=1）**，而 `2>/dev/null` 把原因吞掉 ⇒ 日志 0 字节、连第一个 `echo` 都不输出，极难定位。要么去掉 `set -u`，要么 `source ... 2>/dev/null || true`。
+- **探针要放在 `source set_env.sh` 之后、且和被测命令同一个 `docker exec` 里**，否则拿到的是宿主机环境（`ASCEND_HOME_PATH` / torch 都不对）。
+- **普通 `import vllm_ascend` 后 `hasattr(torch.ops._C_ascend, '<op>')` 为 False 是正常的**：扩展在引擎初始化时按需 `load_library`，不是 import 时注册。判"编译有没有成功"要用 `strings <so> | grep <op>` 或显式 `torch.ops.load_library(<so>)`，不要用 import 后的 hasattr。
+- **`npu-smi` 看不到被容器运行时持有的设备显存。** 判真实可用量用 `torch_npu.npu.mem_get_info()`；两者差几十 GB 时（本例 2.9GB vs 50GB），只有 `docker restart <容器>` 能回收，杀进程（含 `kill -9` + 清孤儿 `multiprocessing`）没用。
+- **杀 `vllm serve` 后要等设备显存真正释放再起下一个**，并且要检查**所有卡**的最大值（只 `head -1` 看第一张卡会误判）；否则新 serve 报 `Free memory ... less than desired GPU memory utilization`。
+- **base64 payload 一律用 PowerShell 从文件生成并回验**（`Get-Content -Raw` → `[Convert]::ToBase64String` → 解回来 `-eq` 比对）；手打必然损坏，且损坏后的表现是"脚本语法错/变量名变成乱码"，容易被误判成环境问题。

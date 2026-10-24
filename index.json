@@ -3,7 +3,7 @@
   "generated_by": "publish-dsh-skills.ps1",
   "skill_count": 36,
   "file_count": 73,
-  "total_bytes": 1432135,
+  "total_bytes": 1434166,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -255,7 +255,7 @@
       "path": "skills/yb-blue",
       "description": "蓝区主控端（YB-Bridge）——把活拆成黄区弱模型能照做的任务包，经私有 GitHub 仓下发，轮询取回报告并按四要素验收；黄→蓝单次≤100KB 自动分块，蓝→黄不限。适用于\"给黄区派活 / 收黄区报告 / 黄蓝协同 / 跨区接力 / 黄区任务到哪了 / 黄区卡住了 / yb.py poll 没结果 / 怎么把黄区结果拿回来\"。不适用：同机子代理编排 → 用 `orchestrating-subagents`；写或改 skill → 用 `dsh-skill-authoring`。",
       "files": 3,
-      "bytes": 39284
+      "bytes": 41315
     }
   ]
 }
