@@ -175,6 +175,8 @@ Register-ScheduledTask -TaskName 'DSH-Skills-Publish' -Action $act -Trigger $trg
 `install-task.ps1` 的开关：`-At 02:00` 改时间、`-RunNow` 注册后立即跑一次、`-ExportPath <path>` 导出一份任务 XML 留档、`-Uninstall` 注销任务。
 导出的 XML 里带本机账户名（`<UserId>`），**不要直接 import 到新机器**（SID / 计算机名不同会失败）——用脚本重建。
 
+整套脚本**不绑定用户名与路径**：`run_daily.cmd` 用 `%~dp0` 定位同目录的发布脚本，`install-task.ps1` 按自身位置生成任务动作路径，所以 skill 文件夹放在任意用户名 / 任意盘符下都能跑；要改的只有 `publish.config.json` 里的 `source_dir` / `work_repo`。
+
 ## 7. 边界（不要做什么）
 
 - **不要**把 `credentials.txt`、`.secrets`、`*.token` 从排除清单里拿掉；公开仓一旦推上去，历史里删不干净。
