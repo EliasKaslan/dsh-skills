@@ -27,7 +27,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **36** 个 skill、**74** 个文件、**1443011** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **37** 个 skill、**91** 个文件、**1675890** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -61,9 +61,10 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 28 | [`pwsh-on-windows`](skills/pwsh-on-windows/SKILL.md) | 本机命令行一整套静默坏结果（pwsh 实为 Windows PowerShell 5.1，非 PS7）——中文乱码、行数或 CR 数对不上、计数总是 0、目录看着空其实不空、执行策略拦住脚本、传 JSON 报 Expecting value... | 1 |
 | 29 | [`qq-mail-control`](skills/qq-mail-control/SKILL.md) | QQ 邮箱接管（IMAP/SMTP，`mcp__qqmail__*`）——发一封 QQ 邮件、查收件箱、搜邮件、读某封邮件的参数配方与坑：文件夹名编码（回显中文原文、UTF-8 原文直传可用，传 `&UXZO1mWHTvZZOQ-` 这类 ... | 1 |
 | 30 | [`sedimenting-skills`](skills/sedimenting-skills/SKILL.md) | Skill 沉淀协议——先过目录税预算（目录字符总量 ≤ 20,000，默认值可调），每次非平凡运行收尾都**自动**复盘，并**全库匹配**找归属（三段决策 ①融合已有 skill ②建/更新总纲 ③都没有才新建）——默认首选融合：有归属... | 1 |
-| 31 | [`univpn-vpn`](skills/univpn-vpn/SKILL.md) | UniVPN（联软 Leagsoft，C:\Program Files (x86)\UniVPN）——188 连不上、177.8.21.1 怎么连就看这条：蓝区网关(x00886548)推 192.168.0.0/16 → a3=192.1... | 3 |
-| 32 | [`upstream-docs-refresh-audit`](skills/upstream-docs-refresh-audit/SKILL.md) | 上游仓库 docs 刷新审计——这批需求在 docs 里都能检索到吗、这版主线资料要不要刷新：输入一批中文内部需求或中文转测文档，判 docs/source 是否需要刷新，产出六节结论清单 + 逐条刷新方案：三件前置产物先行、只读 work... | 5 |
-| 33 | [`vllm-ascend-e2e-ci-wiring`](skills/vllm-ascend-e2e-ci-wiring/SKILL.md) | vllm-ascend e2e 用例进 CI 的落位与登记——tests/e2e/pull_request 下新增 test 必须登记 estimated_times.yaml，否则 coverage.py 打印 ✗ MISSING 后 s... | 2 |
-| 34 | [`vllm-ascend-source-install`](skills/vllm-ascend-source-install/SKILL.md) | 从源码装 vllm + vllm-ascend 配对流程——main 按 `.github/vllm-main-verified.commit` 配 vllm（VLLM_TARGET_DEVICE=empty）；release tag 配同... | 3 |
-| 35 | [`win-scheduled-task-forensics`](skills/win-scheduled-task-forensics/SKILL.md) | Windows 计划任务/持久化项取证与安全退役——谁给我装了每日定时程序、把每日签到任务停掉、这个定时任务是谁加的：五处侦察面（计划任务全量、schtasks 旁证、Run 键、两个启动文件夹、WMI 事件订阅）缺一处就漏；退役顺序固定为... | 1 |
-| 36 | [`yb-blue`](skills/yb-blue/SKILL.md) | 蓝区主控端（YB-Bridge）——把活拆成黄区弱模型能照做的任务包，经私有 GitHub 仓下发，轮询取回报告并按四要素验收；黄→蓝单次≤100KB 自动分块，蓝→黄不限。适用于"给黄区派活 / 收黄区报告 / 黄蓝协同 / 跨区接力 /... | 3 |
+| 31 | [`tilelang-op-generator`](skills/tilelang-op-generator/SKILL.md) | >- | 16 |
+| 32 | [`univpn-vpn`](skills/univpn-vpn/SKILL.md) | UniVPN（联软 Leagsoft，C:\Program Files (x86)\UniVPN）——188 连不上、177.8.21.1 怎么连就看这条：蓝区网关(x00886548)推 192.168.0.0/16 → a3=192.1... | 4 |
+| 33 | [`upstream-docs-refresh-audit`](skills/upstream-docs-refresh-audit/SKILL.md) | 上游仓库 docs 刷新审计——这批需求在 docs 里都能检索到吗、这版主线资料要不要刷新：输入一批中文内部需求或中文转测文档，判 docs/source 是否需要刷新，产出六节结论清单 + 逐条刷新方案：三件前置产物先行、只读 work... | 5 |
+| 34 | [`vllm-ascend-e2e-ci-wiring`](skills/vllm-ascend-e2e-ci-wiring/SKILL.md) | vllm-ascend e2e 用例进 CI 的落位与登记——tests/e2e/pull_request 下新增 test 必须登记 estimated_times.yaml，否则 coverage.py 打印 ✗ MISSING 后 s... | 2 |
+| 35 | [`vllm-ascend-source-install`](skills/vllm-ascend-source-install/SKILL.md) | 从源码装 vllm + vllm-ascend 配对流程——main 按 `.github/vllm-main-verified.commit` 配 vllm（VLLM_TARGET_DEVICE=empty）；release tag 配同... | 3 |
+| 36 | [`win-scheduled-task-forensics`](skills/win-scheduled-task-forensics/SKILL.md) | Windows 计划任务/持久化项取证与安全退役——谁给我装了每日定时程序、把每日签到任务停掉、这个定时任务是谁加的：五处侦察面（计划任务全量、schtasks 旁证、Run 键、两个启动文件夹、WMI 事件订阅）缺一处就漏；退役顺序固定为... | 1 |
+| 37 | [`yb-blue`](skills/yb-blue/SKILL.md) | 蓝区主控端（YB-Bridge）——把活拆成黄区弱模型能照做的任务包，经私有 GitHub 仓下发，轮询取回报告并按四要素验收；黄→蓝单次≤100KB 自动分块，蓝→黄不限。适用于"给黄区派活 / 收黄区报告 / 黄蓝协同 / 跨区接力 /... | 3 |

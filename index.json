@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "publish-dsh-skills.ps1",
-  "skill_count": 36,
-  "file_count": 74,
-  "total_bytes": 1443011,
+  "skill_count": 37,
+  "file_count": 91,
+  "total_bytes": 1675890,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -59,7 +59,7 @@
       "path": "skills/ascend-moe-ep-capacity-planning",
       "description": "昇腾 64GB 卡跑 MoE 大模型前的显存容量与并行几何规划——EP 没有独立开关（EP = TP × DP × PCP），按卡数 N 选型必须随 N 重推 TP；64GB 卡真实预算只有 56.378 GiB，用 64GB 或 64×10⁹ 都会高估；EP 只切 routed experts，其余每卡复制。适用于\"这个 MoE 大模型要几张卡才跑得起来 / EP 设多少、TP 设多少 / 专家并行怎么配 / 显存预算怎么算 / 起服务报 OOM 之前先估一遍 / 按卡数扫描怎么选型 / TP 设大了有什么区别\"。不适用：服务已经起来要排障或跑推理 → 用 `ascend-vllm-serve`；要装/重装 vllm-ascend → 用 `vllm-ascend-source-install`；只看模型适配没适配 → 用 `ascend-model-adaptation-recon`。",
       "files": 2,
-      "bytes": 67285
+      "bytes": 68633
     },
     {
       "name": "ascend-server-layout",
@@ -87,7 +87,7 @@
       "path": "skills/ascend-vllm-serve",
       "description": "在昇腾 A3（.188/.190）上把装好的 vllm + vllm-ascend 跑起来——三层自检、按 HBM 挑空闲 die、起 OpenAI 兼容服务、离线推理冒烟、sleep/wake_up 显存释放与重载、运行时排障。适用于\"在昇腾上起 vllm 服务 / 跑离线推理冒烟 / sleep mode 释放显存 / sleep level 1 还是 2 / wake_up 后输出乱码 / reload_weights 热更新权重 / 报 MemoryError 或 dtype / import torch_npu 报 No module named 'acl' / 别设 VLLM_TARGET_DEVICE / 报 aclInit 107001 / Kimi-K3 在 A3 上 500 EZ0037 / 模型太大单卡放不下要 TP=2\"。不适用：装/重装/编译 vllm-ascend → 用 `vllm-ascend-source-install`；栈装不上（torch_npu、pip） → 用 `ascend-torch-npu`。",
       "files": 2,
-      "bytes": 53660
+      "bytes": 54381
     },
     {
       "name": "dingxiang-slider-captcha",
@@ -136,7 +136,7 @@
       "path": "skills/dsh-skill-self-audit",
       "description": "DSH skill 集合的每日无人值守自检——静默满 1 小时且距上次自检 ≥20h 才跑；Windows 计划任务 DSH-Skill-SelfAudit 每小时轮询、headless 真跑；体检含 YAML round-trip、交叉引用 dangling/asym、正文重复、description 预算；小改自动、结构性改动只出清单；待办跨轮记在 BACKLOG.md。适用于\"自检我的 skill / 每天检查一下 skill / skill 有没有该合并的重复 / 删掉过时的 skill 经验 / 哪个 skill 触发不了 / skill 目录多久没动了 / 定时体检 skill 集合\"。不适用：判断某条经验该不该沉淀、写到哪个根 → 用 `sedimenting-skills`；只改 frontmatter 与 description 的写法契约 → 用 `dsh-skill-authoring`；要 DSH 非交互入口与 skill 发现真相 → 用 `dsh-agent-customization`。",
       "files": 5,
-      "bytes": 84851
+      "bytes": 85365
     },
     {
       "name": "dsh-skills-publish",
@@ -157,7 +157,7 @@
       "path": "skills/gitcode-pr-flow",
       "description": "GitCode 上任意昇腾社区仓提 PR（MindSpeed-Ops 与 MindSpeed-Agent 均已完整验证）从个人 fork 到合入全流程——compile 评论触发门禁（任何 head 变化后须补发）、双 CI 判读与标签审计（operate_logs）、PR 冲突诊断（git merge-tree）、GitCode OpenAPI v5 创建/关闭 PR 与批量改 issue、版本分支 backport，以及 pre-commit 概率 FAILED 判平台抖动还是改代码。适用于\"向 GitCode 仓提 PR / PR 冲突了要 rebase / 补一下 ci-pipeline-passed / 查 PR 标签是谁打的 / 标签为什么被摘 / 评论 compile 门禁没跑 / 门禁快速失败且没有结果评论 / pre-commit 随机 FAILED / backport 到 26.1.0\"。不适用：目标仓在 GitHub 而不是 GitCode → 用 `github-pr-flow`。",
       "files": 4,
-      "bytes": 103551
+      "bytes": 106188
     },
     {
       "name": "github-org-delta-watch",
@@ -185,7 +185,7 @@
       "path": "skills/orchestrating-subagents",
       "description": "编排手册——两通道模型：生产动作（读文件、跨模块检索、跑命令、联网、试错、写代码/文档、改配置）一律下发子代理，主 Agent 保留全套工具、只做交付前独立复核（真跑验收命令、核\"文件:行号\"、读本体与 exit code）；判据权威出处是宪法 §2/§3，本 skill 只写操作配方。适用于\"任务很大一次读不完 / 该不该派子代理 / 帮我并行跑几件事 / 上下文快满了 / 子代理说没有 web_fetch 或说工具受限 / explore 和 subagent 怎么选 / 子代理说的对不对 / 它答错了要不要重派 / 怎么关掉自己起的进程 / 运行台账该怎么记 / 子代理写域重叠怎么办 / 长时间编译怎么等 / 子代理说完成了我怎么验 / 复核旧结论行号一致算不算没过时\"。不适用：任务收尾判定\"值得沉淀\"、要动手写 skill → 用 `sedimenting-skills`。",
       "files": 2,
-      "bytes": 71905
+      "bytes": 73163
     },
     {
       "name": "outlook-mailbox-control",
@@ -216,11 +216,18 @@
       "bytes": 21334
     },
     {
+      "name": "tilelang-op-generator",
+      "path": "skills/tilelang-op-generator",
+      "description": ">-",
+      "files": 16,
+      "bytes": 197284
+    },
+    {
       "name": "univpn-vpn",
       "path": "skills/univpn-vpn",
-      "description": "UniVPN（联软 Leagsoft，C:\\Program Files (x86)\\UniVPN）——188 连不上、177.8.21.1 怎么连就看这条：蓝区网关(x00886548)推 192.168.0.0/16 → a3=192.168.13.188；A5(vpn_xmz)推 177.0.0.0/8 → a5=177.8.21.1（Ascend950DT）；两配置互斥，切配置必须先断开再真实鼠标点条目（UIA Select 无效）；含托盘态还原、APIPA 假连、路由晚于虚拟 IP 的时序坑。适用于\"188 连不上 / 177.8.21.1 怎么连 / 切到 A5 / 现在连的是哪个 VPN / UniVPN 状态怎么看 / VPN 连上了但 ping 不通 / 一直连不上 / 该连蓝区还是 A5\"。不适用：连上后装 CANN/conda/torch → 用 `ascend-env`；本机 pwsh 编码与执行策略坑 → 用 `pwsh-on-windows`。",
-      "files": 3,
-      "bytes": 34098
+      "description": "UniVPN（联软 Leagsoft，C:\\Program Files (x86)\\UniVPN）——188 连不上、177.8.21.1 怎么连就看这条：蓝区网关(x00886548)推 192.168.0.0/16 → a3=192.168.13.188；A5(vpn_xmz)推 177.0.0.0/8 → a5=177.8.21.1（Ascend950DT）；单客户端两者互斥，多实例补丁可双开同时在线：切配置要真实鼠标点条目（UIA Select 无效）、托盘态还原、APIPA 假连、路由晚于虚拟 IP。适用于\"188 连不上 / 177.8.21.1 怎么连 / 切到 A5 / 同时连 A3 和 A5 / 两个 VPN 一起连 / 多开 UniVPN / 现在连的是哪个 VPN / VPN 连上了但 ping 不通 / UniVPN 状态怎么看 / 该连蓝区还是 A5\"。不适用：连上后装 CANN/conda/torch → 用 `ascend-env`；本机 pwsh 编码与执行策略坑 → 用 `pwsh-on-windows`。",
+      "files": 4,
+      "bytes": 63215
     },
     {
       "name": "upstream-docs-refresh-audit",

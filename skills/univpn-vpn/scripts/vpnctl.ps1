@@ -151,8 +151,30 @@ function Invoke-El { param($El) $El.GetCurrentPattern([System.Windows.Automation
 # ---------------------------------------------------------------- 状态
 
 function Get-TapInfo {
-    $tap = Get-NetAdapter -ErrorAction SilentlyContinue |
-           Where-Object { $_.InterfaceDescription -match 'TAP-Windows' } | Select-Object -First 1
+    # 多实例（§7）装上以后本机会有两张以上 TAP-Windows 网卡：`本地连接`（原件）与 `本地连接 2`
+    # （UVP002 副本）。`Select-Object -First 1` 会随机挑到副本那张，导致 Profile/TapIfIndex 报错。
+    # 判据：副本的网卡 GUID 都登记在 <安装目录>\.univpn-multi\instance-*.json 的 TapGuid 里，
+    # 排除它们，剩下的才是原件那张。
+    $foreign = @()
+    $instanceRoot = 'C:\Program Files (x86)\UniVPN\.univpn-multi'
+    if (Test-Path -LiteralPath $instanceRoot) {
+        Get-ChildItem -LiteralPath $instanceRoot -Filter 'instance-*.json' -ErrorAction SilentlyContinue |
+            ForEach-Object {
+                try {
+                    $g = (Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json).TapGuid
+                    if ($g) { $foreign += ([string]$g).Trim('{}').ToUpperInvariant() }
+                } catch { }
+            }
+    }
+    $candidates = @(Get-NetAdapter -ErrorAction SilentlyContinue |
+        Where-Object { $_.InterfaceDescription -match 'TAP-Windows' } |
+        Where-Object { $foreign -notcontains ([string]$_.InterfaceGuid).Trim('{}').ToUpperInvariant() })
+    if ($candidates.Count -eq 0) {
+        # 全部 TAP 都属于副本（原件没装 / 已卸载）时退回原行为
+        $candidates = @(Get-NetAdapter -ErrorAction SilentlyContinue |
+            Where-Object { $_.InterfaceDescription -match 'TAP-Windows' })
+    }
+    $tap = $candidates | Sort-Object @{ Expression = { $_.Status -ne 'Up' } }, ifIndex | Select-Object -First 1
     if (-not $tap) { return $null }
     $ip = Get-NetIPAddress -InterfaceIndex $tap.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
           Select-Object -First 1

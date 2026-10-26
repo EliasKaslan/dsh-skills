@@ -157,9 +157,14 @@ compile
 
 **结论口径**：`ci-pipeline-failed` 但失败项是 `pre-commit` 时，**先在改代码之前**取"同一 commit 的多次运行"证据（或直接发一次 `retry`）——若同一 commit 两次结论相反，即判为**平台概率性失败**，处理方式只有 `retry` 到 `pre-commit` 变 COMPLETED，**不要为此改源码**。反例：`UT_MindSpeed_*` 失败通常是真问题。
 
+**⚠️ 别把"隐晦文案"当抖动直接 retry（2026-10-26 实测纠正）**：`pre-commit` 的真实内容性失败，message 也只有 `步骤pre-commit执行失败，错误信息：点击任务查看详情`——**与抖动同形**，`retry` 和重发 `compile` 各跑一轮都照样红。所以顺序必须是「**先本地复现**，本地复现不出来才判抖动」。真实成因的典型形态：**PR 动了某个文件，pre-commit 就按整文件校验该文件里"既有"的 lint 问题**（本次：`docs/zh/install_guide.md` 有 2 处行尾空格 + 1 处 MD049 `*X*` 强调样式），与你的改动无关却必定红。修法：同一 PR 里顺手修掉，`git commit --amend` 后强推再补 `compile`，PR 描述里说明"顺带修复文件内既有告警"。
+
+**本地复现配方（Windows 实测跑通）**：`python -m venv %TEMP%\pcvenv` + `pip install pre-commit` → 仓库根 `SKIP=gitleaks-offline-scan pre-commit run --files <改动文件...> --show-diff-on-failure`。`trailing-whitespace` / `end-of-file-fixer` 会**就地改文件**（预期行为，改完留着）；`markdownlint` 只在**改动的那个文件**有既有告警时报错，其他文件全绿不代表安全。
+
 **已实证的错误形态（逐字）**：
 - 同一 commit 上：首轮 `pre-commit` **FAILED**，message = `步骤pre-commit执行失败，错误信息：{"errorMessage":" 构建任务执行失败!","errorCode":"DEV-CODECI-35002"}`；对**同一 commit** 发 `retry` 后，在**同一 pipelineRunId** 内 `pre-commit` 变 **COMPLETED**。**同 commit、同内容，两次结论相反。**
 - 更强的对照组：另一个 PR 在**同一 commit** 上跑了多次流水线，`pre-commit` 呈 **COMPLETED / FAILED 交替** → **与代码内容无关**。
+- **`retry` 会被静默丢弃**：2026-10-26 实测，run 已 `FAILED`（`end_time` 已落）之后 6 分钟发 `retry`，`attempt` 仍为 **1**、`CodeCheck_pre_commit` 仍 `FAILED`、机器人**无任何响应评论**。别反复发 `retry` 白等——直接重发 `compile`（起**新的** `workflow_run_id`）更可靠；`compile` 还会顺带重跑文档门禁。
 
 **排除代码原因（可复用）**：
 ```bash
@@ -171,7 +176,15 @@ SKIP=gitleaks-offline-scan pre-commit run --files <改动文件> --show-diff-on-
 - `gitleaks-offline-scan` 本地**必然失败**：仓库**没有**提交 `gitleaks` 二进制，CI 是先 `wget https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta-codecheck/gitleaks` 再 `chmod +x`，故用 `SKIP=gitleaks-offline-scan` 排除这个环境性噪音。
 - 该二进制（`gitleaks 8.30.1`）在 CI 场景下其实是**空门禁**：`protect` 子命令忽略传入文件名，只对工作区未提交改动跑 `git diff -U0`，干净 checkout 上扫到 0 字节恒过。
 
-**无登录读任务级状态（实测可用）**：用 Playwright 打开任意 openlibing 页面（如 PR 评论里 `pipelineDetail?...` 的 URL），在**页面上下文**里 `fetch`：
+**⭐ 更省事的首选：GitCode 自己的 workflow-run 接口（2026-10-26 实测，一步拿到逐任务状态）**。上一条 openlibing 接口要凑 `pipelineRunId`，而 PR 评论只给 GitCode 的 `actions/runs/<32hex>`；直接用那个 id 打：
+
+```
+https://web-api.gitcode.com/api/v2/projects/<owner>%2F<repo>/actions/workflow-runs/<runId>
+```
+
+返回 `data.stages[].jobs[]`，每个 job 有 `name` / `status`（COMPLETED|FAILED|RUNNING|INIT）/ `message` / `steps[]`（step 也有 `status`，能看出卡在哪一步，如 `run UT rank 3`）。**要点**：① 必须**在页面上下文里 fetch**（PowerShell 直接 GET 返回 **418**，带 PRIVATE-TOKEN 也没用）；② `runId` 从 `AtlasAccount` 的"CI 流水线已启动"评论里抓 `actions/runs/([0-9a-f]{32})`；③ 浏览器是**共享**的，用户可能把标签导航走（本轮就被切到华为下载页导致 `Failed to fetch`）——判读兜底用 **PR 标签**（`ci-pipeline-passed` 出现即通过，无需浏览器），或新开标签再试。
+
+**无登录读任务级状态（openlibing 侧，备选）**：用 Playwright 打开任意 openlibing 页面（如 PR 评论里 `pipelineDetail?...` 的 URL），在**页面上下文**里 `fetch`：
 ```
 https://www.openlibing.com/gateway/openlibing-cicd/project/pipeline/pipeline-run/detail?projectId=300091&pipelineId=<pid>&pipelineRunId=<rid>
 ```

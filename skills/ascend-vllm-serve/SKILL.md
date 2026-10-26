@@ -294,8 +294,8 @@ ss -ltnp | grep :18000 || echo "PORT RELEASED"
 14. **`ValueError: FRACTAL_NZ mode is enabled...`**（原文片段，完整尾句本次未留档）
     → 修法：构造 `LLM()` 时传 `additional_config={"weight_nz_mode": 0}`。
 15. **HTTP 调 `/sleep` 时 body 里的 level 不生效**：level **只从 query string 读**，JSON body 里的 level 被忽略 → 写成 `POST /sleep?level=2`。
-16. **`pkill -f '<模式>'` 会杀掉自己的 ssh 包装进程**：现象是命令无输出、只得到 `[exit code: 1]`（模式串匹配到了自己那条命令行）。
-    → 修法：把模式写成不自匹配的形式，例如 `pkill -f "[t]est_x"`（字符类让模式本身不再包含字面量 `test_x`）。
+16. **`pkill -f '<模式>'` 在共享机上必伤人（或自伤）**：自伤形态是命令无输出、只得到 `[exit code: 1]`（模式串匹配到了自己那条 ssh 包装命令行）；伤人形态是模式同时命中**同机别人的进程**——2026-10-26 在 `.188` 上用 `pkill -9 -f "VLLM::Worker_TP"` / `VllmWorker` 清自己的实验残留，把另外三个用户的作业（Qwen2.5 sleep-poc、Qwen3-30B+DSpark、Qwen3-Omni）的 worker 全部清空，omni 父进程还活着成了孤儿。
+    → 修法：**不要用 `pkill -f`，包括 `pkill -f "[t]est_x"` 这种"不自匹配"写法**——字符类只让模式不匹配**自己**那条命令行，对**别人**的进程毫无约束。改按**落盘的 pid / 端口**精确杀（配方见 `orchestrating-subagents` §7）；要清整棵进程树就起 `setsid` 记 PGID、收 `kill -9 -<PGID>`。硬规则见 `~/.dsh/AGENTS.md` K1。
 17. **共享机 HCCL 端口被别人占了 → `Communication_Error_Bind_IP_Port(EI0020)`**（2026-10-22 实测，与你的代码/参数/die 全无关）
     → 原文（三行连看才定性）：`RuntimeError: create_config:../torch_npu/csrc/distributed/HCCLUtils.cpp:140 HCCL function error: hcclCommInitRootInfoConfig(...), error code is 7` ／ `ERR02200 DIST call hccl api failed.` ／ `Communication_Error_Bind_IP_Port(EI0020): Failed to enable listening for the NPU network adapter socket. Reason: The IP address 192.0.2.195 and port 16666 have already been bound.`
     → 修法（纯 opt-in，不设就沿用默认端口段）：`export HCCL_NPU_SOCKET_PORT_RANGE=61230-61250`。实测同一条命令加上它就从 `hcclCommInitRootInfoConfig` 失败变成正常起服务。
@@ -317,13 +317,13 @@ ss -ltnp | grep :18000 || echo "PORT RELEASED"
 
 - 不要 `pip install`/卸载任何包；不要 `pip install -U triton`；不要重建 vllm。
 - 不要设 `VLLM_USE_V1`（已废弃）。**`VLLM_VERSION` 要按版本区分、不要无条件设也不要无条件不设**：vllm `v0.23.0` 上它**已不被读取**（真开关 `VLLM_VERSION_OVERRIDE`），且不导它时 `vllm_version_is("0.23.0")` 本来就 `True`——见本文件坑 4 的二次修正与 `vllm-ascend-source-install` §5.1。
-- 不要 `pkill -f vllm`；不要动 `/mnt/share/x00886548/cann/`、`/usr/local/Ascend`、`/etc/Ascend`、`xmz_0921` 里的包。
+- 不要 `pkill -f <任何模式>`（含 `pkill -f "[t]est_x"` 这类"不自匹配"写法，见坑 16）；不要动 `/mnt/share/x00886548/cann/`、`/usr/local/Ascend`、`/etc/Ascend`、`xmz_0921` 里的包。
 - 不要 `export VLLM_TARGET_DEVICE`（运行期只要它是 `cpu` 就把平台层静默降级成 `UnspecifiedPlatform`，见坑 20）；构建期的 `VLLM_TARGET_DEVICE=empty` 与运行期无关，别带进来。
 - 不要在共享机上占用**未确认空闲**的 die、也不要起自己放不下的模型；**「别占多张卡」不是绝对禁令**——TP≥2 要同时占两张，但前提是 launch 前一刻确认两张都空闲（见步骤 1 与 4.1）；`gpu_memory_utilization` 别无脑拉满（TP=2 实测可用 0.85，留基线余量给别人）。
 - 不要把大文件/日志写 `/`、`/mnt/share`、`/tmp`、`/root`（同一块系统盘，长期紧张，余量现场 `df -h` 看）；写 `/home/vllm/x00886548/serve_test/`。
 - 内联 ssh 里别用 `<` `"` `$()`；脚本里别用 heredoc（会永久挂起）。
 - 别在 `load_format="dummy"` 下用 `reload_weights`（互斥，坑 11）；也别只 `wake_up(tags=["weights"])` 就 `generate()`（会挂住，坑 13）。
-- 强杀进程后不复查 `npu-smi` 不算收尾（坑 17）；`pkill -f` 的模式别能匹配到自己那条命令行（坑 16）。
+- 强杀进程后不复查 `npu-smi` 不算收尾（坑 17）；**`pkill -f` 一律禁用**（自伤 + 伤人两种形态，坑 16），只按落盘的 pid / 端口 / 进程组精确杀。
 
 ## 验收标准
 

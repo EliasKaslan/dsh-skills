@@ -62,7 +62,7 @@ python scripts/ep_mem_model.py --config configs/fake_k3_4layer.json --layers 4 -
   `vllm/model_executor/layers/fused_moe/config.py:1103-1105,1221`（`ep_size = flatten_tp_size = dp*pcp*tp`）、
   `vllm/engine/arg_utils.py:1260-1264`。
 - **EP 下 MoE 的 tp_size 被压成 1**（每个 rank 完整拥有自己的专家）：`fused_moe/config.py:1219-1224`。
-- **TP 必须整除 `gcd(num_attention_heads, kda.num_heads)`**（本例 `gcd(96,96)=96` ⇒ 合法 TP ∈ `{1,2,3,4,6,8,12,16,24,32,48,96}`）；**EP size 不必整除 `num_experts`**（见坑 1）。
+- **TP 必须整除 `gcd(num_attention_heads, kda.num_heads)`**（本例 `gcd(96,96)=96` ⇒ 合法 TP ∈ `{1,2,3,4,6,8,12,16,24,32,48,96}`）；**EP size 在 Python 层不必整除 `num_experts`，但运行期必须整除**（不整除 = 首次前向崩 EZ1008，或 A2 上静默错算；实测见坑 2）。
   出处：`vllm/models/kimi_k3/nvidia/kda.py:604`（`assert self.num_heads % self.tp_size == 0`）、`vllm/model_executor/models/deepseek_v2.py:502,510,526`（MLA 投影是 `ColumnParallelLinear` 铺在 `num_attention_heads` 上）。
   另一道（通常不成约束的）合法性闸门：`moe_intermediate_size % tp_size == 0`（`fused_moe/config.py:1339-1341`；本例 3072 % 4 = 0 ✓）。
 - ⚠ **按卡数 N 扫描时必须随 N 重推 TP**（选 `TP | N` 且 `TP | 96` 的最大值，`DP = N/TP`）：EP 与 N 是**同一个量**（`EP ≡ TP×DP×PCP ≡ 卡数`），固定 TP 去变 EP 等于每一行都悄悄假设了不同的错误非专家足迹。**这是本轮被证伪的断言**（见坑 10）。
@@ -137,9 +137,12 @@ npu-smi 65536 MiB  --(驱动基线 2852–3105 MiB/die)-->  mem_get_info 可见 
 1. **以为 EP size 是独立可设的量** → 它不是：`--enable-expert-parallel` 是布尔量，`EP = DP × PCP × TP`（出处见步骤 1）。
    修法：给 `--tp/--dp`，让脚本自己算 EP；`--ep N` 只用于"假设能设成这么大"的探索，别拿它当部署配置。**反例与真值见坑 9**。
 2. **`ValueError: EPLB currently only supports even distribution of experts across ranks. Got 896 experts and 5 EP ranks.`**
-   → 原因：**只有 `--enable-eplb` 才强制整除**（`vllm/.../fused_moe/layer.py:258-272`，约束是 `num_experts + num_redundant_experts`）。
-   非 EPLB 路径**不均分也合法、不报错**（`vllm/.../fused_moe/expert_map_manager.py:66-69`，余数分给前 remainder 个 rank）。
-   → 修法：不开 EPLB 就别为整除改卡数；开了 EPLB 就调 `--num-redundant-experts` 把 `(n_exp + redundant)` 凑成 EP 的倍数（实测 896 % 5 = 1，补 4 个冗余即 900 % 5 = 0）。
+   → 原因：`--enable-eplb` 在 **Python 层**强制整除（`vllm/.../fused_moe/layer.py:260-265`，约束是 `num_experts + num_redundant_experts`）。
+   → **【2026-10-26 实测更正：本条旧断言"非 EPLB 不均分也合法、不报错"已被证伪】** 非 EPLB 只是"Python 层不校验"，运行期是**崩或静默错算**，二选一：
+     · 实测配比 **12 专家 / EP=8**（不整除）、V2 runner、A3、dummy 权重：**权重按 2/1 不均分真的分配成功了**——`expert_map_manager.py:250` 打 `Local/global number of experts: 2/12`，`Model loading took` 在 TP0–3 是 **2.7 GiB**、TP4–7 是 **2.51 GiB**（差 0.19 GiB ≈ 1 专家 × 3 个 MoE 层）⇒ **"能加载 / 能建模型"完全不能证明"支持不均匀"**。
+     · 随后**第一次前向（profile/dummy_run）就崩**：`RuntimeError: npu_moe_distribute_dispatch_v2 ... Execution_Error(EZ1008): Failed to execute operator MoeDistributeDispatchV2_1020. Reason: Failed to execute tiling function.` —— CANN 算子在 **tiling 阶段**就拒绝 `moe_expert_num=12` 与 `ep_world_size=8`。
+     · A2/310P 的 prefill 走 AllGather（`_310p/fused_moe/token_dispatcher.py:57-72`），不经过该算子、没人校验 → **静默错算**：`ops/fused_moe/token_dispatcher.py:396` 拿 `rank * num_experts_local` 当本地专家起点，而真起点是 `expert_map_manager.py:76` 的 `rank*base + min(rank, rem)`（`rank ≥ rem` 时两式差 `rem`）。
+   → 修法：**`(num_experts + redundant)` 凑成 EP 的整数倍是唯一可行解**（K3：896+128=1024，EP=256 时每 rank 4 个）；别指望"不均匀也能跑"。完整取证见 `findings/F-uneven-v2-verdict.md`（工作区 `261026_k3_不均匀切分专家`）。
 3. **把 `safetensors.parameters` 的 `U8` 计数当字节数** → 会误得出"3.1 TB 权重"。
    实测 `{"F32":11122432,"BF16":57179884544,"U8":2722740830208}`：`U8` numel ÷ 剩余可用字节 ≈ **1.882 ≈ 2** —— MXFP4 把 2 个权重打包进 1 个 U8，且 U8 里还混着 per-32 的 scale 字节。
    → 修法：算显存一律"逻辑参数 × dtype 字节数"；要估 MXFP4 **存储量**就另按存储字节算，两者不要混用。
