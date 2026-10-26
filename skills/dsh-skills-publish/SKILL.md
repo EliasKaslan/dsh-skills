@@ -1,6 +1,6 @@
 ---
 name: dsh-skills-publish
-description: 把本机 ~/.dsh/skills 的全部 skill 每天凌晨 2 点同步发布到 GitCode 与 GitHub 两个公开仓 EliasKaslan/dsh-skills——脚本 publish-dsh-skills.ps1 先快照再扫活密钥，再对每个站点提交 main 并让当日 YYYY-MM-DD 分支与 main 指向同一 commit，每个站点只保留最近 15 个日期分支；计划任务 DSH-Skills-Publish，退出码 0/3/4/5/6/7/8，状态落 .skill-publish\state.json 与 ALERT.md。适用于"把 skill 发到 GitCode / 同步一份到 GitHub / 建个公开 skill 仓 / 每天自动同步 skill / 今天的日期分支建了吗 / main 和日期分支不一致 / 分支太多了怎么清理 / 发布脚本报错 / 手动跑一次 skill 发布 / 停掉每日发布任务"。不适用：DSH 配置与私仓同步 → 用 `dsh-repo-sync`。
+description: 把本机 ~/.dsh/skills 的全部 skill 每天凌晨 2 点同步发布到 GitCode 与 GitHub 两个公开仓 EliasKaslan/dsh-skills——脚本 publish-dsh-skills.ps1 先快照再扫活密钥，再对每个站点提交 main 并让当日 YYYY-MM-DD 分支与 main 指向同一 commit，每个站点只保留最近 15 个日期分支；计划任务 DSH-Skills-Publish，退出码 0/3/4/5/6/7/8，状态落 .skill-publish\state.json 与 ALERT.md。适用于"把 skill 发到 GitCode / 同步一份到 GitHub / 建个公开 skill 仓 / 每天自动同步 skill / 今天的日期分支建了吗 / main 和日期分支不一致 / 分支太多了怎么清理 / 发布脚本报错 / 手动跑一次 skill 发布 / 停掉每日发布任务 / 换台电脑怎么恢复这个任务"。不适用：DSH 配置与私仓同步 → 用 `dsh-repo-sync`。
 whenToUse: 发布 skill 到公开仓、排查每日同步失败、增减镜像站点或计划任务时用。模型看不到本节。
 ---
 
@@ -36,6 +36,7 @@ whenToUse: 发布 skill 到公开仓、排查每日同步失败、增减镜像�
 | --- | --- |
 | 发布脚本 | `C:\Users\admin\.dsh\skills\dsh-skills-publish\publish-dsh-skills.ps1` |
 | 每日入口（ASCII） | `C:\Users\admin\.dsh\skills\dsh-skills-publish\run_daily.cmd` |
+| 任务注册（自动提权） | `C:\Users\admin\.dsh\skills\dsh-skills-publish\install-task.ps1` |
 | 本地配置（**不发布**） | `C:\Users\admin\.dsh\.skill-publish\publish.config.json` |
 | 运行状态（**不发布**） | `C:\Users\admin\.dsh\.skill-publish\state.json` |
 | 日志（按月） | `C:\Users\admin\.dsh\.skill-publish\logs\publish-YYYY-MM.log` |
@@ -148,7 +149,33 @@ Register-ScheduledTask -TaskName 'DSH-Skills-Publish' -Action $act -Trigger $trg
 - **想立刻回滚内容**：日期分支是历史快照，`git -C D:\repos\dsh-skills reset --hard <旧 sha>` 后再 `-NoPush` 检查，然后真跑覆盖各站点 `main`（**只在自己的镜像仓里操作**，不要在远端改写 `main` 历史）。
 - **隐私提醒**：两个仓都是公开的，skill 正文里的本机路径（`D:\key\...`、内网 IP）会一起公开。要收口就先改 skill 正文，再跑发布。
 
-## 6. 边界（不要做什么）
+## 6. 换机 / 重装：仓库就是工具链
+
+`skills/dsh-skills-publish/` 里是这个任务的**全部代码**：发布脚本、每日入口、任务注册脚本、README 模板、本手册。
+任务注册信息（含 `state.json`、日志）属于本机、不在仓里；换机器用一条命令重建。
+
+仓库里**故意没有**的三样，必须人工补：
+
+| 缺什么 | 为什么不在仓里 | 怎么补 |
+| --- | --- | --- |
+| 两个令牌文件 | 是活凭据 | 拷到新机器 `D:\key\`，或重新签发后改配置里的路径 |
+| `.skill-publish\publish.config.json` | 含本机路径与站点表 | 复制 `publish.config.example.json` 过去，填 `user` / `remote_url` / `token_file` |
+| 计划任务 `DSH-Skills-Publish` | 注册在**本机**计划库里 | 跑 `install-task.ps1` 重建（S4U + 唤醒，脚本自己提权） |
+
+新机器落地顺序：
+
+1. 装 Git，且要落在**机器级** PATH（本机是 `D:\tools\Git\cmd`）——S4U 不加载用户 PATH。
+2. `git clone https://github.com/EliasKaslan/dsh-skills.git D:\repos\dsh-skills`（GitCode 同）。
+3. 把 `D:\repos\dsh-skills\skills\dsh-skills-publish` 复制到 `%USERPROFILE%\.dsh\skills\dsh-skills-publish`。
+4. 建 `publish.config.json`（见上表第 2 行），令牌文件就位。
+5. 提权跑注册并立刻验证一次：
+   `powershell -NoProfile -ExecutionPolicy Bypass -File "%USERPROFILE%\.dsh\skills\dsh-skills-publish\install-task.ps1" -RunNow`
+6. 读 `state.json` 的 `exit_code` 与两个站点 `ls-remote`，三处 sha 必须相同。
+
+`install-task.ps1` 的开关：`-At 02:00` 改时间、`-RunNow` 注册后立即跑一次、`-ExportPath <path>` 导出一份任务 XML 留档、`-Uninstall` 注销任务。
+导出的 XML 里带本机账户名（`<UserId>`），**不要直接 import 到新机器**（SID / 计算机名不同会失败）——用脚本重建。
+
+## 7. 边界（不要做什么）
 
 - **不要**把 `credentials.txt`、`.secrets`、`*.token` 从排除清单里拿掉；公开仓一旦推上去，历史里删不干净。
 - **不要**为了"每天都有提交"而加空提交：内容没变时 `NO_CHANGE` 是正确结果，日期分支照样建。
