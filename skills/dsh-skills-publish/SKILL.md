@@ -43,7 +43,7 @@ whenToUse: 发布 skill 到公开仓、排查每日同步失败、增减镜像�
 | 工作副本（镜像仓） | `D:\repos\dsh-skills` |
 | GitCode 远端 / 令牌 | `https://gitcode.com/EliasKaslan/dsh-skills.git` ／ `D:\key\gitcode_访问令牌_xmz_agent用.txt` |
 | GitHub 远端 / 令牌 | `https://github.com/EliasKaslan/dsh-skills.git` ／ `D:\key\github_PTA.txt` |
-| 计划任务 | `DSH-Skills-Publish`（每天 02:00） |
+| 计划任务 | `DSH-Skills-Publish`（每天 02:00，**S4U + 唤醒定时器**，不要求已登录） |
 
 站点是一个数组：`publish.config.json` 的 `targets[]`，每项含 `id` / `name` / `remote_url` / `user` / `token_file` / `branch_main` / `keep_date_branches`。
 **加第三个站点 = 往数组里加一项**，脚本与计划任务都不用改；`targets` 缺失时回退成顶层的单站点老字段。
@@ -92,15 +92,19 @@ git -c credential.helper= ls-remote --heads https://github.com/EliasKaslan/dsh-s
 schtasks /Run /TN "DSH-Skills-Publish"
 ```
 
-注册 / 恢复计划任务（本 skill 不代注册，由人决定）：
+注册 / 恢复计划任务（本 skill 不代注册，由人决定）。
+**S4U 注册必须提权**：非管理员身份执行 `Set-ScheduledTask -Principal` 会直接 `Access is denied`；本机 `ConsentPromptBehaviorAdmin=0`，`Start-Process -Verb RunAs` 静默提权、不弹 UAC。
 
 ```powershell
 $act = New-ScheduledTaskAction -Execute 'C:\Users\admin\.dsh\skills\dsh-skills-publish\run_daily.cmd'
 $trg = New-ScheduledTaskTrigger -Daily -At '02:00'
-$set = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
-$prn = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
+$set = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
+$prn = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType S4U -RunLevel Limited
 Register-ScheduledTask -TaskName 'DSH-Skills-Publish' -Action $act -Trigger $trg -Settings $set -Principal $prn -Force
 ```
+
+改完 principal **必须实跑一次**：S4U 跑在 session 0、不加载用户配置文件，PATH / 令牌文件 / git 都要现场确认。
+`schtasks /Run /TN DSH-Skills-Publish` 后读 `state.json` 的 `exit_code` 与日志尾部。
 
 ## 3. 退出码与判读
 
@@ -138,7 +142,9 @@ Register-ScheduledTask -TaskName 'DSH-Skills-Publish' -Action $act -Trigger $trg
 - **同日多次运行**：内容变了就追加提交，当日分支随之前进；内容没变则 `NO_CHANGE`，各站点 ref 原地不动。
 - **手动删某站点日期分支**：`git -C D:\repos\dsh-skills push <authUrl> --delete <YYYY-MM-DD>`；删完 `main` 不受影响。
 - **新增站点**：往 `targets[]` 加一项（先手工在平台建好空仓、确认是公开且默认分支 `main`），跑一次即可；第一个 `targets[0]` 还兼任 `work_repo` 的 clone 来源（仓已存在时不 clone）。
-- **每日任务没跑**：`Get-ScheduledTask DSH-Skills-Publish` 看 `State`；`Last Result` 不能当判据。机器 02:00 关机时靠 `-StartWhenAvailable` 在下次可用时补跑；`Interactive` 登录类型要求该用户已登录。
+- **每日任务没跑**：`Get-ScheduledTask DSH-Skills-Publish` 看 `State`；`Last Result` 不能当判据。任务是 **S4U**（`schtasks /query /v` 显示 `Logon Mode: Interactive/Background`），**不需要任何人登录**；`WakeToRun=True` 且 `powercfg /query SCHEME_CURRENT SUB_SLEEP RTCWAKE` 的 AC 索引为 1 时会自唤醒睡眠机器。**断电 / 关机**仍跑不了，靠 `-StartWhenAvailable` 在下次开机后补跑一次，日期分支名 = 补跑当天。
+- **想把任务改回"仅登录时运行"**：同一段注册脚本把 `-LogonType S4U` 换成 `Interactive`（这一步同样要提权）。改完立刻 `schtasks /Run` 验证。
+- **空密码账户**：`LimitBlankPasswordUse=1` 时 `-LogonType Password` 存不了凭据，S4U 是唯一既不需要密码、又不需要登录的方式。
 - **想立刻回滚内容**：日期分支是历史快照，`git -C D:\repos\dsh-skills reset --hard <旧 sha>` 后再 `-NoPush` 检查，然后真跑覆盖各站点 `main`（**只在自己的镜像仓里操作**，不要在远端改写 `main` 历史）。
 - **隐私提醒**：两个仓都是公开的，skill 正文里的本机路径（`D:\key\...`、内网 IP）会一起公开。要收口就先改 skill 正文，再跑发布。
 
