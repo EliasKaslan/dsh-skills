@@ -3,7 +3,7 @@
   "generated_by": "publish-dsh-skills.ps1",
   "skill_count": 37,
   "file_count": 91,
-  "total_bytes": 1675890,
+  "total_bytes": 1677820,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -157,7 +157,7 @@
       "path": "skills/gitcode-pr-flow",
       "description": "GitCode 上任意昇腾社区仓提 PR（MindSpeed-Ops 与 MindSpeed-Agent 均已完整验证）从个人 fork 到合入全流程——compile 评论触发门禁（任何 head 变化后须补发）、双 CI 判读与标签审计（operate_logs）、PR 冲突诊断（git merge-tree）、GitCode OpenAPI v5 创建/关闭 PR 与批量改 issue、版本分支 backport，以及 pre-commit 概率 FAILED 判平台抖动还是改代码。适用于\"向 GitCode 仓提 PR / PR 冲突了要 rebase / 补一下 ci-pipeline-passed / 查 PR 标签是谁打的 / 标签为什么被摘 / 评论 compile 门禁没跑 / 门禁快速失败且没有结果评论 / pre-commit 随机 FAILED / backport 到 26.1.0\"。不适用：目标仓在 GitHub 而不是 GitCode → 用 `github-pr-flow`。",
       "files": 4,
-      "bytes": 106188
+      "bytes": 108118
     },
     {
       "name": "github-org-delta-watch",
