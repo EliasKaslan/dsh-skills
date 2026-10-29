@@ -3,7 +3,7 @@
   "generated_by": "publish-dsh-skills.ps1",
   "skill_count": 37,
   "file_count": 91,
-  "total_bytes": 1677820,
+  "total_bytes": 1681181,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -31,7 +31,7 @@
       "path": "skills/ascend-cann-env",
       "description": "昇腾 CANN 的检测/安装/激活/换版本/卸载（默认 a3=192.168.13.188，备用 a3b=.190）——权威定位看 /etc/Ascend/ascend_cann_install.info，toolkit+ops+nnal 三件套安装序列与耗时，合一包不覆盖驱动，公开源最新非 beta = 9.1.1，beta/T 构建桶内目录名 ≠ 版本号（如 CANN 9.2.T3）。适用于\"装/换/查 CANN / import acl 或 atc 报找不到 CANN / source set_env.sh 后 ASCEND_HOME_PATH 为空 / install.info 里还记着旧路径 / 重跑安装脚本报 Permission denied / 该用合一包还是独立 toolkit 包 / 某个 CANN 版本公开源有没有 / OBS 探版本全是 403\"。不适用：conda 与 python 版本 → 用 `ascend-conda-env`；目录与磁盘红线 → 用 `ascend-server-layout`。",
       "files": 1,
-      "bytes": 30600
+      "bytes": 31039
     },
     {
       "name": "ascend-conda-env",
@@ -73,14 +73,14 @@
       "path": "skills/ascend-torch-npu",
       "description": "昇腾 NPU 上 torch + torch_npu 的检测 / 安装 / 验证 / 排障（默认 a3=192.168.13.188，备用 a3b=.190）——先定车道：A（跑 vllm-ascend，默认）torch 2.10.0+cpu + torch_npu 2.10.0.post4；B（全新机器）torch 2.12.0+cpu + torch_npu 2.12.0；含 pip 序列、验收 True 16 253、torch_npu→torch 等值依赖、pip 卡死与 GLIBCXX_3.4.26 缺失。适用于\"装 torch_npu / 该装哪个 torch 版本 / NPU 不可用或 device_count 不对 / torch 卡死零进展 / 报 GLIBCXX_3.4.26 not found / 不确定走 A 还是 B 车道\"。不适用：triton 报错 → 用 `ascend-triton-ascend`；vllm 装不上 → 用 `vllm-ascend-source-install`。",
       "files": 1,
-      "bytes": 24819
+      "bytes": 25698
     },
     {
       "name": "ascend-triton-ascend",
       "path": "skills/ascend-triton-ascend",
       "description": "昇腾 NPU（a3=.188 / a3b=.190）上 triton-ascend 的检测 / 安装 / 验证 / 排障——商发版 3.2.2 必须从 osinfra 专用源装（PyPI 上没有）；官方覆盖式共存，import triton 报 3.2.0 而非 3.2.2 属正常；被 pip install -U triton 覆盖后 `backends/ascend` 目录仍在但 `import triton` 直接崩。适用于\"装 triton-ascend / triton 版本不对或被换掉 / import triton 报错 / No matching distribution found for triton-ascend / pip install -U triton 后 NPU kernel 挂了\"。不适用：torch 与 torch_npu 本身的问题 → 用 `ascend-torch-npu`；vllm 与 vllm-ascend 装不上 → 用 `vllm-ascend-source-install`。",
       "files": 2,
-      "bytes": 22307
+      "bytes": 24350
     },
     {
       "name": "ascend-vllm-serve",

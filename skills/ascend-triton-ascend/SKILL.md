@@ -128,12 +128,28 @@ pip uninstall -y triton triton-ascend && pip install triton-ascend==3.2.2 --extr
 **坑 6｜Python 版本硬约束：py3.12 必须 ≥ 3.2.1**——官方表原文 `3.2.1 → py3.9 - py3.13`（py3.9 不支持 aarch64）、`3.2.0 → py3.9 - py3.11`。`xmz_0921` 是 **python 3.12.14**，装 `triton-ascend 3.2.0` 不可用 → 必须 `>=3.2.1`（本环境用 3.2.2）。
 
 **坑 7｜triton-ascend 3.2.2 的 CANN 配套关系官方未列**——官方安装指南的 CANN 配套表**只到 `3.2.1 ↔ CANN 9.0.0`**（再往前 `3.2.0 ↔ CANN 8.5.0`、`3.2.0rc4 ↔ CANN 8.3.RC1/RC2`），**没有 3.2.2 那一行**；3.2.2 只出现在 osinfra 索引里。
+
+> **[2026-10-29 复核，下面的"官方未列"已被新文档修正]** 官方版本说明（readthedocs `<版本说明> → 版本推荐配套`）现在给出了完整行，**且正式进了 CANN 9.2.0 一档**：
+>
+> | Triton-Ascend | PyTorch | TorchNPU 安装包 | CANN | Python |
+> |---|---|---|---|---|
+> | `3.6.0`（2026-10-15 发布，正式版） | 2.10.0 | `2.10.0.post7` | **9.2.0** | 3.10~3.13 |
+> | `3.2.2.post2`（2026-10-15 补丁版） | 2.7.1 | `2.7.1.post11` | **9.2.0** | 3.9(x86)/3.10~3.13 |
+> | `3.2.2` | 2.7.1 | `2.7.1.post8` | 9.1.0 | 同上 |
+>
+> - 表 2（与 CANN 兼容）里 **`3.6.0` 与 `3.2.2.post2` 对 CANN 9.2.0 都是 Y**（A2/A3 与 950 两个芯片列全 Y）。
+> - **3.6.0 是本轮唯一 `CANN 9.2.0 + PyTorch 2.10.0 + torch_npu 2.10.0.post7` 的正式配套**；它的 Python 下限已抬到 **3.10**（3.2.x 曾有 py3.9）。
+> - 索引侧：`repo.huaweicloud.com/ascend/repos/pypi/triton-ascend/` 与 `triton-ascend.osinfra.cn/pypi/simple` 现均有 `3.6.0` / `3.6.0.post2` / `3.2.2.post2` / `3.2.2` / `3.2.1`，**只有 cp310–cp313**（无 cp39 的 3.6.0、也无 cp314）。
+> - **MindSpeed 26.2.0（分支 `26.2.0_core_r0.12.1`）的安装指南第 6 步就 pin `triton-ascend==3.6.0`**；triton-ascend 自己的镜像标签也是 `3.6.0-cann9.2.0-torch_npu2.10.0.post7-{a3,910b}-*`，与本条表格互相印证。
+> - 所以"3.2.2 无官方配套"只对 **3.2.2 ↔ CANN 9.1.0** 那一段成立；**要用 CANN 9.2.0 就直接上 3.6.0**（或按 2.7.1 栈选 3.2.2.post2）。
 - **未验证：** 3.2.2 ↔ CANN 9.1.0 是否属官方认证配套（`.188` 上「装得上、能 import、kernel max diff 0.0」不等于官方认证配套）。
 - **官方未列（不是「未验证」）**：3.2.2 ↔ PyTorch 2.12 —— 官方 triton-ascend 配套表只到 `3.2.1 ↔ CANN 9.0.0`、System Requirements 只到 PyTorch 2.10，**没有 3.2.2 行、也没有 PyTorch 2.12 行**；但**本机已在 torch 2.10 与 torch 2.12 两条车道上实测 kernel 通过**（`MAX_DIFF = 0.0`）。→ 结论：**能用，但不属官方认证组合。**
 - **未验证：** triton-ascend 自带 tutorial 全集与性能（③ 只测了单个 vector-add kernel）；全新 venv 里的真实 `pip install` 复现（结论来自版本存在性 + wheel METADATA + `.188` 现装环境实测）。
 - **未验证：** triton-ascend **3.2.2 在 gitcode 上没有对应 tag/release**（最新 release 仍是 **3.2.1**），官方安装指南与 CANN 配套表也只写到 `3.2.1 ↔ CANN 9.0.0` → 「装得上 + kernel `MAX_DIFF=0.0`」**≠ 官方认证配套**。
 
-**坑 8｜华为云 `mirrors.huaweicloud.com/ascend/repos/pypi` 是扁平文件目录、不是 PEP503 index**——当 `--index-url` 用会报 `ERROR: No matching distribution found`；要当 index 用请用 `https://mirrors.huaweicloud.com/repository/pypi/simple/`（实测 200，含 2.12.0）。**triton-ascend 一律以 `https://triton-ascend.osinfra.cn/pypi/simple` 为准**（该 URL 对具体包 301 → `https://repo.huaweicloud.com/ascend/repos/pypi/triton-ascend/`，索引上只有 3.2.2 / 3.2.1）。
+**坑 8｜华为云 `mirrors.huaweicloud.com/ascend/repos/pypi` 是扁平文件目录、不是 PEP503 index**——当 `--index-url` 用会报 `ERROR: No matching distribution found`；要当 index 用请用 `https://mirrors.huaweicloud.com/repository/pypi/simple/`（实测 200，含 2.12.0）。**triton-ascend 一律以 `https://triton-ascend.osinfra.cn/pypi/simple` 为准**（该 URL 对具体包 301 → `https://repo.huaweicloud.com/ascend/repos/pypi/triton-ascend/`；2026-10-29 复核该索引已有 `3.6.0` / `3.6.0.post2` / `3.2.2.post2` / `3.2.2` / `3.2.1`，不再"只有 3.2.2 / 3.2.1"）。
+
+> **2026-10-29 未判定**：MindSpeed 26.2.0 安装指南写的 `--extra-index-url=https://mirrors.huaweicloud.com/ascend/repos/pypi`（即上面那条扁平目录）**从本机 Windows 跑 `pip index versions` 解析不出**；但同批对照 `aliyun + torch-npu` 也一并失败 ⇒ 是该机 pip/网络侧的问题，**不能据此判该源可用或不可用**。在 `.188` 上真要装时优先 osinfra 那条。
 
 **坑 9｜同版本换 base triton wheel 是「静默空操作」，且换不到功能差异（2026-10-09 实测，Python 3.12.15）**
 - **症状**：已装 `triton-3.2.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl`（env `/home/vllm/x00886548/xmz_1009_k3/envs/xmz_1009_k3`），再 `pip install` 同版本的 `triton-3.2.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl` → pip 判 `already installed with the same version`，**没换成、也不报错**（静默空操作，最容易误判成"已换"）；事后 `triton-3.2.0.dist-info/WHEEL` 里的 `Tag:` 仍是 `cp312-cp312-manylinux_2_27_x86_64` + `cp312-cp312-manylinux_2_28_x86_64`。

@@ -61,6 +61,8 @@ df -h / /home/vllm
 
 - **只要目标机器要跑 vllm-ascend 就走车道 A**。换车道要同步改 pin **并重编 vllm-ascend 的 AscendC 算子**，不是 pip 一条命令（见 `vllm-ascend-source-install`）。
 - 版本事实：`2.10.0.post4` 是 2.10.0 车道上 PyPI 能装到的最新商发版；官方矩阵 26.1.1 行的 `2.10.0.post6` / `2.12.0.post2` / `2.11.0.post2` **在 PyPI 上 404**（实测 `ERROR: No matching distribution found for torch-npu==2.10.0.post6`）。官方原文：「`.postN` 用于区分同一 PyTorch 版本下安装包的后续发布，`N` 为发布序号，**不能直接换算为 TorchNPU 产品版本**」。
+  - **[2026-10-29 复核，前半句已过期]** 2.10.0 车道在 PyPI 上**已到 `2.10.0.post7`**（2026-10-15 上传，`Requires-Dist: torch==2.10.0`，cp310–cp314 齐全，x86_64+aarch64）；`post6`、`2.11.0.post2/.post3`、`2.12.0.post2/.post3` 现在也都在 PyPI 上了，**"404"只对 2026-10-08 那次成立**。**post4 / post6 / post7 分属不同 CANN 档，不能混装**：`post4`↔CANN 9.1.0（TorchNPU 26.1.0）、`post6`↔CANN 9.1.X（26.1.1）、`post7`↔CANN 9.2.0（26.2.0）。
+- **（2026-10-29 增补）车道 C = CANN 9.2.0 档**：`torch==2.10.0+cpu` + `torch_npu==2.10.0.post7` + `triton-ascend==3.6.0`（Python 3.10–3.13）。这是 **MindSpeed 26.2.0（分支 `26.2.0_core_r0.12.1`）的官方配套栈**，与 `ascend-triton-ascend` 坑 7 的官方版本表逐字一致；`.188` 上**未实测**（只核了 PyPI 元数据与官方表）。
 - 官方 URL：COMPATIBILITY `https://raw.gitcode.com/ascend/pytorch/raw/master/COMPATIBILITY.en.md`；README `https://gitcode.com/Ascend/pytorch`；商发下载页 `https://www.hiascend.com/developer/software/ai-frameworks/pytorch/download`。
 
 **版本纪律（2026-10-08 用户定，优先于本节其它说法）**：
