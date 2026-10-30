@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "publish-dsh-skills.ps1",
-  "skill_count": 37,
-  "file_count": 91,
-  "total_bytes": 1681181,
+  "skill_count": 39,
+  "file_count": 95,
+  "total_bytes": 1721696,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -90,6 +90,13 @@
       "bytes": 54381
     },
     {
+      "name": "batch-invariant-weekly-digest",
+      "path": "skills/batch-invariant-weekly-digest",
+      "description": "Batch 不变性周报——按周汇总 vLLM、vLLM-Ascend、SGLang 三仓「已合入」PR，出四节 Markdown（概览 + 三张带链接的表），并自动发到黄区。适用于\"跑一下本周的 Batch 不变性周报 / BI 周报 / vLLM 这周合了哪些不变性 PR / SGLang 确定性推理有什么进展 / 把上周合入的 PR 汇总成表 / 生成周报并发我邮箱\"。不适用：只看组织谁在动、有没有发版 → 用 `github-org-delta-watch`；只发信或查收件箱 → 用 `qq-mail-control`；查单个 PR 状态或提 PR → 用 `github-pr-flow`。",
+      "files": 1,
+      "bytes": 10133
+    },
+    {
       "name": "dingxiang-slider-captcha",
       "path": "skills/dingxiang-slider-captcha",
       "description": "顶象（dx）拼图缺口滑块验证码在 Android 模拟器上的实测结构与破解结论——过一下顶象滑块验证码、用 adb 拖、拿 dx_captcha_basic 的 DOM 和坐标：含 DOM/几何参数、块与手指位移 1:1、块是半透明混合渲染（NCC 定位失效根因）；结论：成功率极低（实测 0/6，别再试第 7 次）。适用于\"过一下顶象滑块验证码 / 提示请拖动滑块至正确缺口 / 用 adb 拖验证码 / 拿 dx_captcha_basic 的 DOM 和坐标 / LDPlayer 上模拟器里滑块拖不过 / 缺口位置怎么算 / NCC 为什么定位不准\"。不适用：要读 AIDD 扫描报告 → 用 `aidd-report-reader`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。",
@@ -164,7 +171,7 @@
       "path": "skills/github-org-delta-watch",
       "description": "GitHub 组织增量追踪——基准日之后这个组织谁在动、这仓是不是死仓、官方那个承诺兑现了没：rate_limit 的 Date 头取\"今天\"、orgs/{org}/repos?sort=pushed 覆盖全组织找活性、pushed_at 冻结即内容冻结、issues 要 created 与 updated 各拉一遍。适用于\"组织基准日后有什么新动作 / 谁在动 / 有没有发新版 / 组织调研报告要更新增量 / 这个仓是不是死仓 / 官方那个承诺兑现了吗 / GitHub 403 额度耗尽后怎么继续取证\"。不适用：向 GitHub 仓提 PR → 用 `github-pr-flow`；到厂商官网取一手来源 → 用 `ai-vendor-official-source-audit`。",
       "files": 1,
-      "bytes": 13321
+      "bytes": 13452
     },
     {
       "name": "github-pr-flow",
@@ -179,6 +186,13 @@
       "description": "韩国（济州）官方一手信息源——官方页面怎么抓、没日期怎么看：web_fetch 对韩国站点多数不可用，urllib 按站点分档，pwsh 最稳；含出入境/入境申告官方源结构（e-AC 的 bbsId / flId、mofa.go.kr 详情页、无日期戳用响应头 Date 与 등록일 定锚、判废止）、假页面陷阱、公交 BIS、visitjeju、休馆日、门票 xlsx、潮汐。适用于\"韩国出入境/入境申告/法务部/关税厅/检疫 Q-CODE 官方源怎么抓 / 韩国官方页面没有日期怎么看 / 驻外使馆 mofa.go.kr 详情页怎么取 / 政策是否已废止怎么查 / 查济州公交线路和末班车 / 韩国景点开放时间与休馆日 / 抓 visitjeju 详情页字段 / 门票 xlsx 怎么解析 / 潮汐表怎么取 / 抓韩国站点全失败怎么办\"。不适用：本机 pwsh 编码坑 → 用 `pwsh-on-windows`；判厂商官网链接真假 → 用 `ai-vendor-official-source-audit`。",
       "files": 1,
       "bytes": 21504
+    },
+    {
+      "name": "lora-weekly-report",
+      "path": "skills/lora-weekly-report",
+      "description": "LoRA 周报——汇总 vLLM、vLLM-Ascend、SGLang 三仓近 7 天「已合入」的 LoRA PR，出四节 Markdown（概览 + 三张带链接的表）并发到黄区。适用于\"跑一下这周的 LoRA 周报 / LoRA 特性跟踪 / vLLM 这周合了哪些 LoRA PR / SGLang 的 LoRA 有什么进展 / 把本周 LoRA 合入汇总成表发我\"，不适用：BI 与不变性周报 → 用 `batch-invariant-weekly-digest`；只看组织活跃度或发版 → 用 `github-org-delta-watch`；只发信或查收件箱 → 用 `qq-mail-control`。",
+      "files": 3,
+      "bytes": 25947
     },
     {
       "name": "orchestrating-subagents",
@@ -204,9 +218,9 @@
     {
       "name": "qq-mail-control",
       "path": "skills/qq-mail-control",
-      "description": "QQ 邮箱接管（IMAP/SMTP，`mcp__qqmail__*`）——发一封 QQ 邮件、查收件箱、搜邮件、读某封邮件的参数配方与坑：文件夹名编码（回显中文原文、UTF-8 原文直传可用，传 `&UXZO1mWHTvZZOQ-` 这类 modified UTF-7 串报 `Error： Command failed`）、FETCH 只读铁律、中文搜索只覆盖本地窗口、发信必须带【AI 代发】前缀、凭据位置与 `--read-only` 静默陷阱。适用于\"发一封 QQ 邮件 / 查一下 QQ 邮箱收件箱 / 搜一下 QQ 邮箱里的邮件 / QQ 邮箱 MCP 怎么用 / 帮我读某封 QQ 邮件 / QQ 邮箱文件夹名乱码 / QQ 邮箱只能读不能发\"。不适用：Outlook / MSA 邮箱 → 用 `outlook-mailbox-control`；改 patch 与 MCP 接入层生效时机 → 用 `dsh-agent-customization`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。",
+      "description": "QQ 邮箱接管（IMAP/SMTP，`mcp__qqmail__*`）——发 QQ 邮件、查收件箱、搜信、读信；含收件人别名：「黄区」= `xumingzhe4@huawei.com`、「我私人邮箱」= `3248569436@qq.com`。坑：文件夹名传中文原文（别传 UTF-7）、FETCH 只读铁律、中文搜索只覆盖本地窗口、发信必须带【AI 代发】前缀、发往黄区一律转发格式、凭据位置与 `--read-only` 静默陷阱。适用于\"给黄区发邮件 / 发邮件给我私人邮箱 / 发一封 QQ 邮件 / 查一下 QQ 邮箱收件箱 / 搜一下 QQ 邮箱里的邮件 / 帮我读某封 QQ 邮件 / QQ 邮箱文件夹名乱码 / QQ 邮箱只能读不能发\"。不适用：Outlook / MSA 邮箱 → 用 `outlook-mailbox-control`；改 patch 与 MCP 接入层生效时机 → 用 `dsh-agent-customization`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。",
       "files": 1,
-      "bytes": 20953
+      "bytes": 25257
     },
     {
       "name": "sedimenting-skills",

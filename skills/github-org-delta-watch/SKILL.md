@@ -15,6 +15,7 @@ whenToUse: 已有一份带基准日的 GitHub 组织/仓库调研报告，要产
 - AI 厂商官方信息源真伪与覆盖面判定 → 用 `ai-vendor-official-source-audit`。
 - 外部热度量级（HN points / HF likes） → 用 `external-buzz-magnitude-check`。
 - 判某模型在昇腾生态里的适配程度与缺口 → 用 `ascend-model-adaptation-recon`。
+- **按主题出「每周已合入 PR」周报并发邮件**（不是组织活跃度） → 用 `batch-invariant-weekly-digest`。
 - **前置**：能跑 pwsh + 联网；先拿到**基线日**（本地报告 frontmatter/首行，如 `> 调研基准日：2026-09-20`）与**基线结论清单**（哪些观察点要复核）。 ／ **后继**：产出"活跃仓表 + 观察点变/未变表 + 增量热点清单"三节，并逐条给证据 URL。
 
 ## 前置检查
