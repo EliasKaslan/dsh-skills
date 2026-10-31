@@ -27,7 +27,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **39** 个 skill、**95** 个文件、**1721696** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **39** 个 skill、**96** 个文件、**1729096** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -43,7 +43,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 10 | [`ascend-torch-npu`](skills/ascend-torch-npu/SKILL.md) | 昇腾 NPU 上 torch + torch_npu 的检测 / 安装 / 验证 / 排障（默认 a3=192.168.13.188，备用 a3b=.190）——先定车道：A（跑 vllm-ascend，默认）torch 2.10.0+cp... | 1 |
 | 11 | [`ascend-triton-ascend`](skills/ascend-triton-ascend/SKILL.md) | 昇腾 NPU（a3=.188 / a3b=.190）上 triton-ascend 的检测 / 安装 / 验证 / 排障——商发版 3.2.2 必须从 osinfra 专用源装（PyPI 上没有）；官方覆盖式共存，import triton... | 2 |
 | 12 | [`ascend-vllm-serve`](skills/ascend-vllm-serve/SKILL.md) | 在昇腾 A3（.188/.190）上把装好的 vllm + vllm-ascend 跑起来——三层自检、按 HBM 挑空闲 die、起 OpenAI 兼容服务、离线推理冒烟、sleep/wake_up 显存释放与重载、运行时排障。适用于"在... | 2 |
-| 13 | [`batch-invariant-weekly-digest`](skills/batch-invariant-weekly-digest/SKILL.md) | Batch 不变性周报——按周汇总 vLLM、vLLM-Ascend、SGLang 三仓「已合入」PR，出四节 Markdown（概览 + 三张带链接的表），并自动发到黄区。适用于"跑一下本周的 Batch 不变性周报 / BI 周报 / ... | 1 |
+| 13 | [`batch-invariant-weekly-digest`](skills/batch-invariant-weekly-digest/SKILL.md) | Batch 不变性周报——按周汇总 vLLM、vLLM-Ascend、SGLang 三仓已合入 PR，出四节 Markdown（概览 + 三仓，各一张「PR / 合入时间 / 背景 / 做了什么 / 影响」五列表），并自动发给黄区与私人邮箱... | 1 |
 | 14 | [`dingxiang-slider-captcha`](skills/dingxiang-slider-captcha/SKILL.md) | 顶象（dx）拼图缺口滑块验证码在 Android 模拟器上的实测结构与破解结论——过一下顶象滑块验证码、用 adb 拖、拿 dx_captcha_basic 的 DOM 和坐标：含 DOM/几何参数、块与手指位移 1:1、块是半透明混合渲染... | 1 |
 | 15 | [`dsh-agent-customization`](skills/dsh-agent-customization/SKILL.md) | DSH 改造 agent 行为的入口总纲——改了 AGENTS.md 为何不生效、插件行坏了怎么回滚、settings.yaml 改了为何没反应、这次改动属于哪一层；含五层生效时机、热重载≠冷启动、坏 row 三形态、MCP 挂载与会话日志... | 5 |
 | 16 | [`dsh-agent-preset-verification`](skills/dsh-agent-preset-verification/SKILL.md) | DSH agent preset 验收两阶段——preset 没生效但看不出哪错了、到底挂载对没对、改完先离线确认；离线过了但插件行为不对、persona 与工具在真会话里对不对、委派为什么失败；headless 不能验 preset 且会... | 3 |
@@ -57,7 +57,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 24 | [`github-org-delta-watch`](skills/github-org-delta-watch/SKILL.md) | GitHub 组织增量追踪——基准日之后这个组织谁在动、这仓是不是死仓、官方那个承诺兑现了没：rate_limit 的 Date 头取"今天"、orgs/{org}/repos?sort=pushed 覆盖全组织找活性、pushed_at ... | 1 |
 | 25 | [`github-pr-flow`](skills/github-pr-flow/SKILL.md) | 向 GitHub 上游开源仓（如 vllm-project/vllm-ascend）从 fork 提 PR 的全 API 流程（classic PAT）——token 验证与 403/401 判因、DCO 签名提交、REST API 创建/... | 1 |
 | 26 | [`korea-official-source-research`](skills/korea-official-source-research/SKILL.md) | 韩国（济州）官方一手信息源——官方页面怎么抓、没日期怎么看：web_fetch 对韩国站点多数不可用，urllib 按站点分档，pwsh 最稳；含出入境/入境申告官方源结构（e-AC 的 bbsId / flId、mofa.go.kr 详情... | 1 |
-| 27 | [`lora-weekly-report`](skills/lora-weekly-report/SKILL.md) | LoRA 周报——汇总 vLLM、vLLM-Ascend、SGLang 三仓近 7 天「已合入」的 LoRA PR，出四节 Markdown（概览 + 三张带链接的表）并发到黄区。适用于"跑一下这周的 LoRA 周报 / LoRA 特性跟踪... | 3 |
+| 27 | [`lora-weekly-report`](skills/lora-weekly-report/SKILL.md) | LoRA 周报——汇总 vLLM、vLLM-Ascend、SGLang 三仓近 7 天「已合入」的 LoRA PR，出四节 Markdown（概览 + 三张带链接的表）并发到黄区。适用于"跑一下这周的 LoRA 周报 / LoRA 特性跟踪... | 4 |
 | 28 | [`orchestrating-subagents`](skills/orchestrating-subagents/SKILL.md) | 编排手册——两通道模型：生产动作（读文件、跨模块检索、跑命令、联网、试错、写代码/文档、改配置）一律下发子代理，主 Agent 保留全套工具、只做交付前独立复核（真跑验收命令、核"文件:行号"、读本体与 exit code）；判据权威出处是... | 2 |
 | 29 | [`outlook-mailbox-control`](skills/outlook-mailbox-control/SKILL.md) | Outlook.com（个人 MSA）邮箱接管——接管我的 outlook 邮箱、查收件箱、按关键词搜邮件、读正文和附件、以我的名义回信、存草稿：MS365 MCP discovery 直调的能力配方（工具名＋最小 parameters J... | 1 |
 | 30 | [`pwsh-on-windows`](skills/pwsh-on-windows/SKILL.md) | 本机命令行一整套静默坏结果（pwsh 实为 Windows PowerShell 5.1，非 PS7）——中文乱码、行数或 CR 数对不上、计数总是 0、目录看着空其实不空、执行策略拦住脚本、传 JSON 报 Expecting value... | 1 |

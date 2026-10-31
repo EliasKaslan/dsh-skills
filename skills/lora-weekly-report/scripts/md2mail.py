@@ -66,7 +66,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--md", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--to", default=DEFAULT_TO)
+    ap.add_argument("--to", default=DEFAULT_TO, help="comma separated recipients")
+    ap.add_argument("--subject", default=None, help="override subject (default: first h1)")
     ap.add_argument("--sender", default=DEFAULT_SENDER)
     args = ap.parse_args()
 
@@ -84,14 +85,19 @@ def main():
             continue
         m = re.match(r"^(#{1,3})\s+(.*)$", s)
         if m:
-            lvl, text = len(m.group(1)), strip_md(m.group(2))
+            lvl, raw = len(m.group(1)), m.group(2)
+            text = strip_md(raw)
             if lvl == 1:
-                title = text
+                if not title:
+                    title = text
                 txt += ["", text, "=" * min(48, max(12, len(text) * 2))]
-                htm.append("<h1>%s</h1>" % html.escape(text))
-            else:
+                htm.append("<h1>%s</h1>" % inline_html(raw))
+            elif lvl == 2:
                 txt += ["", text, "-" * min(48, max(12, len(text) * 2))]
-                htm.append("<h2>%s</h2>" % html.escape(text))
+                htm.append("<h2>%s</h2>" % inline_html(raw))
+            else:
+                txt += ["", "### " + text]
+                htm.append("<h3>%s</h3>" % inline_html(raw))
             i += 1
             continue
         if s == "---":
@@ -108,8 +114,11 @@ def main():
             body = [cells(r) for r in rows[1:] if not re.match(r"^\|[\s:\-|]+\|$", r.strip())]
             txt.append("")
             for r in body:
-                name = strip_md(r[0]) if r else ""
-                url = split_link(r[0])[1] if r else None
+                first = r[0].strip() if r else ""
+                if first.startswith("**") and first.endswith("**") and first.count("**") == 2:
+                    first = first[2:-2]
+                name = strip_md(first)
+                url = split_link(first)[1]
                 rest = " —— ".join(strip_md(c) for c in r[1:] if c)
                 piece = "· %s" % name
                 if rest:
@@ -123,12 +132,21 @@ def main():
                 tds = []
                 for idx in range(len(header)):
                     cell = r[idx] if idx < len(r) else ""
+                    strong = False
+                    mm = re.match(r"^\*\*(.+)\*\*$", cell)
+                    if mm and "**" not in mm.group(1):
+                        strong, cell = True, mm.group(1)
                     name, url = split_link(cell)
                     if url:
-                        tds.append('<td><a href="%s">%s</a></td>'
-                                   % (html.escape(url, quote=True), html.escape(name)))
+                        frag = '<a href="%s">%s</a>' % (
+                            html.escape(url, quote=True), html.escape(name))
+                        if strong:
+                            frag = "<strong>%s</strong>" % frag
                     else:
-                        tds.append("<td>%s</td>" % inline_html(cell))
+                        frag = inline_html(cell)
+                        if strong:
+                            frag = "<strong>%s</strong>" % frag
+                    tds.append("<td>%s</td>" % frag)
                 trs.append("<tr>%s</tr>" % "".join(tds))
             htm.append("<table><thead><tr>%s</tr></thead><tbody>%s</tbody></table>"
                        % (th, "".join(trs)))
@@ -149,13 +167,15 @@ def main():
 
     now = datetime.datetime.now().astimezone()
     stamp = now.strftime("%Y-%m-%d %H:%M (%z)")
-    subject = "转发：" + title
+    mail_title = args.subject or title
+    subject = "转发：" + mail_title
+    to_line = args.to.replace(",", "、").replace(";", "、")
 
     head_txt = ["【AI 代发】", "", "-------- 转发的邮件 --------",
                 "发件人：%s" % args.sender,
                 "发送时间：%s" % stamp,
-                "收件人：%s" % args.to,
-                "主题：%s" % title, ""]
+                "收件人：%s" % to_line,
+                "主题：%s" % mail_title, ""]
     body_txt = "\n".join(head_txt) + "\n" + "\n".join(txt).strip() + "\n"
     io.open(os.path.join(args.out, "mail.txt"), "w", encoding="utf-8", newline="\n").write(body_txt)
 
@@ -168,6 +188,7 @@ def main():
            "padding:9px 13px;margin:10px 0 18px;font-size:12.5px;color:#4a5568;line-height:1.65;}"
            "h1{font-size:21px;color:#0b4f8a;border-bottom:3px solid #0b4f8a;padding-bottom:7px;margin:0 0 10px;}"
            "h2{font-size:16px;color:#0b4f8a;border-left:4px solid #0b4f8a;padding-left:9px;margin:22px 0 8px;}"
+           "h3{font-size:14px;color:#12588f;margin:16px 0 5px;line-height:1.5;}"
            "ul{padding-left:20px;margin:8px 0;}li{margin:3px 0;}"
            "table{border-collapse:collapse;width:100%;margin:8px 0 14px;font-size:12.5px;}"
            "th{border:1px solid #c9d6e4;background:#e8f0f8;padding:6px 8px;text-align:left;}"
@@ -179,9 +200,9 @@ def main():
         '<div><b>-------- 转发的邮件 --------</b></div>'
         '<div><b>发件人：</b>%s</div><div><b>发送时间：</b>%s</div>'
         '<div><b>收件人：</b>%s</div><div><b>主题：</b>%s</div></div>'
-        % (args.sender, stamp, args.to, html.escape(title)))
+        % (args.sender, stamp, to_line, html.escape(mail_title)))
     body_html = "\n".join([
-        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>%s</title>' % html.escape(title),
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>%s</title>' % html.escape(mail_title),
         '<style>%s</style></head><body><div class="wrap">' % css,
         '<div class="badge">【AI 代发】</div>',
         head_html,

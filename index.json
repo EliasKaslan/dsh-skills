@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "publish-dsh-skills.ps1",
   "skill_count": 39,
-  "file_count": 95,
-  "total_bytes": 1721696,
+  "file_count": 96,
+  "total_bytes": 1729096,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -92,9 +92,9 @@
     {
       "name": "batch-invariant-weekly-digest",
       "path": "skills/batch-invariant-weekly-digest",
-      "description": "Batch 不变性周报——按周汇总 vLLM、vLLM-Ascend、SGLang 三仓「已合入」PR，出四节 Markdown（概览 + 三张带链接的表），并自动发到黄区。适用于\"跑一下本周的 Batch 不变性周报 / BI 周报 / vLLM 这周合了哪些不变性 PR / SGLang 确定性推理有什么进展 / 把上周合入的 PR 汇总成表 / 生成周报并发我邮箱\"。不适用：只看组织谁在动、有没有发版 → 用 `github-org-delta-watch`；只发信或查收件箱 → 用 `qq-mail-control`；查单个 PR 状态或提 PR → 用 `github-pr-flow`。",
+      "description": "Batch 不变性周报——按周汇总 vLLM、vLLM-Ascend、SGLang 三仓已合入 PR，出四节 Markdown（概览 + 三仓，各一张「PR / 合入时间 / 背景 / 做了什么 / 影响」五列表），并自动发给黄区与私人邮箱。适用于\"跑一下本周的 Batch 不变性周报 / BI 周报 / vLLM 这周合了哪些不变性 PR / SGLang 确定性推理有什么进展 / 把上周合入的 PR 汇总成表 / 生成周报并发我邮箱\"。不适用：只看组织谁在动、有没有发版 → 用 `github-org-delta-watch`；只发信或查收件箱 → 用 `qq-mail-control`；查单个 PR 状态或提 PR → 用 `github-pr-flow`。",
       "files": 1,
-      "bytes": 10133
+      "bytes": 12710
     },
     {
       "name": "dingxiang-slider-captcha",
@@ -191,8 +191,8 @@
       "name": "lora-weekly-report",
       "path": "skills/lora-weekly-report",
       "description": "LoRA 周报——汇总 vLLM、vLLM-Ascend、SGLang 三仓近 7 天「已合入」的 LoRA PR，出四节 Markdown（概览 + 三张带链接的表）并发到黄区。适用于\"跑一下这周的 LoRA 周报 / LoRA 特性跟踪 / vLLM 这周合了哪些 LoRA PR / SGLang 的 LoRA 有什么进展 / 把本周 LoRA 合入汇总成表发我\"，不适用：BI 与不变性周报 → 用 `batch-invariant-weekly-digest`；只看组织活跃度或发版 → 用 `github-org-delta-watch`；只发信或查收件箱 → 用 `qq-mail-control`。",
-      "files": 3,
-      "bytes": 25947
+      "files": 4,
+      "bytes": 30770
     },
     {
       "name": "orchestrating-subagents",
