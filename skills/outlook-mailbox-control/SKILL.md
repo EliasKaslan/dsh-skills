@@ -141,6 +141,7 @@ $env:MS365_MCP_SELECTED_ACCOUNT_PATH='C:\Users\admin\.dsh\.secrets\ms365\.select
 npx.cmd -y @softeria/ms-365-mcp-server --login    # 打印 URL + user_code，浏览器侧完成（含 2FA）
 ```
 
+- **不要拿密码去填 outlook.com 的网页登录表单**：个人 MSA 从非惯用 IP 用密码登录极易触发 `Help us protect your account`，锁号后要靠手机/备用邮箱解。要读邮件就用本 skill 的设备码流程；确实需要网页登录时走 `login-credential-autofill`（默认只填不提交，受 24h 一次提交额度约束）。
 - **必须用 `npx.cmd`，不能写 `npx`**：执行策略 `Restricted` 会拦下 `npx.ps1`，逐字原文 `File C:\Program Files\nodejs\npx.ps1 cannot be loaded because running scripts is disabled on this system.`（Python 侧 `shutil.which('npx')` 按 PATHEXT 已解析成 `npx.CMD`，只有 PowerShell 会踩）。
 - **但 §1 配置里的 `command: npx` 是安全的，别当成同一个执行策略坑**：那条由 `@deepseek-ai/dsh-mcp-client` 用 MCP SDK 的 `StdioClientTransport` 启动（`lib/index.js:6` 导入），SDK 的 `client/stdio.js` **第 1 行 `import spawn from 'cross-spawn'`、第 65 行 `spawn(this._serverParams.command, ...)`** ⇒ cross-spawn 在 Windows 上按 PATHEXT 把 `npx` 解析为 `npx.cmd`，**不经过 PowerShell**，所以不会踩 `npx.ps1` 被执行策略拦截。该坑只在**你在 PowerShell 里手敲 `npx`** 时出现（属 `pwsh-on-windows`）。
 - 令牌缓存是**密文信封**：`{_cacheEnvelope, v, alg, iv, tag, data}`（AES-256-GCM），**32 字节 key 存在 Windows 凭据管理器**（keytar），不在文件里。

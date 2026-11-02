@@ -61,3 +61,17 @@ $code | python -X utf8 -
 - **坑**：别用 `d.decompress(b)`（单帧，多帧文件只有第一帧）；别按文件名（`session.v4.jsonl.zstd`）找，要按扩展名扫；别忘"÷2"。
 - 本节的**下游**：拿到命中的会话后再判"这错误是不是 DSH 的 bug"→ 见 **2.17**（错误串的实装链路行号**单一归属在 2.17**，本节只写扫描配方、不复制链路）。
 
+### 2.12.2 判一条用户消息从哪个通道进来（手机 / 本地 GUI / harness 注入）
+
+用户说"这条不是我打的 / 我的会话怎么冒出两句话"时，`user/message` 的 **`data.source` 就是通道证据**，别靠文本猜：
+
+| `source` 形状 | 含义 |
+|---|---|
+| `{"kind":"user","client":"mobile"}` | 经 **mobile-bridge 插件**进来（bridge `lib/server.mjs` 写死 `source:'mobile'`），不是本地 GUI |
+| `{"kind":"user","rpcId":"…","clientTimeZone":"…"}` | **本地 web GUI** 的 RPC |
+| `{"kind":"agent-instructions"}` / `runtime-context` / `skill-catalog` / `time-context` | harness 注入的 system-reminder，**不是用户说话** |
+
+排查顺序（三步，缺一步会误判成"被入侵"）：① **`source` 判通道**；② 把正文与**本机脚本的默认参数逐字比对**——E2E 脚本里 `process.argv[n] ?? '…'` 的默认值会原样变成 prompt（实测两条"陌生消息"就是 `_spike/e2e-create-task.mjs` / `e2e-followup.mjs` 的默认值）；③ 按 `time` 反查**同一时刻谁在跑那个脚本**：同 workspace 的**其它 session** 日志里找 `tool/call` 的 `name: pwsh` + `arguments.command`（`job/registered` 的 `owner` 字段直接给出 session id）。三处对上即"本地另一会话的自动化"，与外部注入无关。
+
+> 判据要点：**注入只会出现在 `tool/result` 或网页正文里，不会变成一条 `kind:"user"` 的消息**——`kind` 不是 `user` 的一律不是"有人在打字"。
+

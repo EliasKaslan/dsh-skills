@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "publish-dsh-skills.ps1",
-  "skill_count": 39,
-  "file_count": 96,
-  "total_bytes": 1729096,
+  "skill_count": 42,
+  "file_count": 104,
+  "total_bytes": 1803243,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -108,7 +108,7 @@
       "path": "skills/dsh-agent-customization",
       "description": "DSH 改造 agent 行为的入口总纲——改了 AGENTS.md 为何不生效、插件行坏了怎么回滚、settings.yaml 改了为何没反应、这次改动属于哪一层；含五层生效时机、热重载≠冷启动、坏 row 三形态、MCP 挂载与会话日志找回旧版本。适用于\"改 DSH 的行为该改哪一层 / 改了 AGENTS.md 为何不生效 / 插件行坏了怎么回滚 / settings.yaml 改了为何不生效 / MCP 怎么挂进来 / 实验包怎么挂 profile / 中文 UI 不是中文提示词 / 会话日志里能不能找回旧版本 / 会话日志怎么解压 / 本轮运行失败 / finish_reason 报错怎么判 / 上游还是 DSH 的 bug\"。不适用：只离线验负载挂载 → 用 `dsh-agent-preset-verification`；只要干净实验环境 → 用 `dsh-isolated-web-host`。",
       "files": 5,
-      "bytes": 90923
+      "bytes": 92767
     },
     {
       "name": "dsh-agent-preset-verification",
@@ -122,7 +122,21 @@
       "path": "skills/dsh-isolated-web-host",
       "description": "起个隔离 DSH host 做实验——想不污染真实 ~/.dsh 就验证插件行或 patch、真实 host 占着 3080 不能重启时用它：必加 --no-open、启动先落盘 pid 与端口、不带 token 的 401 判就绪、taskkill /PID 收尾；本机端口枚举是盲的（netstat / Get-NetTCPConnection 恒空），判就绪与判清理只认 HTTP 探针与落盘 pid。适用于\"起个隔离 host 试试 / 想不污染真实环境就验证插件行或 patch / 真实 host 占着 3080 不能重启 / 端口枚举查不到监听 / netstat 找不到 3080 / 改了 preset 想找干净环境挂载看看\"。不适用：只想验能不能挂载 → 用 `dsh-agent-preset-verification`；改哪层/何时生效/怎么撤 → 用 `dsh-agent-customization`。",
       "files": 1,
-      "bytes": 16936
+      "bytes": 19461
+    },
+    {
+      "name": "dsh-longhaul-mode",
+      "path": "skills/dsh-longhaul-mode",
+      "description": "长线工程模式 Longhaul（dsh-longhaul）——跨小时/跨天、需要交接的工程任务该用哪个模式、怎么开、完成了凭什么算完成：三角色（计划 / 执行 / 只读审计）、`.longhaul` 状态与哈希链账本、密封验收命令、契约审计 → feature 审计 → run 审计 → close 四道闸、审计 REVISE 怎么改；含安装位置、重启生效、状态自查与回滚。适用于\"长线任务用哪个模式 / 怎么开 Longhaul / 这个功能做完了吗凭什么 / 审计说 REVISE 怎么办 / .longhaul 是什么 / Longhaul 装哪了 / 怎么关掉这个模式\"。不适用：改 preset 挂载与生效时机 → 用 `dsh-agent-customization`；起隔离 host 实测 → 用 `dsh-isolated-web-host`；写或改 skill → 用 `dsh-skill-authoring`。",
+      "files": 1,
+      "bytes": 9167
+    },
+    {
+      "name": "dsh-phone-remote-relay",
+      "path": "skills/dsh-phone-remote-relay",
+      "description": "手机跨网络接管电脑上的 DSH，且电脑不暴露公网——公共 broker 中继 + 端到端加密 + 静态外壳托管；含 ESM 缓存导致热重载跑旧代码、hello 自激打爆限流、大帧被公共 broker 丢弃、按请求 id 幂等重发、WS 帧合批、GitHub Pages 用 REST 上传（git push 在本机挂死）、二维码必须解码验证。适用于\"手机远程控制电脑上的 DSH / 不在同一局域网 / 不要反向代理和端口映射 / 二维码链接怎么生成 / 中继丢包超时 / 热重载不生效\"；不适用：只改插件行生效时机 → `dsh-agent-customization`，本机 pwsh 编码坑 → `pwsh-on-windows`。",
+      "files": 1,
+      "bytes": 22611
     },
     {
       "name": "dsh-repo-sync",
@@ -143,7 +157,7 @@
       "path": "skills/dsh-skill-self-audit",
       "description": "DSH skill 集合的每日无人值守自检——静默满 1 小时且距上次自检 ≥20h 才跑；Windows 计划任务 DSH-Skill-SelfAudit 每小时轮询、headless 真跑；体检含 YAML round-trip、交叉引用 dangling/asym、正文重复、description 预算；小改自动、结构性改动只出清单；待办跨轮记在 BACKLOG.md。适用于\"自检我的 skill / 每天检查一下 skill / skill 有没有该合并的重复 / 删掉过时的 skill 经验 / 哪个 skill 触发不了 / skill 目录多久没动了 / 定时体检 skill 集合\"。不适用：判断某条经验该不该沉淀、写到哪个根 → 用 `sedimenting-skills`；只改 frontmatter 与 description 的写法契约 → 用 `dsh-skill-authoring`；要 DSH 非交互入口与 skill 发现真相 → 用 `dsh-agent-customization`。",
       "files": 5,
-      "bytes": 85365
+      "bytes": 85610
     },
     {
       "name": "dsh-skills-publish",
@@ -178,7 +192,7 @@
       "path": "skills/github-pr-flow",
       "description": "向 GitHub 上游开源仓（如 vllm-project/vllm-ascend）从 fork 提 PR 的全 API 流程（classic PAT）——token 验证与 403/401 判因、DCO 签名提交、REST API 创建/关闭/重开 PR 与回读校验、CI 判读、反向抓既存 PR 做离线终审、rebase/amend 后判上游基线漂移与安全重推。适用于\"在 GitHub 仓提个 PR / 关掉或重开 PR / 到 fork 推分支 / token 报 403 说没权限 / DCO 签名校验不过 / commit message 带引号导致提交静默失败 / PR 标题前缀或模板不合规 / CI 挂的 step 是不是我的问题 / 不知道 run_id 怎么拿 / 上游 main 又前进了 / rebase 后重推被拒\"。不适用：目标是 GitCode 上的任意仓 → 用 `gitcode-pr-flow`；本机 PowerShell 命令本身的坑 → 用 `pwsh-on-windows`。",
       "files": 1,
-      "bytes": 31539
+      "bytes": 31769
     },
     {
       "name": "korea-official-source-research",
@@ -186,6 +200,13 @@
       "description": "韩国（济州）官方一手信息源——官方页面怎么抓、没日期怎么看：web_fetch 对韩国站点多数不可用，urllib 按站点分档，pwsh 最稳；含出入境/入境申告官方源结构（e-AC 的 bbsId / flId、mofa.go.kr 详情页、无日期戳用响应头 Date 与 등록일 定锚、判废止）、假页面陷阱、公交 BIS、visitjeju、休馆日、门票 xlsx、潮汐。适用于\"韩国出入境/入境申告/法务部/关税厅/检疫 Q-CODE 官方源怎么抓 / 韩国官方页面没有日期怎么看 / 驻外使馆 mofa.go.kr 详情页怎么取 / 政策是否已废止怎么查 / 查济州公交线路和末班车 / 韩国景点开放时间与休馆日 / 抓 visitjeju 详情页字段 / 门票 xlsx 怎么解析 / 潮汐表怎么取 / 抓韩国站点全失败怎么办\"。不适用：本机 pwsh 编码坑 → 用 `pwsh-on-windows`；判厂商官网链接真假 → 用 `ai-vendor-official-source-audit`。",
       "files": 1,
       "bytes": 21504
+    },
+    {
+      "name": "login-credential-autofill",
+      "path": "skills/login-credential-autofill",
+      "description": "登录凭据自动填充的本地凭据库与防封号护栏——页面要登录时按账号取凭据填入、先复用已有登录态、每账号24小时最多1次密码提交、遇验证码/2FA/风控页立刻停手交人，附字段读取与额度记账脚本。适用于\"帮我登录一下 / 用我的账号登进去 / 要输密码了 / 这个站点要登录 / 微软和 GitHub 账号密码在哪 / 我的密码存在哪台机器上 / 填完要不要帮我点提交 / 登录失败了还能不能重试 / 会不会把号登封 / 自动填密码安全吗\"。不适用：GitHub API 或 PAT 提 PR → 用 `github-pr-flow`；读 Outlook 邮件 → 用 `outlook-mailbox-control`；过滑块验证码 → 用 `dingxiang-slider-captcha`；本机 pwsh 编码坑 → 用 `pwsh-on-windows`。",
+      "files": 5,
+      "bytes": 20883
     },
     {
       "name": "lora-weekly-report",
@@ -206,7 +227,7 @@
       "path": "skills/outlook-mailbox-control",
       "description": "Outlook.com（个人 MSA）邮箱接管——接管我的 outlook 邮箱、查收件箱、按关键词搜邮件、读正文和附件、以我的名义回信、存草稿：MS365 MCP discovery 直调的能力配方（工具名＋最小 parameters JSON）、三条个人账户硬规则（authority 必须 consumers／只支持 delegated／app password 已硬禁用）、设备码登录与令牌核验、🤖 前缀护栏、逐字错误原文。适用于\"接管我的 outlook 邮箱 / 查一下收件箱 / 按关键词搜邮件 / 读某封邮件的正文和附件 / 以我的名义回一封信 / 帮我存个草稿 / outlook 邮件工具报错 / authority 该填什么 / app password 为什么用不了\"。不适用：QQ 邮箱 IMAP → 用 `qq-mail-control`；改 DSH 插件行与 MCP 接入层 → 用 `dsh-agent-customization`；PowerShell 的坑 → 用 `pwsh-on-windows`。",
       "files": 1,
-      "bytes": 27101
+      "bytes": 27466
     },
     {
       "name": "pwsh-on-windows",
@@ -225,9 +246,9 @@
     {
       "name": "sedimenting-skills",
       "path": "skills/sedimenting-skills",
-      "description": "Skill 沉淀协议——先过目录税预算（目录字符总量 ≤ 20,000，默认值可调），每次非平凡运行收尾都**自动**复盘，并**全库匹配**找归属（三段决策 ①融合已有 skill ②建/更新总纲 ③都没有才新建）——默认首选融合：有归属主题就追加一节，或**修正已被证伪的断言**；含全库检索配方（拿报错原文 / 命令名扫全部 SKILL.md）、防过度沉淀、单一归属（只写一个 skill 正文，别处留指针）、description 才是决定\"何时调用\"的字段（≤480）、允许空手而归、写完自验证。适用于\"这套流程以后还会用 / 把刚才那套步骤写成 skill / 这条经验该并进哪个已有 skill / 要不要新建 skill / 这个坑值得记下来 / 每次任务收尾自动复盘 / 怎么在全部 skill 里找这条经验的归属\"。不适用：还在执行任务、要先拆解派活 → 用 `orchestrating-subagents`；只改 frontmatter 与 description 的写法契约 → 用 `dsh-skill-authoring`。",
-      "files": 1,
-      "bytes": 21334
+      "description": "Skill 沉淀协议——任务收尾先过目录税预算（目录字符总量 ≤ 20,000），每次非平凡运行都自动复盘并全库匹配找归属（三段决策 ①融合已有 skill ②建/更新总纲 ③都没有才新建）；默认首选融合：追加一节或修正已被证伪的断言，并顺手删掉该 skill 里的死指针、过期数字与重复正文。含全库检索配方、防过度沉淀、单一归属、description 决定\"何时调用\"（≤480）、允许空手而归、写完自验证。适用于\"这套流程以后还会用 / 把刚才那套步骤写成 skill / 这条经验该并进哪个已有 skill / 要不要新建 skill / 这个坑值得记下来 / 每次任务收尾自动复盘 / 怎么在全部 skill 里找这条经验的归属 / 删掉 skill 里的过时信息 / 这条旧结论还成立吗\"。不适用：还在执行任务、要先拆解派活 → 用 `orchestrating-subagents`；只改 frontmatter 与 description 的写法契约 → 用 `dsh-skill-authoring`。",
+      "files": 2,
+      "bytes": 37611
     },
     {
       "name": "tilelang-op-generator",

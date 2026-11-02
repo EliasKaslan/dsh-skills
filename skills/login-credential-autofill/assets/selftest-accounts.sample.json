@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "accounts": {
+    "demo": {
+      "identifier": "demo-user@example.test",
+      "password": "not-a-real-password-42",
+      "auto_submit": true,
+      "mfa": false
+    }
+  }
+}

@@ -191,6 +191,23 @@ Invoke-WebRequest -Uri 'http://127.0.0.1:3080/' -UseBasicParsing   # 401 = 真�
   → 推论：**启动时必须先把 pid 与端口落盘**（第 6 步），收尾只认这份记录；**不要**用 pid 差集、不要用按映像名 / 命令行的模糊匹配杀进程。
   → 判据：**没被真正触发过的安全网不算安全网 —— 一个恒真的断言看起来在保护你，实际什么都没查。**
 
+## RPC 驱动宿主（实测配方，2026-11-03）
+
+host 起来后要在里面**真跑一个会话**（验证 preset / 驱动长任务）时，按下面顺序，全部实测通过：
+
+1. **启动参数顺序**：`node $BIN --profile <name> --no-open --port <port>`。`web` 是 **profile 名**，不是子命令——
+   - `--profile lab web` → `error: too many arguments. Expected 0 arguments but got 1: web.`
+   - `web --profile lab` → `option '--profile <name>' argument 'lab' is invalid. select a profile only once`（`web` 已被当成 profile）
+   - 环境里残留 `DSH_PROFILE=desktop` 时再传 `--profile lab` → 同样 "select a profile only once"；先 `Remove-Item Env:DSH_PROFILE` 或只留一种选择。
+2. **token 只在子进程 stdout**：`dsh web: http://127.0.0.1:<port>/?token=<token>`。用 Electron 壳（`DeepSeek Harness.exe` + `ELECTRON_RUN_AS_NODE=1`）时把 stdout 重定向到文件可能**一直是 0 字节**（stdout 被 shell 接管）；用后台作业启动并读作业输出才拿得到。
+3. **拿 cookie**：先 `Invoke-WebRequest "$base/?token=$t" -SessionVariable sess`，后面所有 POST 都带 `-WebSession $sess`。
+4. **RPC 线格式**：`POST $base/api/<method>`，body `{"type":"client-request","rpcId":"<id>","method":"<method>","payload":{"args":{...}}}`；`ContentType` 必须 `application/json; charset=utf-8`，且 body 用 `[Text.Encoding]::UTF8.GetBytes($json)`——否则中文 cwd 变 `?????`，`session/create` 报 `ENOENT: no such file or directory, mkdir 'D:\workspace\...?????'`。
+5. **三个常用方法**（参数形状错了会报 `gateway/arguments-invalid` / `gateway/input-invalid`）：
+   - `session/create`：`args.request = {cwd, agentPreset}` → `result.value.sessionId`
+   - `session/prompt`：`args.request = {requestId, sessionId, mode:'queue', content:[{type:'text',text}]}`
+   - `session/page`：`args.request = {address:{kind:'session',sessionId}, throughSeq:<游标>, maxMessages:<n>}`；`throughSeq` 超过当前游标会报 `session page through seq X is past cursor Y`，**直接用 Y**；子代理页把 `address` 换成 `{kind:'subagent',parentSessionId,childSessionId,mode:'continuable'}`。
+6. **轮询而非等待**：`session/page` 返回 `records[].event`（`assistant/message`/`tool/call`/`tool/result`/`subagent/catalog`/`turn/end`），按 `event.seq` 递增；`tool/result` 的 `content[0].text` 就是工具输出，可据此判进度。长任务（审计/verify）常见 10-20 分钟无新事件，别误判成挂死。
+
 ## 不要做什么
 
 - 不要 junction 整个 `profiles` 目录（会写穿真实 profile 的 `cordis.yml`）。

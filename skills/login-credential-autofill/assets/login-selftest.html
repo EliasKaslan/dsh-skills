@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>login-selftest</title></head>
+<body>
+<h1>Sign in (local self-test, no network)</h1>
+<form id="f">
+  <label>Email <input id="email" name="email" type="email" autocomplete="username"></label>
+  <label>Password <input id="password" name="password" type="password" autocomplete="current-password"></label>
+  <button id="submit" type="submit">Sign in</button>
+</form>
+<pre id="out">no-submit</pre>
+<script>
+  document.getElementById('f').addEventListener('submit', function (e) {
+    e.preventDefault();
+    document.getElementById('out').textContent =
+      'submitted email=' + document.getElementById('email').value +
+      ' password=' + document.getElementById('password').value;
+  });
+</script>
+</body></html>

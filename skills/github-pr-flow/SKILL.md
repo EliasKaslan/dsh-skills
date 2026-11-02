@@ -31,6 +31,7 @@ whenToUse: 要在 GitHub 上游仓库（尤其 vllm-project/vllm-ascend）提交
 
 - **凭据策略（2026-10-08 用户反转 2026-09-29 旧规；本 skill 是这条策略的单一出处，其它 skill 只指向这里）**：**允许把凭据文件放在 skill 目录内，而且鼓励每个 skill 直接写明自己用到的凭据文件位置**（如 `ascend-env\credentials.txt`）——2026-09-29 那条"必须放 skill 目录之外 / 绝不放回任何 skill 目录"**已作废**，遇到旧文字按本行纠正。classic PAT（`ghp_` 开头）现位置仍在 **`~\.dsh\.secrets\github-pr-flow.token`**（留着即可，两处都合法）。**仍然禁止**：写进仓内文件、日志、命令历史，或写进 `description`（description 会被会话目录展示）。`.gitignore` 两层保持就位：`~\.dsh\.gitignore` 的 `.secrets/`、`.secrets\.gitignore` 自忽略（`*` + `!.gitignore`）。
 - 该 PAT 能完成全部操作：push 到 fork、在上游**创建/关闭/重开 PR**，全程 API，无需浏览器。
+- 要的是**浏览器里网页登录**（不是 API/PAT）→ 用 `login-credential-autofill`：密码只在 `~\.dsh\.secrets\accounts.json`、受 24h 一次提交额度约束；本 skill 的流程一律走 PAT，不要密码。
 - **2026-09-22 复核：token 仍然有效**——`GET /user` 返回 200，`login=EliasKaslan`，长度 40 且 `ghp_` 前缀；scopes 含 `repo`、`workflow`、`gist`、`user`、`read:org` 等，建/关 PR 与 push fork 都够用。
 - **fine-grained PAT（`github_pat_` 开头）无法对上游仓库建/关 PR**（一律 403 `Resource not accessible by personal access token`，REST/GraphQL/MCP 全一样）。用户给这种就请换 classic（勾 `public_repo` 即可，勿用全权限 token）。
 - 快速探测：`GET /user` 401=token 失效；POST 空 `{}` 到 `/repos/<owner>/<repo>/pulls`，403=无权限、422=有权限。**它零副作用的唯一原因是空 body 过不了校验（422）**——绝不能用真实 payload 去探测，那会留下真实 PR（§4）。
