@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "publish-dsh-skills.ps1",
-  "skill_count": 42,
-  "file_count": 104,
-  "total_bytes": 1803243,
+  "skill_count": 45,
+  "file_count": 117,
+  "total_bytes": 1992081,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -31,21 +31,21 @@
       "path": "skills/ascend-cann-env",
       "description": "昇腾 CANN 的检测/安装/激活/换版本/卸载（默认 a3=192.168.13.188，备用 a3b=.190）——权威定位看 /etc/Ascend/ascend_cann_install.info，toolkit+ops+nnal 三件套安装序列与耗时，合一包不覆盖驱动，公开源最新非 beta = 9.1.1，beta/T 构建桶内目录名 ≠ 版本号（如 CANN 9.2.T3）。适用于\"装/换/查 CANN / import acl 或 atc 报找不到 CANN / source set_env.sh 后 ASCEND_HOME_PATH 为空 / install.info 里还记着旧路径 / 重跑安装脚本报 Permission denied / 该用合一包还是独立 toolkit 包 / 某个 CANN 版本公开源有没有 / OBS 探版本全是 403\"。不适用：conda 与 python 版本 → 用 `ascend-conda-env`；目录与磁盘红线 → 用 `ascend-server-layout`。",
       "files": 1,
-      "bytes": 31039
+      "bytes": 31150
     },
     {
       "name": "ascend-conda-env",
       "path": "skills/ascend-conda-env",
       "description": "昇腾服务器 conda 环境的检测 / 新建 / 激活与换 python 版本（默认 a3=192.168.13.188，备用 a3b=.190）——共享 miniconda3 在 /mnt/share/x00886548/miniconda3（conda 26.7.1，base py3.14.7），新建环境默认落 /mnt/share/vllm/conda_envs、必须显式带 NJU 镜像，不激活可直接用绝对路径 python。适用于\"建 conda 环境 / 复用已有环境拷到新根 / 激活环境 / 换 python 版本 / python -V 不是共享 conda / 环境该放哪个盘 / conda create 走官方源很慢\"。不适用：CANN 装哪、版本、set_env.sh 不生效 → 用 `ascend-cann-env`；torch 或 torch_npu 装不上 → 用 `ascend-torch-npu`。",
       "files": 1,
-      "bytes": 20524
+      "bytes": 20721
     },
     {
       "name": "ascend-env",
       "path": "skills/ascend-env",
       "description": "昇腾 NPU 服务器环境搭建入口总纲（a3=192.168.13.188 默认 / a3b=.190 备用）——**先并行再串行**的 4 lane 编排（CANN 包下载 ∥ conda 建环境 ∥ torch 栈 whl 预下载 ∥ 两仓 clone，barrier 后串行安装），含子代理写盘边界、机器怎么进、三层验收、从 Windows 驱动远端（scp 优先通道，内联引号会静默零命中）的硬规则；具体步骤一律在子 skill。适用于\"在昇腾机器上装环境 / 怎么并行搭环境省时间 / 下载和编译能不能同时跑 / 什么能并行什么必须串行 / 要不要派子代理去下载 / 不知道该先做哪一步 / 从零搭一套能跑 vllm 的环境 / 机器进不去或 ssh 假死\"。不适用：目录与磁盘、模型在哪 → 用 `ascend-server-layout`；装 CANN → 用 `ascend-cann-env`；conda 与 python → 用 `ascend-conda-env`；跑推理 → 用 `ascend-vllm-serve`。",
       "files": 2,
-      "bytes": 53256
+      "bytes": 54478
     },
     {
       "name": "ascend-model-adaptation-recon",
@@ -59,35 +59,49 @@
       "path": "skills/ascend-moe-ep-capacity-planning",
       "description": "昇腾 64GB 卡跑 MoE 大模型前的显存容量与并行几何规划——EP 没有独立开关（EP = TP × DP × PCP），按卡数 N 选型必须随 N 重推 TP；64GB 卡真实预算只有 56.378 GiB，用 64GB 或 64×10⁹ 都会高估；EP 只切 routed experts，其余每卡复制。适用于\"这个 MoE 大模型要几张卡才跑得起来 / EP 设多少、TP 设多少 / 专家并行怎么配 / 显存预算怎么算 / 起服务报 OOM 之前先估一遍 / 按卡数扫描怎么选型 / TP 设大了有什么区别\"。不适用：服务已经起来要排障或跑推理 → 用 `ascend-vllm-serve`；要装/重装 vllm-ascend → 用 `vllm-ascend-source-install`；只看模型适配没适配 → 用 `ascend-model-adaptation-recon`。",
       "files": 2,
-      "bytes": 68633
+      "bytes": 68731
+    },
+    {
+      "name": "ascend-server-access",
+      "path": "skills/ascend-server-access",
+      "description": "三台昇腾服务器与 UniVPN 准入的唯一清单——a3=192.168.13.188 / a3b=.190 走蓝区网关，a5=177.8.21.1 走 A5 配置（root 密码只登记在凭据文件），当前只有这三台可用；两个 UniVPN 实例可同时在线，含 .190 重装后的 openEuler 22.03 新规格、A5 8×Ascend950DT、ping/TCP/ssh 三测、切配置须真实鼠标点、APIPA 假连。适用于\"188 连不上 / 190 连不上 / 177.8.21.1 怎么连 / 现在有哪些服务器可用 / 该连哪个 VPN / 同时连 A3 和 A5 / 多开 UniVPN / VPN 连上了但 ping 不通 / 188 和 190 之间通不通 / 两台机器能不能互相通信 / 节点间带宽和 MTU 多少 / 服务器凭据在哪 / 新服务器登录后怎么配免密\"。不适用：连上后装 CANN/conda/torch → 用 `ascend-env`；本机 pwsh 编码与执行策略坑 → 用 `pwsh-on-windows`。",
+      "files": 6,
+      "bytes": 89950
     },
     {
       "name": "ascend-server-layout",
       "path": "skills/ascend-server-layout",
       "description": "昇腾服务器目录地图与磁盘红线——找模型在哪、磁盘满了该写哪个盘（a3=.188 默认 / a3b=.190 备用）——.188 只有两块真盘：系统盘 /（/mnt/share、/mnt/weight、/tmp、/root 全压在它上面，多租户共用、长期紧张）与独立大盘 /home/vllm（大文件与大环境唯一推荐落点）；**不记剩余空间数字与空闲 die 号，动手前现场 df -h / npu-smi 取**；模型分两处（/mnt/weight + /home/vllm/weights），另有工作目录约定与现成环境；npu-smi 判空闲，Process 段是 NPU id 不是 die id（判 die 用 Bus-Id）。适用于\"找模型在哪 / 新项目和大文件该写哪个盘 / 磁盘满了 / 看哪张 NPU 空闲 / npu-smi 判哪张卡忙 / 复用现成环境 / 工作目录在哪\"。不适用：装或换 CANN 版本 → 用 `ascend-cann-env`；conda 环境与 python 版本 → 用 `ascend-conda-env`。",
       "files": 1,
-      "bytes": 22760
+      "bytes": 22896
     },
     {
       "name": "ascend-torch-npu",
       "path": "skills/ascend-torch-npu",
       "description": "昇腾 NPU 上 torch + torch_npu 的检测 / 安装 / 验证 / 排障（默认 a3=192.168.13.188，备用 a3b=.190）——先定车道：A（跑 vllm-ascend，默认）torch 2.10.0+cpu + torch_npu 2.10.0.post4；B（全新机器）torch 2.12.0+cpu + torch_npu 2.12.0；含 pip 序列、验收 True 16 253、torch_npu→torch 等值依赖、pip 卡死与 GLIBCXX_3.4.26 缺失。适用于\"装 torch_npu / 该装哪个 torch 版本 / NPU 不可用或 device_count 不对 / torch 卡死零进展 / 报 GLIBCXX_3.4.26 not found / 不确定走 A 还是 B 车道\"。不适用：triton 报错 → 用 `ascend-triton-ascend`；vllm 装不上 → 用 `vllm-ascend-source-install`。",
       "files": 1,
-      "bytes": 25698
+      "bytes": 25901
     },
     {
       "name": "ascend-triton-ascend",
       "path": "skills/ascend-triton-ascend",
       "description": "昇腾 NPU（a3=.188 / a3b=.190）上 triton-ascend 的检测 / 安装 / 验证 / 排障——商发版 3.2.2 必须从 osinfra 专用源装（PyPI 上没有）；官方覆盖式共存，import triton 报 3.2.0 而非 3.2.2 属正常；被 pip install -U triton 覆盖后 `backends/ascend` 目录仍在但 `import triton` 直接崩。适用于\"装 triton-ascend / triton 版本不对或被换掉 / import triton 报错 / No matching distribution found for triton-ascend / pip install -U triton 后 NPU kernel 挂了\"。不适用：torch 与 torch_npu 本身的问题 → 用 `ascend-torch-npu`；vllm 与 vllm-ascend 装不上 → 用 `vllm-ascend-source-install`。",
       "files": 2,
-      "bytes": 24350
+      "bytes": 26590
     },
     {
       "name": "ascend-vllm-serve",
       "path": "skills/ascend-vllm-serve",
       "description": "在昇腾 A3（.188/.190）上把装好的 vllm + vllm-ascend 跑起来——三层自检、按 HBM 挑空闲 die、起 OpenAI 兼容服务、离线推理冒烟、sleep/wake_up 显存释放与重载、运行时排障。适用于\"在昇腾上起 vllm 服务 / 跑离线推理冒烟 / sleep mode 释放显存 / sleep level 1 还是 2 / wake_up 后输出乱码 / reload_weights 热更新权重 / 报 MemoryError 或 dtype / import torch_npu 报 No module named 'acl' / 别设 VLLM_TARGET_DEVICE / 报 aclInit 107001 / Kimi-K3 在 A3 上 500 EZ0037 / 模型太大单卡放不下要 TP=2\"。不适用：装/重装/编译 vllm-ascend → 用 `vllm-ascend-source-install`；栈装不上（torch_npu、pip） → 用 `ascend-torch-npu`。",
-      "files": 2,
-      "bytes": 54381
+      "files": 3,
+      "bytes": 65466
+    },
+    {
+      "name": "batch-invariance-acceptance",
+      "path": "skills/batch-invariance-acceptance",
+      "description": "This skill should be used when the user asks to verify, triage or regression-test batch invariance of a model running on vLLM Ascend, including deciding whether BS=1 and BS=N produce bitwise-identical tokens and logprobs, covering TP matrices, long-input and long-output shapes, operator allowlists, and dataset-level acceptance.",
+      "files": 8,
+      "bytes": 108635
     },
     {
       "name": "batch-invariant-weekly-digest",
@@ -113,9 +127,9 @@
     {
       "name": "dsh-agent-preset-verification",
       "path": "skills/dsh-agent-preset-verification",
-      "description": "DSH agent preset 验收两阶段——preset 没生效但看不出哪错了、到底挂载对没对、改完先离线确认；离线过了但插件行为不对、persona 与工具在真会话里对不对、委派为什么失败；headless 不能验 preset 且会污染 home。阶段一离线逐行解析 plugins 与 config，阶段二干净 host 真会话 RPC 核对。适用于\"preset 到底挂载对没对 / 改完 preset 先离线确认能不能挂 / preset 没生效但看不出哪错了 / 离线过了但插件行为不对 / 委派为什么失败 / 能不能用 headless 验收 preset / maxDepth 写 0 为什么让工具全废\"。不适用：只要干净实验环境 → 用 `dsh-isolated-web-host`；不知改哪层、何时生效、怎么撤 → 用 `dsh-agent-customization`。",
+      "description": "DSH agent preset 验收两阶段——preset 没生效但看不出哪错了、到底挂载对没对、改完先离线确认；离线过了但插件行为不对、persona 与工具在真会话里对不对、委派为什么失败；headless 不能验 preset 且会污染 home。阶段一离线逐行解析 plugins 与 config，阶段二干净 host 真会话 RPC 核对。适用于\"preset 到底挂载对没对 / 改完 preset 先离线确认能不能挂 / preset 没生效但看不出哪错了 / 离线过了但插件行为不对 / 委派为什么失败 / 能不能用 headless 验收 preset / maxDepth 写 0 为什么让工具全废 / 改完协议怎么知道新版更好 / 两个模式哪个好凭什么\"。不适用：只要干净实验环境 → 用 `dsh-isolated-web-host`；不知改哪层、何时生效、怎么撤 → 用 `dsh-agent-customization`。",
       "files": 3,
-      "bytes": 57468
+      "bytes": 65819
     },
     {
       "name": "dsh-isolated-web-host",
@@ -127,16 +141,16 @@
     {
       "name": "dsh-longhaul-mode",
       "path": "skills/dsh-longhaul-mode",
-      "description": "长线工程模式 Longhaul（dsh-longhaul）——跨小时/跨天、需要交接的工程任务该用哪个模式、怎么开、完成了凭什么算完成：三角色（计划 / 执行 / 只读审计）、`.longhaul` 状态与哈希链账本、密封验收命令、契约审计 → feature 审计 → run 审计 → close 四道闸、审计 REVISE 怎么改；含安装位置、重启生效、状态自查与回滚。适用于\"长线任务用哪个模式 / 怎么开 Longhaul / 这个功能做完了吗凭什么 / 审计说 REVISE 怎么办 / .longhaul 是什么 / Longhaul 装哪了 / 怎么关掉这个模式\"。不适用：改 preset 挂载与生效时机 → 用 `dsh-agent-customization`；起隔离 host 实测 → 用 `dsh-isolated-web-host`；写或改 skill → 用 `dsh-skill-authoring`。",
+      "description": "长线工程模式 Longhaul（dsh-longhaul）——跨小时/跨天、需要交接的工程任务该用哪个模式、怎么开、完成了凭什么算完成：三角色（计划 / 执行 / 只读审计）、`.longhaul` 状态与哈希链账本、密封验收命令、契约审计 → feature 审计 → run 审计 → close 四道闸、审计 REVISE 怎么改、没给 adversarial probe 为什么降级；含 v2 闸门（can-fail 红绿证明 / 改动范围 / 标尺封印 / 探针）、安装位置、重启与回滚。适用于\"长线任务用哪个模式 / 怎么开 Longhaul / 这个功能做完了吗凭什么 / 审计说 REVISE 怎么办 / .longhaul 是什么 / Longhaul 装哪了 / 怎么关掉这个模式\"。不适用：改 preset 挂载与生效时机 → 用 `dsh-agent-customization`；起隔离 host 实测 → 用 `dsh-isolated-web-host`；写或改 skill → 用 `dsh-skill-authoring`。",
       "files": 1,
-      "bytes": 9167
+      "bytes": 12002
     },
     {
       "name": "dsh-phone-remote-relay",
       "path": "skills/dsh-phone-remote-relay",
-      "description": "手机跨网络接管电脑上的 DSH，且电脑不暴露公网——公共 broker 中继 + 端到端加密 + 静态外壳托管；含 ESM 缓存导致热重载跑旧代码、hello 自激打爆限流、大帧被公共 broker 丢弃、按请求 id 幂等重发、WS 帧合批、GitHub Pages 用 REST 上传（git push 在本机挂死）、二维码必须解码验证。适用于\"手机远程控制电脑上的 DSH / 不在同一局域网 / 不要反向代理和端口映射 / 二维码链接怎么生成 / 中继丢包超时 / 热重载不生效\"；不适用：只改插件行生效时机 → `dsh-agent-customization`，本机 pwsh 编码坑 → `pwsh-on-windows`。",
+      "description": "手机跨网络接管电脑上的 DSH，且电脑不暴露公网——公共 broker 中继 + 端到端加密 + 静态外壳托管；含 ESM 缓存导致热重载跑旧代码、hello 自激打爆限流、大帧被公共 broker 丢弃、按请求 id 幂等重发、WS 帧合批、GitHub Pages 用 REST 上传（git push 在本机挂死）、二维码必须解码验证。适用于\"手机远程控制电脑上的 DSH / 不在同一局域网 / 不要反向代理和端口映射 / 二维码链接怎么生成 / 中继丢包超时 / 热重载不生效 / 列表能刷出但一直正在连接\"；不适用：只改插件行生效时机 → `dsh-agent-customization`，本机 pwsh 编码坑 → `pwsh-on-windows`。",
       "files": 1,
-      "bytes": 22611
+      "bytes": 25809
     },
     {
       "name": "dsh-repo-sync",
@@ -216,6 +230,20 @@
       "bytes": 30770
     },
     {
+      "name": "mindspeed-ops-whl-build",
+      "path": "skills/mindspeed-ops-whl-build",
+      "description": "把 MindSpeed-Ops 源码打成可安装 whl 并逐层验收——cmake≥3.16、Python3_EXECUTABLE 注入、gcc8 必须换 clang-11、cmake 包装脚本会被 setup.py 按前 128 字节含 python 拒掉、SOC_VERSION 决定 aclnn 与 arch、CATLASS 需 MINDSPEED_BUILD_CATLASS=1；whl 非 manylinux、无 Requires-Dist。适用于\"打 MindSpeed-Ops 的 whl / pip wheel 报 cmake_minimum_required / 报 too old version of GCC / 报 No module named regex / 验证 whl 能不能用 / whl 装完 import 找不到 torch\"。不适用：装 CANN → 用 `ascend-cann-env`；torch 栈 → 用 `ascend-torch-npu`；给仓提 PR → 用 `gitcode-pr-flow`。",
+      "files": 1,
+      "bytes": 7801
+    },
+    {
+      "name": "model-endpoint-identity-audit",
+      "path": "skills/model-endpoint-identity-audit",
+      "description": "同一供应商多个 model id 是否同一个模型 + 能力/速度实测——支撑说\"都是某版本\"靠不靠谱、四个渠道哪个快哪个贵：用前缀缓存互通矩阵判是否同一后端（决定性证据）、tokenizer 与图像 token 指纹、短贪心输出指纹、随机 nonce 强制冷预填充、capability 矩阵逐项探测（上下文上限原文 / json_schema / logprobs / n>1 / 关思考开关）。适用于\"这几个 model id 是不是同一个模型 / 支撑说都是 1017 版靠谱吗 / 同一模型四个渠道哪个快 / 哪个便宜哪个贵 / 换个渠道质量会掉吗 / 上下文到底是多大 / 为什么 logprobs 返回 null\"。不适用：查厂商官方有没有发布这个模型 → 用 `ai-vendor-official-source-audit`；只评估外部热度与口碑量级 → 用 `external-buzz-magnitude-check`。",
+      "files": 1,
+      "bytes": 11441
+    },
+    {
       "name": "orchestrating-subagents",
       "path": "skills/orchestrating-subagents",
       "description": "编排手册——两通道模型：生产动作（读文件、跨模块检索、跑命令、联网、试错、写代码/文档、改配置）一律下发子代理，主 Agent 保留全套工具、只做交付前独立复核（真跑验收命令、核\"文件:行号\"、读本体与 exit code）；判据权威出处是宪法 §2/§3，本 skill 只写操作配方。适用于\"任务很大一次读不完 / 该不该派子代理 / 帮我并行跑几件事 / 上下文快满了 / 子代理说没有 web_fetch 或说工具受限 / explore 和 subagent 怎么选 / 子代理说的对不对 / 它答错了要不要重派 / 怎么关掉自己起的进程 / 运行台账该怎么记 / 子代理写域重叠怎么办 / 长时间编译怎么等 / 子代理说完成了我怎么验 / 复核旧结论行号一致算不算没过时\"。不适用：任务收尾判定\"值得沉淀\"、要动手写 skill → 用 `sedimenting-skills`。",
@@ -239,9 +267,9 @@
     {
       "name": "qq-mail-control",
       "path": "skills/qq-mail-control",
-      "description": "QQ 邮箱接管（IMAP/SMTP，`mcp__qqmail__*`）——发 QQ 邮件、查收件箱、搜信、读信；含收件人别名：「黄区」= `xumingzhe4@huawei.com`、「我私人邮箱」= `3248569436@qq.com`。坑：文件夹名传中文原文（别传 UTF-7）、FETCH 只读铁律、中文搜索只覆盖本地窗口、发信必须带【AI 代发】前缀、发往黄区一律转发格式、凭据位置与 `--read-only` 静默陷阱。适用于\"给黄区发邮件 / 发邮件给我私人邮箱 / 发一封 QQ 邮件 / 查一下 QQ 邮箱收件箱 / 搜一下 QQ 邮箱里的邮件 / 帮我读某封 QQ 邮件 / QQ 邮箱文件夹名乱码 / QQ 邮箱只能读不能发\"。不适用：Outlook / MSA 邮箱 → 用 `outlook-mailbox-control`；改 patch 与 MCP 接入层生效时机 → 用 `dsh-agent-customization`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。",
+      "description": "QQ 邮箱接管（IMAP/SMTP，`mcp__qqmail__*`）——发 QQ 邮件、查收件箱、搜读信、建夹归档；含收件人别名：「黄区」= `xumingzhe4@huawei.com`、「我私人邮箱」= `3248569436@qq.com`。坑：文件夹名传中文原文（别传 UTF-7）、FETCH 只读铁律、中文搜索只覆盖本地窗口、发信必须带【AI 代发】前缀、发往黄区一律转发格式、MCP 无建夹工具、凭据与 `--read-only` 陷阱。适用于\"给黄区发邮件 / 发邮件给我私人邮箱 / 发一封 QQ 邮件 / 查一下 QQ 邮箱收件箱 / 搜一下 QQ 邮箱里的邮件 / 帮我读某封 QQ 邮件 / 把一类邮件都归到一个文件夹 / QQ 邮箱只能读不能发\"。不适用：Outlook / MSA 邮箱 → 用 `outlook-mailbox-control`；改 patch 与 MCP 接入层生效时机 → 用 `dsh-agent-customization`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。",
       "files": 1,
-      "bytes": 25257
+      "bytes": 26838
     },
     {
       "name": "sedimenting-skills",
@@ -256,13 +284,6 @@
       "description": ">-",
       "files": 16,
       "bytes": 197284
-    },
-    {
-      "name": "univpn-vpn",
-      "path": "skills/univpn-vpn",
-      "description": "UniVPN（联软 Leagsoft，C:\\Program Files (x86)\\UniVPN）——188 连不上、177.8.21.1 怎么连就看这条：蓝区网关(x00886548)推 192.168.0.0/16 → a3=192.168.13.188；A5(vpn_xmz)推 177.0.0.0/8 → a5=177.8.21.1（Ascend950DT）；单客户端两者互斥，多实例补丁可双开同时在线：切配置要真实鼠标点条目（UIA Select 无效）、托盘态还原、APIPA 假连、路由晚于虚拟 IP。适用于\"188 连不上 / 177.8.21.1 怎么连 / 切到 A5 / 同时连 A3 和 A5 / 两个 VPN 一起连 / 多开 UniVPN / 现在连的是哪个 VPN / VPN 连上了但 ping 不通 / UniVPN 状态怎么看 / 该连蓝区还是 A5\"。不适用：连上后装 CANN/conda/torch → 用 `ascend-env`；本机 pwsh 编码与执行策略坑 → 用 `pwsh-on-windows`。",
-      "files": 4,
-      "bytes": 63215
     },
     {
       "name": "upstream-docs-refresh-audit",
@@ -283,7 +304,7 @@
       "path": "skills/vllm-ascend-source-install",
       "description": "从源码装 vllm + vllm-ascend 配对流程——main 按 `.github/vllm-main-verified.commit` 配 vllm（VLLM_TARGET_DEVICE=empty）；release tag 配同名 tag；VLLM_VERSION 在 v0.23.0 失效，改用 VLLM_VERSION_OVERRIDE；torch 家族 pin 先注释；VLLM_BATCH_INVARIANT 默认不导出。适用于\"装或重装 vllm-ascend / 报 vllm_version_is 为 False / 报 ResolutionImpossible 或 numpy 冲突 / pip 卡在 llguidance / 复用已有 torch_npu / 报 build 依赖不满足（torch pin/nanobind）/ 报 metadata-generation-failed\"。不适用：起服务排障 → 用 `ascend-vllm-serve`；torch 栈装不上 → 用 `ascend-torch-npu`。",
       "files": 3,
-      "bytes": 93458
+      "bytes": 96427
     },
     {
       "name": "win-scheduled-task-forensics",

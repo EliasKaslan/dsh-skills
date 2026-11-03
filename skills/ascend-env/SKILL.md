@@ -11,7 +11,7 @@ whenToUse: 昇腾环境从零搭建的编排入口——「哪些步骤能并行
 ## 何时调用
 
 **加载本 skill 当：**
-- 要在 `a3`（`.188`）/ `a3b`（`.190`）/ `a5`（`177.8.21.1`）上从零搭昇腾环境，或不知道先做哪一步、该用哪个子 skill。**注意：三台的当前可用性差别很大——`.188` 可用、`.190` 整机不可达、A5 **要先连上 A5 VPN 才可达**（见 `univpn-vpn`），动手前先看 §1 的状态列**（2026-10-22 复核）。
+- 要在 `a3`（`.188`）/ `a3b`（`.190`）/ `a5`（`177.8.21.1`）上从零搭昇腾环境，或不知道先做哪一步、该用哪个子 skill。**三台的当前状态、规格、凭据与 VPN 准入唯一出处 = `ascend-server-access` §0**（2026-11-03 复核：三台都可用；`.188` / `.190` 走蓝区网关，`.190` 是新重装的 openEuler 22.03，A5 走 A5 VPN）；动手前先看那里，别照抄旧状态。
 - 要按顺序调度：服务器目录 → CANN → conda → torch_npu → triton-ascend → vllm 安装 → 起服务。
 - 需要全局三层验收（`npu-smi` / `torch.npu.is_available()` / `NPUPlatform`），或要 `ssh` 从 Windows 驱动远端（避免 PowerShell 引号、heredoc 导致的静默失败）。
 
@@ -27,19 +27,21 @@ whenToUse: 昇腾环境从零搭建的编排入口——「哪些步骤能并行
 
 > ★ **状态列是时刻值，每次都现场复核**：机器会下线、会重装、负载会变。**照抄状态行去做事**是本 skill 最容易被坑的地方。
 
-| 机器 | ssh 别名 | 主机名 / 系统 | 角色与当前状态（2026-10-22 复核） |
+| 代称 | 地址 | 角色 | 一句话状态（2026-11-03 复核） |
 |---|---|---|---|
-| `root@192.168.13.188` | **`a3`** | `node-zj-110-132` / Debian 10，256 核 / 1448 GiB | **默认，可用**（免密 + 密码都实测通过）。8 NPU × 2 die = 16 die，全部 `Health OK`。**多租户共用、load 常年很高**（2026-10-22 实测 ≈281；2026-10-08 ≈277）——旧文写的「load ~20，稳定」**已作废**，它是重载机：别把 `MAX_JOBS` 打满，也别指望编译快 |
-| `root@192.168.13.190` | `a3b` | `zj-131` / Debian 11，64 核（历史记录） | ⛔ **2026-10-22 整机不可达**：本机与 `.188` **双向** `ping` 100% 丢包、TCP 22 超时，3 次重试全败（用户裁决：按"当前整机不可达"登记）。历史：2026-09-23 曾连续 9 次不通；2026-10-08 恢复过（当时坏的是免密，用密码重装公钥即恢复）。**规格未复核，沿用旧记录但不得当现状引用** |
-| `root@177.8.21.1` | `a5` | `ip-177-8-21-1.rev.wkve.net.br` / aarch64，384 核 / 2262 GiB | ✅ **可用，但必须先连 A5 VPN**。2026-10-22 更正：旧文「凭据已登记、当前不可达」是**在没连 A5 的情况下测出来的**，判错了。真值是——**连上 UniVPN 的 `A5` 配置（账号 `vpn_xmz`）后 `177.8.21.1:22` 可达**；不连 A5 则从公网确实全丢（当时的 ICMP/TCP 全闭由此而来），**且连蓝区网关也不通**（只推 `192.168.0.0/16`）。实测规格：NPU `Ascend950DT`、`npu-smi 26.2.0.b020`、`/` 3.5 T 用 88%、**无 nvidia-smi**。连/切 VPN 的方法见 **`univpn-vpn`**。⚠️ 与 `.188` **互斥**：连 A5 时 `.188` 不通，反之亦然 |
+| `a3` | `root@192.168.13.188` | 默认（A3） | 可用，免密 + 密码都通（**OpenSSH 偶发 KEX 超时，改用 paramiko**）；多租户重载机 |
+| `a3b` | `root@192.168.13.190` | 备用（A3） | 可用；**2026-11-03 重装为 openEuler 22.03**，**免密 + 密码都通**；CANN 9.2.1 在 `/home/cann/921` |
+| `a5` | `root@177.8.21.1` | A5 | 可用；**必须先连 A5 VPN**，**免密 + 密码都通**；openEuler 24.03 aarch64 |
+
+> **详细的系统 / 核数 / 内存 / NPU / 磁盘 / CANN 版本、root 密码、该连哪个 VPN、连通性三测 → `ascend-server-access` §0（唯一出处）。** 本文件不再维护第二份状态表；连上后的环境步骤仍在本套 `ascend-*` 子 skill。
 
 ```bash
-ssh -n -o BatchMode=yes root@192.168.13.188 "hostname; npu-smi info | head -12"   # 免密已配好（2026-10-22 复核仍有效），直接用
+ssh -n -o BatchMode=yes root@192.168.13.188 "hostname; npu-smi info | head -12"   # 免密已配好（2026-11-03；高负载时 OpenSSH 会卡 KEX，改用 paramiko）
 ```
 
-- **本机没有 `a3` / `a3b` / `a5` ssh 别名**：2026-10-08 实测 `ssh a3` → `Could not resolve hostname a3`；2026-10-22 复核 `~/.ssh/config` **仍只有两段** `Host 192.168.13.188` / `Host 192.168.13.190`（没有 `a5`，也没有 `177.8.21.1`）。**`a3`/`a3b`/`a5` 只是文档代称，命令里一律写 IP**；子 skill 正文里若出现 `ssh a3`，按「.188 默认 / .190 备用 / 177.8.21.1 = A5」换算成 IP（同见 `ascend-vllm-serve` 的前置检查）。
-- 密码 fallback：本 skill 目录的 `credentials.txt`（**2026-10-22 已补 A5 行并复核 `.188` 密码仍有效**；正常情况下用不到，换机器 / 公钥被清时才用）。**「机器可达」≠「免密有效」，两件事分开测**：先 `ssh -o BatchMode=yes`，失败且报 `Permission denied (publickey,password)` 就用密码登进去重装公钥（见 `credentials.txt` 里的复核记录）。`.188` 实测 `PermitRootLogin yes` + `PasswordAuthentication yes`，密码通道可用。
-- **`.190` 的 ssh 假死**：`ssh_dispatch_run_fatal: Connection to 192.168.13.190 port 22: Connection timed out`（卡在 `expecting SSH2_MSG_KEX_ECDH_REPLY`）是 load ~90 导致 sshd 排不上 CPU，**多数情况重试即可**（2026-09-22 实测同一分钟内先连败 6 次、随后连胜 4 次）。排查顺序：`ping` → TCP 22 → 读 sshd banner → 再 ssh。**但 2026-09-23 连续 9 次全败、2026-10-22 又是双向不通，别把「重试就行」当成必然。** **2026-10-08 复核：`.190` 一次即通且返回 `zj-131`——当时坏的是免密而非可达性，用密码登进去把公钥追加回 `authorized_keys` 就恢复了；下次 `.190` 连不上，先分清是「连不上 TCP」（2026-10-22 就是这种，ping 也丢包）还是「连上了但公钥被拒」（2026-10-08 那种）。**
+- **本机没有 `a3` / `a3b` / `a5` ssh 别名**：2026-10-08 实测 `ssh a3` → `Could not resolve hostname a3`；2026-11-03 复核 `~/.ssh/config` **仍只有两段** `Host 192.168.13.188` / `Host 192.168.13.190`（没有 `a5`，也没有 `177.8.21.1`）。**`a3`/`a3b`/`a5` 只是文档代称，命令里一律写 IP**；子 skill 正文里若出现 `ssh a3`，按「.188 默认 / .190 备用 / 177.8.21.1 = A5」换算成 IP（同见 `ascend-vllm-serve` 的前置检查）。
+- 密码 fallback：`ascend-server-access/credentials.txt`（**唯一出处**；2026-11-03 复核：`.188` 密码仍有效、`.190` 新密码有效、A5 密码有效）。**「机器可达」≠「免密有效」，两件事分开测**：先 `ssh -o BatchMode=yes`，失败且报 `Permission denied (publickey,password)` 就用密码登进去（paramiko 5.0.0 最稳）；**三台 2026-11-03 都已配免密**：`.190` / A5 的 `ssh -o BatchMode=yes` 直接通；`.188` 的 key 用 paramiko 稳定，OpenSSH 会因 load≈470 卡在 KEX（见 §5），重试或改 paramiko。密码留作 fallback。**新机器登录成功后先按 `ascend-server-access` §0.1 配免密再干活**（用户 2026-11-03 要求）。`.188` 实测 `PermitRootLogin yes` + `PasswordAuthentication yes`，密码通道可用。
+- **`.190` 已恢复，且是 2026-11-03 重装的新机**：旧记录（load ~90 导致 sshd 饿死、Debian 11、主机名 `zj-131`）只作历史；当前是 openEuler 22.03 LTS-SP4、主机名 `localhost.localdomain`、16 个 `Ascend910` die、CANN 9.2.1 在 `/home/cann/921`。**重装后 SSH host key 也换了**：`ssh` 报 `REMOTE HOST IDENTIFICATION HAS CHANGED!` / `Host key verification failed.` 时先 `ssh-keygen -R 192.168.13.190` 再连（不是中间人）。旧的 `.190` 目录、gcc 10.2、免密记录一律作废，按 `ascend-server-access` §0 走。
 - **`.188` 另有一条与本机无关的组网**：机器上跑着 `tailscaled`（节点名 `npu-server` / `100.106.254.81`，tailnet 里另有一个 `skhalid-local` 100.85.1.19）。**本机没有 tailscale 客户端**（2026-10-22 实测 `Get-Command tailscale` 为空），所以 `100.x` 那条路走不通——`npu-smi`/`ss -ltnp` 里看到 `100.106.254.81:*` 的监听属正常，**别拿它当备用登录地址**。
 - **`.188` 每条 ssh 都会在 stderr 打一行** `/root/.bashrc: line 36: /usr/local/Ascend/ascend-toolkit/set_env.sh: No such file or directory`。这**不是偶发噪声，是真实断链**：2026-10-22 复核 `/usr/local/Ascend/ascend-toolkit` 是一个**空目录**（既没有 `set_env.sh`，也没有 `latest` 软链；2026-09-23 复查时 `readlink -f .../latest` 还返回空、旧软链曾指向不存在的 `/usr/local/Ascend/cann-9.1.0/cann`）。
   - 影响范围**仅限「默认路径」**：`.188` 真正在用的 CANN 9.1.0 在 `/mnt/share/x00886548/cann/cann_9_1_0`（`env_batch_inv.sh` 就是 source 它，2026-10-22 复核仍能起 `True/16`），只要显式 source 就不受影响；`/usr/local/Ascend/cann-9.0.0/set_env.sh` 是另一套确实可用的旧安装。
@@ -58,10 +60,11 @@ $c=New-Object Net.Sockets.TcpClient; $t=$c.BeginConnect('177.8.21.1',22,$null,$n
 ssh -v -o ConnectTimeout=10 root@177.8.21.1 hostname
 ```
 
-- **探测顺序**：`ping` → 常用端口（22/2222/2022/10022/8022，必要时再 20000+/30000+/40000+/50000+ 各取一小段）→ `traceroute`。本轮 A5 就是这条路走完：ICMP 全丢、1–2000 与五个高位段全闭、`traceroute` 出公网到 `177.54.235.35` 后静默 ⇒ 结论只能写成「路径不通 / 机器未就绪」。
+- **探测顺序**：`ping` → 常用端口（22/2222/2022/10022/8022，必要时再 20000+/30000+/40000+/50000+ 各取一小段）→ `traceroute`。**2026-10-22 在没连 A5 VPN 时探 A5 就是这条路走完**：ICMP 全丢、端口全闭、`traceroute` 出公网到 `177.54.235.35` 后静默 ⇒ 当时只能写「路径不通 / 机器未就绪」；**后来连上 A5 VPN 立刻可达** ⇒ 探不通先问 VPN / 跳板，别急着判机器不存在。
 - **不要扫全端口段**：公网地址整段扫既慢又像在踩点；先问用户端口 / 跳板 / VPN，问不到就按「不可达」登记，**别用扫出来的东西推断机器规格**。
 - **「连不上」≠「不存在」**：可以写进交付物的只有「何时、从哪、用什么命令、观察到什么」；`主机名 / OS / 卡数 / 磁盘 / CANN` 一律标 `未采`，**禁止从 A3/A5 这类代号反推型号**。
-- 真接上以后，**只读采集**一遍再动任何写操作：`hostname; nproc; free -g; npu-smi info; df -h; cat /etc/Ascend/ascend_cann_install.info`——采集脚本用法见 §5（`scp` + `md5sum` 闸门，别内联）。
+- **接上后的第一件写操作就是配免密**（用户 2026-11-03 要求）：`python ..\ascend-server-access\scripts\install-pubkey.py <host>`——只追加、保留原 `authorized_keys`，配完用 `ssh -o BatchMode=yes` 复核；配好再采集/装环境。细节见 `ascend-server-access` §0.1。
+- 配完免密，**只读采集**一遍再动其它写操作：`hostname; nproc; free -g; npu-smi info; df -h; cat /etc/Ascend/ascend_cann_install.info`——采集脚本用法见 §5（`scp` + `md5sum` 闸门，别内联）。
 
 ## 2. 子 skill 索引（按搭建顺序；前一层不通不要做后一层）
 
@@ -234,7 +237,7 @@ python3 -c "from vllm.platforms import current_platform as p; print(type(p).__na
   ssh: connect to host 192.168.13.188 port 22: Connection timed out
   banner exchange: Connection timed out
   ```
-  同批 `scp` 报 `Connection closed`、md5 对不上。根因与 §1 的 `.190` 假死同源（sshd 排不上 CPU），但**逐条重试的失败率高到没法干活**：本轮单命令 `ssh`/`scp` 失败十几次，而**建一条连接跑完全部命令一次没断**。
+  同批 `scp` 报 `Connection closed`、md5 对不上。根因是 `.188` 高负载把 sshd 饿到排不上 CPU（2026-10-22 load≈290；2026-11-03 又见 load≈470），但**逐条重试的失败率高到没法干活**：本轮单命令 `ssh`/`scp` 失败十几次，而**建一条连接跑完全部命令一次没断**。
   - 做法：本机 `python`（paramiko **5.0.0** 已装）建一条 `Transport`，之后 `put / run / bg / tail / md5` 全复用它；连接失败就整体重连（重试 12 次）。
   - **必须显式放大 `banner_timeout` 与 `auth_timeout`**（默认 15 s 不够）；**`paramiko.Transport` 没有 `settimeout` 方法**（写了报 `AttributeError`，看着像连通性问题），超时参数给 `SSHClient.connect(..., timeout=, banner_timeout=, auth_timeout=)`。
   - 判据不变：**推送看远端 `md5sum`**、**执行看产物**（`.188` 的 ssh 退出码恒 1，见 §4）。
@@ -270,7 +273,7 @@ python3 -c "from vllm.platforms import current_platform as p; print(type(p).__na
 - 不要跳过 CANN 的 `source set_env.sh` 就去装 torch_npu 或编算子。
 - 不要为了排障而 `pip install -U triton`（会覆盖 triton-ascend 的文件，见 `ascend-triton-ascend`）。
 - 不要在共享机器上把 `MAX_JOBS` 打满、或占用别人正在用的卡（先 `npu-smi info`）。
-- **不要把整个 `$CONDA_PREFIX/lib` 加进 `LD_LIBRARY_PATH`**。需要 conda 环境的新版 `libstdc++` 时（`.188` 的 gcc-8 场景），只建一个**只放 `libstdc++` 的 `compat_lib` 目录**前置即可，见 `ascend-torch-npu`。（整目录前置在 `.190` 上有过 `git` 崩的历史记录，2026-09-23 在 `.188` 实测未复现——详见 `ascend-conda-env` 坑 5，别把它当通用结论。）
+- **不要把整个 `$CONDA_PREFIX/lib` 加进 `LD_LIBRARY_PATH`**。需要 conda 环境的新版 `libstdc++` 时（`.188` 的 gcc-8 场景），只建一个**只放 `libstdc++` 的 `compat_lib` 目录**前置即可，见 `ascend-torch-npu`。（整目录前置在**重装前的** `.190` 上有过 `git` 崩的历史记录，2026-09-23 在 `.188` 实测未复现；新 `.190` 未复核——详见 `ascend-conda-env` 坑 5，别把它当通用结论。）
 - 改动用户环境前先想好回滚路径；破坏性动作（删文件、改 `/etc/Ascend`、强推）先确认。
 
 ## 7. 维护记录 → `references/maintenance-log.md`

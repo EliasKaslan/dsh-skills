@@ -1,6 +1,6 @@
 ---
 name: dsh-phone-remote-relay
-description: 手机跨网络接管电脑上的 DSH，且电脑不暴露公网——公共 broker 中继 + 端到端加密 + 静态外壳托管；含 ESM 缓存导致热重载跑旧代码、hello 自激打爆限流、大帧被公共 broker 丢弃、按请求 id 幂等重发、WS 帧合批、GitHub Pages 用 REST 上传（git push 在本机挂死）、二维码必须解码验证。适用于"手机远程控制电脑上的 DSH / 不在同一局域网 / 不要反向代理和端口映射 / 二维码链接怎么生成 / 中继丢包超时 / 热重载不生效"；不适用：只改插件行生效时机 → `dsh-agent-customization`，本机 pwsh 编码坑 → `pwsh-on-windows`。
+description: 手机跨网络接管电脑上的 DSH，且电脑不暴露公网——公共 broker 中继 + 端到端加密 + 静态外壳托管；含 ESM 缓存导致热重载跑旧代码、hello 自激打爆限流、大帧被公共 broker 丢弃、按请求 id 幂等重发、WS 帧合批、GitHub Pages 用 REST 上传（git push 在本机挂死）、二维码必须解码验证。适用于"手机远程控制电脑上的 DSH / 不在同一局域网 / 不要反向代理和端口映射 / 二维码链接怎么生成 / 中继丢包超时 / 热重载不生效 / 列表能刷出但一直正在连接"；不适用：只改插件行生效时机 → `dsh-agent-customization`，本机 pwsh 编码坑 → `pwsh-on-windows`。
 ---
 
 # 手机跨网络接管 DSH（零公网暴露）
@@ -313,6 +313,60 @@ process.on('exit', () => { if (文件里还是我) unlinkSync(PID_FILE); });
 
 验证方式：故意再起第二个实例，日志应打印「接管：已停止重复的中继 pid=…」，
 `实例数` 仍为 1。
+
+**⑧ 隧道槽位只增不减：手机被强杀时不发 close，刷几次就再也连不上（HTTP 还通）。**
+
+实测：中继侧 `MAX_SOCKETS = 6`，每部手机占一条 WS 隧道；页面刷新 / 强杀 / 切后台都不会发
+`ws.close`，槽位一个个被僵尸占满。满之后手机仍能拉 HTTP（每次新请求），但 `ws.open` 被拒，
+界面永远停在「正在连接…」——**和"电脑没开"长得一样，实际链路是好的**。修复前 15 次冷启动里
+挂 1 次，跑完 7 项回归后基本必挂。
+
+三层修法（缺一层都会复发）：
+
+```js
+// 1) 槽位放宽 + 满时按最近活动时间顶掉最旧的（正在握手的 10 s 内不抢）
+const MAX_SOCKETS = 12, SOCKET_IDLE_MS = 60 * 60 * 1000, SOCKET_EVICT_AFTER_MS = 10 * 1000;
+this.socketActivity.set(id, Date.now());            // 收到上行帧就 touch
+if (this.sockets.size >= MAX_SOCKETS) this.evictOldestSocket();  // 先扫过期，再顶最旧
+this.publish({ t: 'ws.close', id, code: 1001, reason: 'evicted for a new channel' });
+// 2) 手机侧 pagehide / beforeunload 主动发 ws.close（尽力而为，强杀时不会执行）
+// 3) 握手超时：CONNECTING 状态 12 s 没等到 ws.open 就 _close(1006) 让上层重连
+```
+
+验证：造 13 个「屏蔽 pagehide 后关掉 context」的僵尸把 12 个槽位占满，再开正常客户端，
+仍能 5.9 s 内连上（`_spike/zombie.mjs`）；串行开关 15 次后 `sockets` 必须归零。
+
+**⑨ 用 `Start-Process -RedirectStandardOutput` 拉起常驻进程，会让调用方的管道永远等不到 EOF。**
+
+实测：`deploy.ps1 -Restart` 直接在控制台跑没事，但把它接进管道（`| Out-String`、
+`Start-Job`、CI 捕获）就**挂死 75 s 以上**，进程其实早就起来了。原因：`Start-Process`
+用 `bInheritHandles=TRUE` 创建进程，调用方 stdout 管道的写端被孙进程一并继承，捕获端等不到 EOF。
+
+修法：改成 `cmd` 的 `start /b` + 三条显式重定向，彻底断开继承链：
+
+```powershell
+$launcher = Join-Path $dataDir 'start-relay.cmd'
+[System.IO.File]::WriteAllText($launcher, (
+  '@echo off' + "`r`n" +
+  ('start "" /b "{0}" tools\cloud-daemon.mjs --bridge http://127.0.0.1:{1} > "{2}" 2> "{3}" < NUL' -f $node, $Port, $logFile, $errFile)
+), (New-Object System.Text.ASCIIEncoding))
+Start-Process -FilePath $launcher -WorkingDirectory $pluginDir -WindowStyle Hidden | Out-Null
+# pid 别再靠 -PassThru 拿：让常驻进程自己写 pid 文件，脚本轮询 10 s 读它
+```
+
+判据：同样的管道调用从「>75 s 挂死」变成 5.3 s 正常返回。
+
+**⑩ 分片大小别拍脑袋：24 KiB → 64 KiB 有意义，128 KiB 没有。**
+
+同一配置连测 6 次取中位数（端到端「冷启动→标题变实时同步中」）：
+
+| MAX_FRAME | 中位 | p90 | 备注 |
+|---|---|---|---|
+| 24 KiB | 8.9 s | 12.5 s | 原值，过于保守 |
+| 64 KiB | 8.0 s | 10.0 s | **采用**，密文 ~88 KiB，远低于 EMQX 1 MiB 上限 |
+| 128 KiB | 7.9 s | 9.1 s | 无实质收益，风险更高 |
+
+注意：单次数字毫无意义（公共 broker 抖动可达 ±40%），必须看同一时段的多轮中位数。
 ## 10. 一键安装器的四个实测坑（写 `install.ps1` 时踩的）
 
 **① `-File` 启动时，`param()` 默认值里的 `$PSScriptRoot` 可能是空的。**

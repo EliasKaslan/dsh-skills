@@ -6,7 +6,7 @@ whenToUse: 需要 conda 本体（建/激活环境、装 conda 包、改 .condarc
 
 # 昇腾服务器 conda 环境（检测 / 新建 / 激活）
 
-机器：默认 `root@192.168.13.188`（Debian 10 / glibc 2.28），备用 `root@192.168.13.190`（Debian 11，**2026-10-22 整机不可达**），A5 `root@177.8.21.1`（**需连 A5 VPN 后可达**，见 `univpn-vpn`）；文档代称 `a3` / `a3b` / `a5`，**本机 ssh config 没有这几个别名，命令一律直连 IP**（见 `ascend-env` §1）。远端驱动规则见 `ascend-env` §5；CANN 见 `ascend-cann-env`；torch 栈见 `ascend-torch-npu`。
+机器：默认 `root@192.168.13.188`（Debian 10 / glibc 2.28，py3.12 环境多），备用 `root@192.168.13.190`（**2026-11-03 重装为 openEuler 22.03 / 64 核 / 系统 python 3.9.9**，conda 环境未盘点），A5 `root@177.8.21.1`（**需连 A5 VPN 后可达**，openEuler 24.03 aarch64 / python 3.12.14）；三台准入与凭据见 `ascend-server-access` §0；文档代称 `a3` / `a3b` / `a5`，**本机 ssh config 没有这几个别名，命令一律直连 IP**。远端驱动规则见 `ascend-env` §5；CANN 见 `ascend-cann-env`；torch 栈见 `ascend-torch-npu`。
 
 **`.188` 现成环境清单（2026-10-22 实测 7 个，全部 py3.12，别急着重装）**：
 
@@ -176,7 +176,7 @@ PATH 里留了 conda 不认识的裸路径，`conda activate` 只把 env 的 bin
 **坑 4｜pip 生效源与 `global.trusted-host` 混搭**
 `/root/.config/pip/pip.conf` = 阿里云（生效，XDG 优先）；`/root/.pip/pip.conf` = 华为云（+timeout 120）；`/etc/pip.conf` 不存在；`PIP_INDEX_URL` 未设置。原文：`pip config get global.trusted-host` → `mirrors.huaweicloud.com`，而 `install.trusted-host` → `mirrors.aliyun.com`（兜住了才没炸）。修法：统一到 `/root/.config/pip/pip.conf`，`trusted-host` 也写 `mirrors.aliyun.com`。
 
-**坑 5｜（.190 历史记录，2026-09-23 在 .188 未复现）三条"传说坑"——只在 `.190`（不同 conda / 系统）有记录，别当通用结论、也别删；真遇到先按下面命令在目标机实测**
+**坑 5｜（重装前的 `.190` 历史记录，2026-09-23 在 .188 未复现）三条"传说坑"——只在旧 `.190`（Debian 11 / 不同 conda）有记录；2026-11-03 重装成 openEuler 22.03 后未复核，别当通用结论、也别删；真遇到先按下面命令在目标机实测**
 - `ZSH_VERSION: unbound variable`（`set -u` + conda.sh）：实测 `bash -c 'set -u; . .../miniconda3/etc/profile.d/conda.sh; echo ok'` → `ok-after-condash`，新旧两套 conda.sh 都不报；且 `.188` `command -v zsh` 无输出（没装 zsh）。脚本头留一行 `set +u` 作防御即可，别当实测坑。
 - `libp11-kit.so.0: undefined symbol: ffi_type_pointer`（`LD_LIBRARY_PATH=<env>/lib` 后 git 崩）：实测 `LD_LIBRARY_PATH=/mnt/share/vllm/conda_envs/xmz_0921/lib git --version` → `git version 2.20.1` 无报错。机制上不可能：`xmz_0921/lib` 无 `libp11-kit.so.0`、无 `libffi.so.6`（只有 .7/.8），且 `ldd /usr/bin/git` 不含 p11-kit/gnutls。
 - 路径环境 activate 后 `CONDA_PREFIX` 仍指 base：实测 `conda activate /home/vllm/x00886548/vllm_build_0921/conda_envs/bi_0921` 后 `CONDA_PREFIX` / `CONDA_DEFAULT_ENV` / `python` **全部正确**（conda 26.7.1 已修）。

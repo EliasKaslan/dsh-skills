@@ -6,8 +6,8 @@ whenToUse: 上机第一步——确认模型与权重在哪、新项目和大文
 
 # 昇腾服务器目录地图 / 模型在哪 / 磁盘红线
 
-**默认机器 `root@192.168.13.188`（`node-zj-110-132`，Debian 10，256 核，**多租户共用**）；备用 `root@192.168.13.190`（`zj-131`，**2026-10-22 整机不可达**）；A5 `root@177.8.21.1`（**需连 A5 VPN 后可达**，见 `univpn-vpn`）。三台的准入状态与复现命令见 `ascend-env` §1。**
-**本机 `~/.ssh/config` 里没有 `a3` / `a3b` / `a5` 别名**（2026-10-08 实测 `ssh a3` → `Could not resolve hostname a3`；2026-10-22 复核仍只有两段 Host）：`a3` / `a3b` / `a5` 只是文档代称，**下面所有命令一律直连 IP**（本文件原有的 `ssh a3` 已全部改写为 `ssh root@192.168.13.188`，映射见 `ascend-env` §1）。
+**默认机器 `root@192.168.13.188`（`node-zj-110-132`，Debian 10，256 核，**多租户共用**）；备用 `root@192.168.13.190`（**2026-11-03 重装为 openEuler 22.03**：`/` 69G、`/home` 6.9T、`/mnt/share` NFS 287T、`/mnt/weight` NFS 307T，模型目录未盘点）；A5 `root@177.8.21.1`（**需连 A5 VPN 后可达**）。三台的准入、凭据与规格唯一出处 = `ascend-server-access` §0。**
+**本机 `~/.ssh/config` 里没有 `a3` / `a3b` / `a5` 别名**（2026-10-08 实测 `ssh a3` → `Could not resolve hostname a3`；2026-11-03 复核仍只有两段 Host）：`a3` / `a3b` / `a5` 只是文档代称，**下面所有命令一律直连 IP**（本文件原有的 `ssh a3` 已全部改写为 `ssh root@192.168.13.188`，映射见 `ascend-server-access` §0）。
 从 Windows 驱动远端的硬规则（PowerShell 引号、禁 heredoc、`ssh -n` 与 stdin 互斥）**不在本文件**，见 `ascend-env` §5。
 
 ## 何时调用
@@ -117,7 +117,7 @@ ssh -n root@192.168.13.188 "source /mnt/share/x00886548/workspace/batch_inv_qwen
 ```
 验证：打印 `True`（**2026-10-22 复跑仍通过**：`ASCEND_HOME_PATH=/mnt/share/x00886548/cann/cann_9_1_0/cann-9.1.0`、`python` = `xmz_0921/bin/python`、`npu_ok True 16`）。已验证组合（2026-09-22 实测）：python 3.12.14 / torch 2.10.0+cpu / torch_npu 2.10.0.post4 / triton 3.2.0 / triton-ascend 3.2.2 / numpy 1.26.4 / transformers 5.14.1 / fastapi 0.123.10 / starlette 0.50.0 / batch_invariant_ops 1.0.0。共享 conda 装机脚本 `/mnt/share/x00886548/workspace/setup_conda.sh`（幂等），conda 细节见 `ascend-conda-env`。
 > **其它现成环境（2026-10-22 实测 7 个，全部 py3.12）**：`/home/vllm/x00886548/{batch_inv_glm52,xmz_1009_k3,vllm_0230,zero_v0230,sv0230}/envs/*`（多为 `vllm312`，3.12.15）+ `/mnt/share/vllm/conda_envs/xmz_0921`（3.12.14）。**清单与建/换版本规则归 `ascend-conda-env`**，本节只提醒「先 `ls` 别急着重装」。
-> `.190`（备用）历史记录（**2026-09-23 与 2026-10-22 均未能复核；10-22 整机不可达**）：工作区 `/home/vllm/x00886548/vllm_build_0917`（`env.sh`、编号脚本 `07/21/24/37/43/52_*.sh`、`models/Qwen3-0.6B` 真权重 1.5G），gcc 10.2，64 核，vllm-ascend `cb79183`。其目录/磁盘/NPU **全部未查清**，不得沿用或编造。
+> `.190` 旧记录（2026-11-03 重装后**全部作废**）：重装前是 Debian 11 `zj-131`，工作区 `/home/vllm/x00886548/vllm_build_0917`、gcc 10.2、vllm-ascend `cb79183` 都随重装消失；2026-11-03 实测只剩 `/home/cann/921`、`/home/c30077422`。**别再按旧路径去 `.190` 找东西。**
 
 ### 步骤 4：看哪张 NPU 空闲
 ```bash
@@ -132,7 +132,7 @@ ssh -n root@192.168.13.188 "npu-smi info | head -14; echo ===; npu-smi info | ta
 - ⚠️ **误读的来源**：进程是**按 NPU 粒度**报的（一个 NPU 含 2 个 die）——对 NPU 4 跑 `npu-smi info` 会打印 `No running processes found`，看着像"整张 NPU 空"，**不能据此判 die 忙闲**，仍要回到 `Phy-ID` + `Bus-Id`。**后果举例**：把验收任务派到忙 die 上会 OOM，而该 OOM **不是环境问题**，极易被误判成"环境没搭好"。
 - **要判某个物理 die 上有没有进程，用 HBM 段的 `Bus-Id`**（形如 `0000:F4:00.0`）唯一匹配最稳：同一个 Bus-Id 在 NPU 段、HBM 段、Process 段都能对上，不受 id 编号口径影响。
   - 验证：`npu-smi info | grep -n 'Bus-Id'` 先定位 HBM 段，再拿该 Bus-Id 去 Process 段反查有无同名行。
-- `.188` 是**多租户共用机**：`uptime` 与 `who` 现场取，**本文件不记 load 数字**。两条实测口径供参考（都只是快照）：2026-10-22 `load average: 281.25, 280.32, 278.82`、`who | wc -l` = 6（来源 `192.168.201.196` / `.206.55` / `.202.193` 等）；2026-09-23 是 `up 22 days, 11 users, load ~17–28`。⇒ **这台机器的 load 会在 17 与 280 之间大幅漂移，别人在跑大作业时它就是重载机**；挑卡前同时看 `uptime`（load）、`npu-smi`（HBM）与 `who`（几个会话），→ 挑卡、限 `MAX_JOBS`、别杀别人的进程。起服务挑卡见 `ascend-vllm-serve`。
+- `.188` 是**多租户共用机**：`uptime` 与 `who` 现场取，**本文件不记 load 数字**。三条实测口径供参考（都只是快照）：2026-11-03 `load average: 470.83, 462.55, 457.56`、`who` = 14 个会话；2026-10-22 `281.25, 280.32, 278.82`、6 个会话；2026-09-23 是 `up 22 days, 11 users, load ~17–28`。⇒ **这台机器的 load 会在 17 与 470 之间大幅漂移，别人在跑大作业时它就是重载机**；挑卡前同时看 `uptime`（load）、`npu-smi`（HBM）与 `who`（几个会话），→ 挑卡、限 `MAX_JOBS`、别杀别人的进程。起服务挑卡见 `ascend-vllm-serve`。
 
 ### 步骤 5：下载权重（写成"能复制就对"的形式）
 ```bash
@@ -156,7 +156,7 @@ NAME=qwen3-32b
 | 4 | `grep -rln <pat> /mnt/share/x00886548/workspace` **120s 超时**（目录含 conda site-packages，数十万文件） | 加 `--include=*.sh --include=*.md` 限定；或改查 `/root/.bash_history`、`/mnt/share/x00886548/miniconda3/.condarc`。同理**别** `du -sh /`、别全盘 `grep -r` |
 | 5 | 模型是 git clone 的 LFS 指针（134B）时，起服务报 `parse_safetensors_file_metadata` **MemoryError**（头部长度字段按指针文本解析成天文数字） | 先判别：`ls -la *.safetensors` 看是否 GB 级 + `head -c 200 <file> \| grep -c git-lfs`（**0 才是真权重**，`.188` 实测 `/mnt/weight` 全部为 0 ✅）；运行时处理见 `ascend-vllm-serve` |
 | 6 | `ssh root@192.168.13.188` stderr 每次一行 `/root/.bashrc: line 36: /usr/local/Ascend/ascend-toolkit/set_env.sh: No such file or directory` | 真实断链：`/usr/local/Ascend/ascend-toolkit` 是**空目录**（2026-10-22 复核：无 `set_env.sh`、无 `latest` 软链）。**默认路径的噪声，忽略**；CANN 用 `/mnt/share/x00886548/cann/cann_9_1_0`，见 `ascend-cann-env` |
-| 7 | `ssh root@192.168.13.190` → `ssh_dispatch_run_fatal: Connection to 192.168.13.190 port 22: Connection timed out` | 2026-09-23 实测 9 次尝试全败；**2026-10-22 复核升级为「整机不可达」——`ping` 100% 丢包（本机与 `.188` 双向），不是"重试即可"的 sshd 假死**。排查顺序见 `ascend-env` §1；**`.190` 全部条目标「未复核」，不得编造**；降级用 `.188` |
+| 7 | `ssh root@192.168.13.190` → `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!` / `Host key verification failed.` | 2026-11-03 实测：`.190` 重装后 host key 换了，本机 `known_hosts` 还是旧机的。`ssh-keygen -R 192.168.13.190` 再连即可；这是本机记录过期，不是中间人。旧「整机不可达」（2026-10-22）记录已作废 |
 | 8 | `/home/vllm/weights` 归 root 但同盘混着他人目录（`skhalid` 699G / `w00893744` 331G / `fyf` 123G） | **写自己的东西前先确认命名空间**，一律用 `/home/vllm/x00886548/`，别覆盖同名他人目录 |
 | 9 | 照抄"上一轮哪几张 die 空闲"去挑卡 → 挑到别人刚占上的 die（`.188` 实测**两小时内空闲 die 面至少变三次**：`Phy 8~15` → 含 `0~3`（4 已被占 51652/65536）→ `0,1,2,3,8~15` 共 12 张） | **不记、也不信任何固定 die 号**：动手前现场 `npu-smi info`，只按 `HBM-Usage`（明显低于 65536）判空闲，并用 `Bus-Id` 对齐复核；写进派活指令前再取一次 |
 
@@ -167,7 +167,7 @@ NAME=qwen3-32b
 - 不要用 `/usr/local/bin/modelscope`（py3.7 语法错，见坑 2）。
 - 不要依赖 `/usr/local/Ascend/ascend-toolkit`（断链壳）。
 - 不要在 `.188` 上杀别人的进程 / 占别人正在用的卡 / 把 `MAX_JOBS` 打满（多租户共用，当前几个会话现场 `who | wc -l` 看：2026-10-22 是 6 个）。
-- 不要对 `.190`（2026-10-22 整机不可达）或 A5（`177.8.21.1`，需先连 A5 VPN）编造任何目录、磁盘、模型、NPU 事实。
+- 不要对 `.190` 或 A5 编造目录、磁盘、模型、NPU 事实：`.190` 只采到行首那几个挂载点（模型目录未盘点），A5 只采到 `/` 与 `/mnt/share`（且需先连 A5 VPN）。
 
 ## 验收标准
 
@@ -176,4 +176,4 @@ NAME=qwen3-32b
 3. 模型盘点命令返回 `/mnt/weight` 3 个 + `/home/vllm/weights` **12 个以上**目录（2026-10-22 实测 13 个），LFS 判别 `grep -c git-lfs` = 0。
 4. `npu-smi info` 能读出 16 个 `Ascend910`，并明确报出"哪几个 NPU 的 HBM ≈ 3000/65536 且 AICore 0"（= 空闲），**且把这些 die 号标注成"现场快照"**——交付物里不得出现"固定空闲 die 号"（见步骤 4 的 ★ 条）。
 5. `source .../batch_inv_qwen35/env_batch_inv.sh` 后 `python -c "import vllm, torch_npu"` 无报错。
-6. 交付中每条 `.190` 事实都带「未复核」，每条推断都带「未验证：」。
+6. 交付中每条 `.190` / A5 事实都带采集日期；没采过的（如 `.190` 的模型目录、A5 的磁盘明细）写「未采」，推断一律带「未验证：」。

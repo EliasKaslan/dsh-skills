@@ -1,6 +1,6 @@
 ---
 name: qq-mail-control
-description: QQ 邮箱接管（IMAP/SMTP，`mcp__qqmail__*`）——发 QQ 邮件、查收件箱、搜信、读信；含收件人别名：「黄区」= `xumingzhe4@huawei.com`、「我私人邮箱」= `3248569436@qq.com`。坑：文件夹名传中文原文（别传 UTF-7）、FETCH 只读铁律、中文搜索只覆盖本地窗口、发信必须带【AI 代发】前缀、发往黄区一律转发格式、凭据位置与 `--read-only` 静默陷阱。适用于"给黄区发邮件 / 发邮件给我私人邮箱 / 发一封 QQ 邮件 / 查一下 QQ 邮箱收件箱 / 搜一下 QQ 邮箱里的邮件 / 帮我读某封 QQ 邮件 / QQ 邮箱文件夹名乱码 / QQ 邮箱只能读不能发"。不适用：Outlook / MSA 邮箱 → 用 `outlook-mailbox-control`；改 patch 与 MCP 接入层生效时机 → 用 `dsh-agent-customization`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。
+description: QQ 邮箱接管（IMAP/SMTP，`mcp__qqmail__*`）——发 QQ 邮件、查收件箱、搜读信、建夹归档；含收件人别名：「黄区」= `xumingzhe4@huawei.com`、「我私人邮箱」= `3248569436@qq.com`。坑：文件夹名传中文原文（别传 UTF-7）、FETCH 只读铁律、中文搜索只覆盖本地窗口、发信必须带【AI 代发】前缀、发往黄区一律转发格式、MCP 无建夹工具、凭据与 `--read-only` 陷阱。适用于"给黄区发邮件 / 发邮件给我私人邮箱 / 发一封 QQ 邮件 / 查一下 QQ 邮箱收件箱 / 搜一下 QQ 邮箱里的邮件 / 帮我读某封 QQ 邮件 / 把一类邮件都归到一个文件夹 / QQ 邮箱只能读不能发"。不适用：Outlook / MSA 邮箱 → 用 `outlook-mailbox-control`；改 patch 与 MCP 接入层生效时机 → 用 `dsh-agent-customization`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。
 whenToUse: 用 DSH 的 `mcp__qqmail__*` 接管 QQ 邮箱（列/搜/读/附件/发/回复/标记/移动/删除），或按收件人别名（黄区→本人工作邮箱、私人邮箱→本人 QQ 邮箱）发信、排查授权码/只读开关/文件夹名编码时使用。模型看不到本节。
 ---
 
@@ -164,6 +164,9 @@ icacls "C:\Users\admin\.dsh\.secrets\qqmail\config.json" /grant:r ($env:USERNAME
 13. **必须枚举归档 / 其它文件夹，不能只看 INBOX**：实测 Steam 活动（客服案件、重置密码、新设备登录）落在「其他文件夹/<子文件夹名>」里而**不在 INBOX**；只看 INBOX 会漏判"无残留访问"。（配套事实见坑 2：子文件夹 uid 空间独立。）
 14. **时间对照：列表头时间是本地 UTC+8**（**已被证伪的旧断言，直接改正**：旧版说正文里的时间也是 UTC、只差 8 小时）——实测 **Steam 类收据正文里的时间是 Valve 太平洋时间 PDT(UTC-7)**，与列表头 UTC+8 **相差 15 小时**。证据：列表头 `2024-09-10 03:08` vs 正文 `Mon Sep 9 12:08` ⇒ 换算要按 **15 小时**，别按 8 小时。
 15. **"工具存在 ≠ 该用"**：即便 `readOnly=false`（写工具全在），也只调 `status` / `folders` / `list` / `read` / `search` 这**五个读工具**；`markSeen:false`（BODY.PEEK）生效可用「**读前后未读数不变**」自证（本例读前后均 **548 封 / 14 未读**）。
+16. **MCP 没有建文件夹工具**（12 个工具里没有 create / rename / delete folder）⇒ `qqmail_move` 的 `destination` 只能指向**已存在**的夹。新建只能走同账号 IMAP（`imapflow` 就在插件的 `node_modules` 里，读同一份配置）：`mailboxCreate('Agent')` 与 `mailboxCreate('其他文件夹/xxx')` 实测**都成功**（服务器 CAPS 实测含 `MOVE` / `CHILDREN` / `UIDPLUS`，分隔符 `/`）。建完用 `qqmail_folders` 复核回显。
+17. **批量 UID MOVE 之后 `EXISTS` 会滞后，别据此判丢信**：313 封移出后 `STATUS INBOX` 立刻报 **591**，真实是 **598**（差 7），重读即自愈。判据换成：目标夹封数 = 移入数、且在源夹按旧发件人搜不到。另：**新建夹的 uid 空间是全新的（从 1 开始）**，不能跨夹按 uid 比对，要用 **subject + date 集合**比对。
+18. **脚本里别调 `mailboxClose()`**：QQ 把 `CLOSE` 与"重新 SELECT 另一个夹"都当**隐式 EXPUNGE**——实测 scratch 夹里 1 封打了 `\Deleted` 的信，CLOSE 后直接变 0，**永久删除且不进「已删除」夹**。只读盘点用 `{readOnly:true}` + `logout()`；插件自身只 `logout()` 不 close，所以 `qqmail_move` 没有这个风险。
 
 ## 7. 不要做什么
 
@@ -174,7 +177,8 @@ icacls "C:\Users\admin\.dsh\.secrets\qqmail\config.json" /grant:r ($env:USERNAME
 - **不要**把 `qqmail_status` 的输出（含授权码前 4 位）原样转贴到公开位置。
 - **不要**把 `mode:"local"` 的搜索结果当全库结论（坑 5）。
 - **不要**放弃 `BODY.PEEK` 去"图省事"（坑 6）。
-- **不要**把关键词腿和 `before` 一起用（恒返 0 的静默假阴性，坑 9）；**不要**用 `from:"<邮件地址>"` 判发件人（只匹配显示名，坑 11）；**不要**在"匹配 ≠ 返回"时断言"全库没有"（坑 12）；**不要**只看 INBOX 就下"无残留访问"的结论（坑 13）。
+- **不要**把关键词腿和 `before` 一起用（恒返 0 的静默假阴性，坑 9）；**不要**用 `from:"<邮件地址>"` 判发件人（只匹配显示名，坑 11）；**不要**在"匹配 ≠ 返回"时断言"全库没有"（坑 12）；**不要**只看 INBOX 就下"无残留访问"的结论（坑 13）。**不要**在批量移动脚本里用 `mailboxClose()` 收尾（隐式 EXPUNGE，坑 18）；**不要**拿批量 MOVE 后的 `EXISTS` 判丢信（坑 17）。
+- **不要**承诺 MCP 能建文件夹——12 个工具没有 folder 管理（坑 16），要建就写 IMAP `mailboxCreate` 并回读复核。
 - **不要**发不带 【AI 代发】前缀的邮件（§4）。
 - **不要**把「黄区」「我私人邮箱」这类**代号**原样填进 `to`（§4.1）；表外代号不要猜地址。
 - **不要**用普通格式（正常主题 + 普通正文）发往 `xumingzhe4@huawei.com`（「黄区」）——**每一封**都必须是转发形态，带不带附件都一样，否则收件侧拦截（§4.2）；给黄区回信也**不要**用 `qqmail_reply`（它改不了主题）；**也不要**凭 `Sent Messages` 里有副本就断言对方收到了。

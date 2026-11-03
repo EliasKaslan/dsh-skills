@@ -12,7 +12,7 @@ whenToUse: 环境已装好、现在要真的跑模型时才用：起 OpenAI 兼�
 
 **加载本 skill 当：**
 
-- 在 `192.168.13.188`（文档里代称 `a3`，但 ssh 用 IP，见「前置检查」）上 `vllm serve` 或 `LLM()` 跑模型；`.190`（`a3b`，**2026-10-22 整机不可达**）与 A5 `177.8.21.1`（**需连 A5 VPN 后可达**，见 `univpn-vpn`）同理，接入状态见 `ascend-env` §1。
+- 在 `192.168.13.188`（文档里代称 `a3`，但 ssh 用 IP，见「前置检查」）上 `vllm serve` 或 `LLM()` 跑模型；`.190`（`a3b`，**2026-11-03 重装为 openEuler 22.03，起服务未实测**）与 A5 `177.8.21.1`（**需连 A5 VPN 后可达**，8×Ascend950DT，起服务未实测）同理；三台准入与凭据见 `ascend-server-access` §0。
 - 要 `sleep()` / `wake_up()` 释放显存，或要 `reload_weights` 热更新权重（见步骤 3.1）。
 - 报 `MemoryError`、`dtype or format of parameter`、`NnopbaseExecutorDoTiling`、`No module named 'triton.experimental'`、`Engine core initialization failed`、`AttributeError: module 'vllm.v1.engine.utils' has no attribute 'get_physical_gpu_ids_for_local_dp_rank'`。
 - **KDA / 线性注意力系模型（Kimi-K3、GLM5next）起不来**：报 `ModuleNotFoundError: No module named 'fla_npu'`、`Error in inspecting model architecture`、`Model architectures ['KimiK3ForConditionalGeneration'] failed to be inspected.` → 见下文「KDA 系模型（Kimi-K3 / GLM5next）的隐藏硬依赖 `fla_npu`」一节（含 glibc 闸门）。**注意：不是所有 GLM 5.x 都需要 `fla_npu`——先查 `config.json` 的 `model_type`，`glm_moe_dsa`（GLM-5.2）不需要**。
@@ -31,7 +31,14 @@ whenToUse: 环境已装好、现在要真的跑模型时才用：起 OpenAI 兼�
 
 ## 前置检查
 
-ssh 一律直连 **IP**：`ssh root@192.168.13.188`。**实测客户端 `~/.ssh/config` 里没有 `a3` / `a3b` / `a5` 别名**（它们只是文档里的代称；2026-10-22 复核仍只有 `.188` / `.190` 两段 Host），照抄别名写法会直接连不上。三台当前状态见 `ascend-env` §1：**`.188` 可达；`.190` 整机不可达（ping 100% 丢包）；A5 `177.8.21.1` 需先连 A5 VPN 才可达（见 `univpn-vpn`）**——"连不上"先判是哪一种，别一律当环境坏。
+ssh 一律直连 **IP**：`ssh root@192.168.13.188`。**实测客户端 `~/.ssh/config` 里没有 `a3` / `a3b` / `a5` 别名**（它们只是文档里的代称；2026-11-03 复核仍只有 `.188` / `.190` 两段 Host），照抄别名写法会直接连不上。三台当前状态见 `ascend-server-access` §0：**`.188` / `.190` 连蓝区网关即达（`.190` 2026-11-03 刚重装），A5 `177.8.21.1` 需先连 A5 VPN**——「连不上」先判是 VPN / 路由 / 认证哪一层，别一律当环境坏。
+
+**A5（`177.8.21.1`）是例外：宿主机没有可用的 vllm/torch_npu，必须在容器里跑**（2026-11-03 实测）：
+
+- 镜像 `quay.nju.edu.cn/ascend/vllm-ascend:v0.30.0-a5-openeuler`：CANN 9.2.1（`/usr/local/Ascend/cann-9.2.1`）、py3.12.16、`torch 2.10.0+cpu`、`torch_npu 2.10.0.post7`、`vllm 0.30.0 ced6857`、`vllm-ascend v0.30.0 c09d3e20b`（editable 在 `/vllm-workspace/vllm-ascend`）。
+- **容器必须 `--privileged`**。不 privileged 时，即使把 `/dev/davinci0..7` + `/dev/davinci_manager` + `/dev/hisi_hdc` 全映射进去，容器内仍 `torch_npu.npu.device_count()==0`、`acl` 拿不到设备，`npu-smi` 报 `dcmi model initialized failed, because the device is used. ret is -8020`（伴生 `Failed to obtain the console log level`）。加 `--privileged` 后 `acl.rt.get_device_count()==8`、`npu-smi info` 正常——本机其它用户的容器也都是这个路子。
+- 挂载与参数（可照抄）：`--net=host --shm-size=16g`，`-v /usr/local/Ascend/driver`、`/etc/ascend_install.info`、`/etc/hccl_rootinfo.json`、`/usr/local/dcmi`、`/usr/local/bin/npu-smi`，`-v /mnt/share`、`/mnt/weight`、`/home`。
+- 实测可用组合（单进程夹具）：`ASCEND_RT_VISIBLE_DEVICES=<die>`、`VLLM_ENABLE_V1_MULTIPROCESSING=0` + `distributed_executor_backend="uni"`，`Qwen3-30B-A3B` 单 die（96 GB，KV 缓存 20.29 GiB / 221,568 token）与 TP=2（die 1,2）都能起；`enforce_eager` 真/假都验过（图模式细节见 `batch-invariance-acceptance` §五之二）。**不要**设 `VLLM_TARGET_DEVICE`。
 
 环境激活（`.188` 唯一推荐入口，2026-09-23 实测可用，别重建）：
 
@@ -254,6 +261,56 @@ ss -ltnp | grep :18000 || echo "PORT RELEASED"
   ```
   空闲基线本机约 **2.8–3.2 GB/die**（别按 0 判，也别拿 `No running processes` 当已释放——HBM 回收会滞后几秒）。
 
+### 6 服务起来后：查每卡显存占用与分布（2026-11-03 在 `.188` 实测）
+
+**先记住形态：vLLM 的显存是"台阶"不是"斜坡"**——KV 池启动时一次性预分配，跑负载基本不涨（实测同一 die 请求前后只从 `29017` → `29041 MB`，+24MB）。所以查到的是**分配账**，别拿"显存没涨"当"请求没生效"。
+
+四层，从粗到细：
+
+| 层 | 命令 | 给什么 |
+|---|---|---|
+| L1 全卡 | `npu-smi info` | 16 个 die 的 `used / 65536`（**含驱动基线**） |
+| L2 进程 | `npu-smi info -t proc-mem -i <npu>` | 每进程 MB 归因（唯一能给到进程级的命令） |
+| L3 vLLM 账本 | `grep 'Free memory on device' <serve.log>` | 权重/激活/非 torch/图/KV 的精确拆解 |
+| L4 长期监控 | `curl localhost:9200/metrics`（npu_exporter） | `npu_chip_info_hbm_used_memory` 绝对值，可 PromQL |
+
+**L1 读数（最容易读反的一处）**：数据行**第一列是 Chip 序号（NPU 内 0/1），第二列才是 `Phy-ID` = 全局 die 号**。按 `NPU×2+Chip` 去反推会把 die 15 算成 17。
+
+```
+| 1     1                   | 0000:E5:00.0  | 0   0 / 0   29017/ 65536 |
+   ↑     ↑                                      ↑
+  Chip  Phy-ID = die 号                    HBM-Usage（含基线）
+```
+
+- `Memory-Usage(MB)` 那列恒 `0 / 0` 是 **DDR 不是 HBM**，别拿它判显存。
+- `npu-smi info -t memory` 只给容量/频率/温度、**不给已用量**；`-t usages` 只给 `HBM Usage Rate(%)` 百分比。要 MB 就用主表或 `proc-mem`。
+
+**L2 的 `Chip ID` 是段尾标记**（进程列表在前、`Chip ID` 在后），当标题读会把归属整段搞反；换算是 `die = NPU×2 + Chip`，更稳的是拿 **Bus-Id** 在主表/HBM/进程三段对齐。
+
+**L3 信息量最大**，vLLM 启动就打完整拆解（实测原文，为便于阅读已折行）：
+
+```
+Free memory on device (61.14/61.28 GiB) on startup. Desired GPU memory utilization is (0.4, 24.51 GiB).
+Actual usage: 0.93 GiB for weights, 0.09 GiB for peak activation,
+              0.03 GiB for non-torch memory, 0.0 GiB for NPU graph memory.
+Current KV cache memory: 23.46 GiB.
+After warmup: torch reserved memory 25.36 GiB, torch allocated memory 24.55 GiB.
+```
+
+闭合校验：`0.93 + 0.09 + 0.03 + 0 + 23.46 = 24.51 GiB = 0.4 × 61.28` ✓。多卡时**每卡 used 应基本相等**（权重与 KV 按 TP 均分）：某卡偏高 = 混进了别人的进程（回 L2 归因）；偏低 = 该 rank 没起来或权重没加载完。
+
+**四种口径不许混用**（实测同一时刻同一 die）：`npu-smi` `29041 MB`（含基线）／`proc-mem` `26229 MB`（进程实占）／`torch.npu.mem_get_info` `26310 MB`（不含基线）／硬件 `65536 MB`。`npu-smi − proc-mem ≈ 2812 MB` 恒为驱动基线——**拿含基线的数去比 torch，会凭空多出 2.7GB "泄漏"**。
+
+**运行期 `vllm:kv_cache_usage_perc` 在小模型上恒 `0.0`**（128 token 对 205 万 token 池 = 0.006%，四舍五入即 0），别据此判"KV 没生效"。
+
+**手动速查（不想跑脚本时）**：`npu-smi info` 看全表 / `watch -n 1 npu-smi info` 实时盯（`q` 退出，`watch` 已在 `/usr/bin/watch`）/ `npu-smi info -t proc-mem -i <npu>` 看进程。⚠️ **`npu-smi info -i 0 -c 1` 是非法写法**——实测只回 `Must input parameter of type.` + Usage 帮助；单卡查询必须带 `-t`（`-t usages -i 0 -c 1` 只给百分比、`-t proc-mem -i 0 -c 1` 给进程 MB），**要看 MB 只能读全表主表或 `watch`**。
+
+**图模式 vs eager 的账目差（2026-11-03 同模型 / 同 die / 同配额 0.4 对比实测）**：去掉 `--enforce-eager` 会多出 **`0.4 GiB` 的 NPU graph memory**（日志 `Graph capturing finished in 42 secs, took 0.40 GiB`，捕获 35 PIECEWISE + 35 FULL 共 70 张），启动从 **96s 拉到 166s**；且此时 `0.93 + 0.09 + 0.03 + 0.4 + 23.46 = 24.91` **超过配额 24.51 约 0.4 GiB**（`Current KV cache memory` 不会自动回退，vLLM 轻微超配）⇒ **共享机显存紧时加 `--enforce-eager` 更省也更稳**。图捕获慢的直接原因见日志警告：`NPU Triton causal_conv1d_update is unavailable ... falling back to the PyTorch implementation, which syncs per request and therefore stalls ACL graph capture at decode-FULL.`（**不是错误，是回落**）。
+
+核账时踩到的坑：设了 `ASCEND_RT_VISIBLE_DEVICES=1` 之后**逻辑 id 从 0 开始**，再 `torch.npu.mem_get_info(1)` 会报 `AssertionError: Invalid device id` + `PTA ERR00003`——核账时那个进程里要读 `device 0`，不是物理 die 号。
+
+四层一次跑完的脚本在本 skill 的 `assets/npu_mem_report.sh`（已在 `.188` 实测通过；`bash assets/npu_mem_report.sh <serve.log>`）。
+
 ## KDA 系模型（Kimi-K3 / GLM5next）的隐藏硬依赖 `fla_npu` → `references/kda-fla-npu.md`
 
 **只有模型确实会走进 KDA / GDN 导入链时才需要读。** 该文件（原正文 209 行，逐字保留）依次解答：会不会真走进 KDA 链 → 症状与报错锚点（**炸在"检视模型架构"阶段，不是运行时**）→ 谁引入的（`12e7e1cb` 实测行号，全是**模块级** import）→ 官方 CI 逐字来源 → 档位→SOC 映射与定档方法 → **先量 glibc 再决定下不下这个 wheel** → glibc < 2.32 的三条出路（出路 ③ 已端到端验证）→ K3 在 A3 上的版本配对。
@@ -334,4 +391,4 @@ ss -ltnp | grep :18000 || echo "PORT RELEASED"
 
 5. sleep / 权重热更新（步骤 3.1）：`sleep(level=1|2)` 后该 die 的 used HBM 应降到 ~1GiB 量级（权重确实被释放的证据），`wake_up()` 后回到与 sleep 前同量级；A→B→C 打印 `VERDICT WEIGHT_UPDATE_PROVEN`（`B != A` **且** `C == A`），只看到 C 有文本不算过。
 
-**未验证**：`.190`（`a3b`）上的起服务、冒烟与多卡始终没跑成——2026-09-23 是 ssh 全程不通，**2026-10-22 复核直接整机不可达（ping 100% 丢包）**；A5（`177.8.21.1`）**需先连 A5 VPN 才可达**，起服务相关全部 `未采`。⇒ 这两台的任何"跑起来了"都不要写。`.188` 上 `--tensor-parallel-size 2` **已实测通过**（TP=2 起服务 + 真推理成功，见步骤 4.1）。
+**未验证**：`.190`（`a3b`）与 A5（`177.8.21.1`）上的起服务、冒烟与多卡都没跑过——`.190` 2026-11-03 才重装回来（openEuler 22.03 / CANN 9.2.1），A5 需先连 A5 VPN，且只有 8×Ascend950DT（96 GB/卡）的规格，起服务相关全部 `未采`。⇒ 这两台的任何「跑起来了」都不要写。`.188` 上 `--tensor-parallel-size 2` **已实测通过**（TP=2 起服务 + 真推理成功，见步骤 4.1）。

@@ -6,7 +6,7 @@ whenToUse: 要在昇腾机器上装 / 查 / 换 torch 与 torch_npu，判断该�
 
 # 昇腾 torch + torch_npu 检测 / 安装 / 验证 / 排障
 
-**机器（写死）**：默认 `a3` = `root@192.168.13.188`（Debian 10 / 只有 gcc 8.3.0 / 256 核 / 1448 GiB）；备用 `a3b` = `root@192.168.13.190`（**2026-10-22 整机不可达**）；A5 `root@177.8.21.1`（**需连 A5 VPN 后可达**，见 `univpn-vpn`）。三台准入状态见 `ascend-env` §1。
+**机器（写死）**：默认 `a3` = `root@192.168.13.188`（Debian 10 / 只有 gcc 8.3.0 / 256 核 / 1448 GiB / 16 die）；备用 `a3b` = `root@192.168.13.190`（**2026-11-03 重装为 openEuler 22.03 / gcc 10.3.1 / py3.9.9 / 16 die**）；A5 `root@177.8.21.1`（**需连 A5 VPN 后可达**，openEuler 24.03 aarch64 / gcc 12.3.1 / py3.12.14 / 8×Ascend950DT）。三台准入与凭据见 `ascend-server-access` §0。**`.190` 与 A5 上的 torch/torch_npu 均未实测**，别套 `.188` 的 `True 16 253`。
 **CANN（写死）**：9.1.0 = `/mnt/share/x00886548/cann/cann_9_1_0`；芯片 `Ascend910_9382`；验收期望逐字 **`True 16 253`**（16 die / soc 253 = A3）。**现成 py3.12 环境（2026-10-22 复核）**：`/home/vllm/x00886548/zero_v0230/envs/vllm312`（3.12.15）等 6 个 + `/mnt/share/vllm/conda_envs/xmz_0921`（3.12.14）——**旧文引用的 `/home/vllm/x00886548/torch_test/envs/torch_latest` 已被删掉，别再用**（完整清单见 `ascend-conda-env`）。
 **边界**：只碰 torch 栈。CANN → `ascend-cann-env`；conda → `ascend-conda-env`；triton-ascend → `ascend-triton-ascend`；vllm 安装 → `vllm-ascend-source-install`；起服务/运行时 → `ascend-vllm-serve`；磁盘选址 → `ascend-server-layout`；从 Windows 驱动远端 → `ascend-env` §5。
 

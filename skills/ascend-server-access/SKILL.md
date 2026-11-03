@@ -1,19 +1,19 @@
 ---
-name: univpn-vpn
-description: UniVPN（联软 Leagsoft，C:\Program Files (x86)\UniVPN）——188 连不上、177.8.21.1 怎么连就看这条：蓝区网关(x00886548)推 192.168.0.0/16 → a3=192.168.13.188；A5(vpn_xmz)推 177.0.0.0/8 → a5=177.8.21.1（Ascend950DT）；单客户端两者互斥，多实例补丁可双开同时在线：切配置要真实鼠标点条目（UIA Select 无效）、托盘态还原、APIPA 假连、路由晚于虚拟 IP。适用于"188 连不上 / 177.8.21.1 怎么连 / 切到 A5 / 同时连 A3 和 A5 / 两个 VPN 一起连 / 多开 UniVPN / 现在连的是哪个 VPN / VPN 连上了但 ping 不通 / UniVPN 状态怎么看 / 该连蓝区还是 A5"。不适用：连上后装 CANN/conda/torch → 用 `ascend-env`；本机 pwsh 编码与执行策略坑 → 用 `pwsh-on-windows`。
-whenToUse: UniVPN 连接/切换/排障与两台昇腾机(a3=.188 / a5=177.8.21.1)的准入路径。模型看不到本节。
+name: ascend-server-access
+description: 三台昇腾服务器与 UniVPN 准入的唯一清单——a3=192.168.13.188 / a3b=.190 走蓝区网关，a5=177.8.21.1 走 A5 配置（root 密码只登记在凭据文件），当前只有这三台可用；两个 UniVPN 实例可同时在线，含 .190 重装后的 openEuler 22.03 新规格、A5 8×Ascend950DT、ping/TCP/ssh 三测、切配置须真实鼠标点、APIPA 假连。适用于"188 连不上 / 190 连不上 / 177.8.21.1 怎么连 / 现在有哪些服务器可用 / 该连哪个 VPN / 同时连 A3 和 A5 / 多开 UniVPN / VPN 连上了但 ping 不通 / 188 和 190 之间通不通 / 两台机器能不能互相通信 / 节点间带宽和 MTU 多少 / 服务器凭据在哪 / 新服务器登录后怎么配免密"。不适用：连上后装 CANN/conda/torch → 用 `ascend-env`；本机 pwsh 编码与执行策略坑 → 用 `pwsh-on-windows`。
+whenToUse: 三台昇腾服务器（188/190/177.8.21.1）的清单、凭据、可达性判据与 UniVPN 准入/双开；模型看不到本节。
 ---
 
-# UniVPN（联软 SSL VPN）机制与自动化
+# 昇腾服务器清单与 UniVPN 准入
 
-**一句话**：`192.168.13.188` 只能走 **蓝区网关**，`177.8.21.1` 只能走 **A5**。原生客户端单隧道、单 TAP，两配置互斥，切换必然导致另一边断掉；**要两边同时在线走 §7 的多实例补丁**（2026-10-26 已实测：a3、a5 同时 `ping` 通且 `tcp 22` 通）。
+**一句话**：现在只有三台可用的昇腾机——`a3`=`192.168.13.188`、`a3b`=`192.168.13.190` 走 **蓝区网关**，`a5`=`177.8.21.1` 走 **A5**。原生客户端单隧道、单 TAP，两配置互斥；**两个客户端（原件 + `UVP002` 实例）可同时在线**，2026-11-03 实测三台同时 `ping` + `tcp 22` 全通。
 
 ## 何时调用
 
 **加载本 skill 当：**
-- 要连 / 断开 / 切换 VPN，或要先确认「现在连的是哪个、能不能到目标机」。
-- 目标机 `192.168.13.188`（a3）或 `177.8.21.1`（a5）连不上，怀疑是 VPN 没连对。
-- 要自动化驱动 UniVPN 界面（读状态、点连接、切配置）时踩到「控件读不到 / 点了没反应 / 中文配置名乱码」。
+- 要确认「现在有哪些服务器可用 / 各走哪个 VPN / 凭据在哪」，或要连 / 断开 / 切换 VPN。
+- 目标机 `192.168.13.188`（a3）、`192.168.13.190`（a3b）或 `177.8.21.1`（a5）连不上，怀疑 VPN 没连对 / 路由没下发 / 主机刚重装。
+- 要同时访问 A3 与 A5（双实例），或要自动化驱动 UniVPN 界面（读状态、点连接、切配置）。
 - VPN 卡在一直连不上、报认证失败、或界面「点什么都没反应」需要救回来。
 
 **不要用本 skill（转交）：**
@@ -21,9 +21,58 @@ whenToUse: UniVPN 连接/切换/排障与两台昇腾机(a3=.188 / a5=177.8.21.1
 - 本机 Windows PowerShell 5.1 的编码、BOM、执行策略、`-File` 传参等坑 → 用 `pwsh-on-windows`。
 - 远端 Linux 上的目录与磁盘红线 → 用 `ascend-server-layout`。
 
-**前置**：凭据在 `credentials.txt`（本 skill 目录内）。**后继**：连上后按 §2 做一次可达性确认，再去目标机干活。
+**前置**：服务器 root 密码与 VPN 账号都在 `credentials.txt`（本 skill 目录内）。**后继**：连上后按 §0 的连通性三测确认，再去目标机干活。
 
-## 1. 机制（2026-10-22 实测）
+## 0. 服务器清单与准入（唯一出处，2026-11-03 实测）
+
+> 用户口径（2026-11-03）：**当前只有这三台可用**。正文或记忆里若还有别的机器，一律按不可用处理，别去试。
+
+| 代称 | 地址 / 账号 | 角色 | 系统与规格（现场实采） | 准入 |
+|---|---|---|---|---|
+| **a3** | `192.168.13.188` / root | A3 默认 | Debian 10，256 核 / 1448 GiB；8 NPU × 2 die = 16 个 `Ascend910`（65536 MB/die）；`/` 2.9T 已用 94%、`/home/vllm` 6.9T 余 1.9T；CANN 9.1.0 在 `/mnt/share/x00886548/cann/cann_9_1_0` | **蓝区网关**；免密 + 密码都通；**本机直连 OpenSSH 会卡 KEX，因隧道 MTU≈1420 吞大包 → 用 `.190` 跳板，见 §5 ⑨**；多租户重载机（2026-11-03 load≈800） |
+| **a3b** | `192.168.13.190` / root | A3 备用 | **2026-11-03 重装**：openEuler 22.03 LTS-SP4，64 核 / 1384 GiB；16 个 `Ascend910` die（65536 MB/die，driver 26.0.rc1）；`/` 69G（8%）、`/home` 6.9T、`/mnt/share` NFS 287T；CANN 9.2.1 在 `/home/cann/921`；gcc 10.3.1 / python 3.9.9 | **蓝区网关**；**免密 + 密码都通**（2026-11-03 配的 key）；主机名 `localhost.localdomain` |
+| **a5** | `177.8.21.1` / root | A5 | openEuler 24.03 LTS-SP3 aarch64，192 核 / 2261 GiB；8 × `Ascend950DT`（98304 MB/卡，npu-smi 25.1.rc3）；`/` 3.5T 已用 87%、`/mnt/share` NFS 350T；CANN 9.2.0 在 `/home/cann/920_b111`；gcc 12.3.1 / python 3.12.14 | **A5 配置**；**免密 + 密码都通**（2026-11-03 配的 key，原有 73 条其它 key 全部保留）；登录横幅 `Authorized users only. All activities may be monitored and reported.` |
+
+> 表里的核数 / 内存 / NPU / CANN 路径可以长期参考；**磁盘占用、load、会话数只是 2026-11-03 快照**，动手前现场 `df -h` / `uptime` / `npu-smi` 取，别照抄数字。
+
+**VPN ↔ 目标机映射（只此一份）**
+
+| 目标 | 必连配置 | 网关推的路由 | 备注 |
+|---|---|---|---|
+| `.188`、`.190` | **蓝区网关**（账号 `x00886548`） | `192.168.0.0/16`、`114.114.114.114/32` | 两台 A3 同一张 TAP；连上后 `192.168.13.0/24` 全域可达 |
+| `177.8.21.1` | **A5**（账号 `vpn_xmz`） | `177.0.0.0/8`、`170.70.0.0/16`、`197.0.0.0/8`、`1.2.16.0/21` | 蓝区网关**到不了** A5，反过来也一样 |
+| 三台同时 | 原件连蓝区 + `UVP002` 实例连 A5 | 两套路由不重叠 | 2026-11-03 实测三台同时 `ping` / `tcp 22` 全通；做法见 §7 |
+
+**凭据**：服务器 root 密码、VPN 账号/密码都在本目录 `credentials.txt`；**正文不写密码**。三台都已有免密公钥（2026-11-03）；密码只作 fallback，用 `paramiko`（本机已装 5.0.0）非交互登录最稳（见 `ascend-env` §5）。**新机器登录成功后先配免密，见 §0.1。**
+
+**连通性三测（缺一不可，别把「连不上」混成一句）**
+
+```powershell
+Test-Connection -ComputerName 192.168.13.190 -Count 2 -Quiet       # ① ICMP
+$c=New-Object Net.Sockets.TcpClient; $t=$c.BeginConnect('192.168.13.190',22,$null,$null)
+$t.AsyncWaitHandle.WaitOne(4000,$false)                            # ② TCP 22（别用 Test-NetConnection）
+ssh -n -o BatchMode=yes root@192.168.13.190 "hostname"             # ③ 认证（新机器没配 key 时会失败，属正常）
+```
+
+判读：①/② 不通 → 先查 VPN 与路由（§3 三条判据）；② 通但 ③ 超时 → 多半是 sshd 被高负载饿死（`.188` 常见）；③ 报 `Permission denied (publickey,password)` → 机器通、公钥没配，直接用密码。
+
+**`.190` 重装后的已知变化（2026-11-03）**：主机名从 `zj-131` 变成 `localhost.localdomain`，系统从 Debian 11 换成 openEuler 22.03，SSH host key 也换了 ⇒ 旧 `known_hosts` 会报 `REMOTE HOST IDENTIFICATION HAS CHANGED!` / `Host key verification failed.`；修法 `ssh-keygen -R 192.168.13.190` 再连。旧的 Debian 11 / 64 核 / gcc 10.2 记录一律作废，按上表新规格。
+
+### 0.1 新服务器接入的固定收尾：顺手配免密（用户 2026-11-03 要求）
+
+每成功登录一台新机器（不管这次用的是密码还是已有 key），**先配免密再干别的**：
+
+```powershell
+# 相对本 skill 目录；密码从 credentials.txt 的 "<host> <user> <pwd>" 行取
+python scripts\install-pubkey.py 192.168.13.190 177.8.21.1
+ssh -n -o BatchMode=yes root@192.168.13.190 "hostname; whoami"   # 必须看到主机名才算成
+```
+
+`install-pubkey.py` 的行为：登录 → `mkdir -p ~/.ssh` → **读原 `authorized_keys`** → 只在缺本机 `id_ed25519.pub` 时追加 → `chmod 700/600` + `chown` → 断开，再用 **key-only** 重连复核。没有 `--password` 时读 `credentials.txt`，读不到才用 `$env:SSH_PASSWORD`。
+
+**红线：只追加，绝不覆盖。** 共享机的 `authorized_keys` 不是我们一个人的——2026-11-03 A5 原有 **73 条**其它 key，`cat >` / `>` 会把别人全部锁在门外。配完必须复核（`.190` / A5 用 `ssh -o BatchMode=yes`；`.188` 用 paramiko key，OpenSSH 可能卡 KEX），**不要只看文件里有那行**。
+
+## 1. 机制（2026-10-22 实测，2026-11-03 复核）
 
 ### 1.1 进程与数据面
 
@@ -58,24 +107,24 @@ whenToUse: UniVPN 连接/切换/排障与两台昇腾机(a3=.188 / a5=177.8.21.1
 | | **蓝区网关** | **A5** |
 |---|---|---|
 | 账号 | `x00886548`（`RemPwd=1`、`AutoLogin=1`，密码已存客户端） | `vpn_xmz`（`RemPwd=1`、`AutoLogin=1`，密码存在 `ProfileInfo` blob 里；本文早期误记为 `RemPwd=0`）。**新建实例不继承这份凭据**，首次登录勾上「记住密码 + 自动登录」后才会自己存（§4） |
-| 虚拟 IP 池 | `192.168.200.0/21` | `1.2.16.0/21`（实测拿到 `1.2.23.23`） |
+| 虚拟 IP 池 | `192.168.200.0/21` | `1.2.16.0/21`（2026-11-03 实测 `1.2.16.162`） |
 | 网关推的路由 | `192.168.0.0/16`、`114.114.114.114/32` | `177.0.0.0/8`、`170.70.0.0/16`、`197.0.0.0/8`、`1.2.16.0/21` |
-| 能到 | **`192.168.13.188`（a3）✅** | **`177.8.21.1`（a5）✅** |
-| 到另一边 | `177.8.21.1` ❌ | `192.168.13.188` ❌ |
+| 能到 | **`.188`（a3）+ `.190`（a3b）✅** | **`177.8.21.1`（a5）✅** |
+| 到另一边 | `177.8.21.1` ❌ | `192.168.13.188` / `.190` ❌ |
 
 两点必须记住：
 
-1. **都不是全隧道**。即使 A5 的 `DefaultGateway=-1`，`0.0.0.0/0` 仍然走物理网卡（`192.168.30.1` / WLAN），**推什么路由完全是网关侧按账号授权的**——客户端那个勾选框只是“请求”。所以“连上 A5 就能到 177.8.21.1”能不能成立，取决于**用哪个账号**（见 §8 那次误判）。
+1. **都不是全隧道**。即使 A5 的 `DefaultGateway=-1`，`0.0.0.0/0` 仍然走物理网卡（`192.168.30.1` / WLAN），**推什么路由完全是网关侧按账号授权的**——客户端那个勾选框只是“请求”。所以“连上 A5 就能到 177.8.21.1”能不能成立，取决于**用哪个账号**（2026-10-22 那次误判见 `references/maintenance-log.md`）。
 2. **虚拟 IP 每次都变**，永远不要写死；判“连上没连上”看 §3 的三条判据，不要看 IP 具体值。
 
-`a5` = `177.8.21.1` 实测规格（`root`）：hostname `ip-177-8-21-1.rev.wkve.net.br`，`aarch64`，**384 核**，内存 **2262 GiB**，`/` 3.5 T 用了 88%，NPU `Ascend950DT`，`npu-smi 26.2.0.b020`，**没有 nvidia-smi**。`a3` = `.188` 见 `ascend-env`。
+三台规格、凭据与准入全部收进 §0（唯一出处），本节不再重复。**2026-11-03 复核**：两个 TAP 同时 Up 时，`.188` / `.190` / `177.8.21.1` 的 `ping` 与 `tcp 22` 全部通——旧文「A3 与 A5 只能二选一」只在**原生单客户端**成立。
 
 ## 3. 用脚本操作
 
 脚本：`scripts\vpnctl.ps1`（UTF-8 带 BOM；本机只有 Windows PowerShell 5.1，必须显式 Bypass）：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File vpnctl.ps1 -Action State -TestHosts 177.8.21.1,192.168.13.188
+powershell -NoProfile -ExecutionPolicy Bypass -File vpnctl.ps1 -Action State -TestHosts 177.8.21.1,192.168.13.188,192.168.13.190
 powershell -NoProfile -ExecutionPolicy Bypass -File vpnctl.ps1 -Action Connect -Profile 蓝区网关
 powershell -NoProfile -ExecutionPolicy Bypass -File vpnctl.ps1 -Action Disconnect
 powershell -NoProfile -ExecutionPolicy Bypass -File vpnctl.ps1 -Action Switch -Profile A5 -Username vpn_xmz -Password ***
@@ -90,6 +139,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File vpnctl.ps1 -Action ResetUi -
 powershell -NoProfile -ExecutionPolicy Bypass -File univpn-instance.ps1 -Action State      -Instance 2
 powershell -NoProfile -ExecutionPolicy Bypass -File univpn-instance.ps1 -Action Connect    -Instance 2 -Profile A5 -Username vpn_xmz -Password ***
 powershell -NoProfile -ExecutionPolicy Bypass -File univpn-instance.ps1 -Action Disconnect -Instance 2
+```
+
+**服务器免密脚本**：`scripts\install-pubkey.py`（Python 3.12 + paramiko 5.0.0；幂等追加、保留原 `authorized_keys`、配完自动 key-only 复核；密码从 `credentials.txt` 取）：
+
+```powershell
+python scripts\install-pubkey.py 192.168.13.190 177.8.21.1
 ```
 
 **`State` 输出的含义**：`Connected` / `Ready` / `Profile` / `VirtualIP` / `AuthStatus` / `TapRoutes` / `WindowLive`。`WindowLive=False` 表示界面在托盘里——正常现象，此时 `User`/`AuthStatus` 读不到（Qt 不可见时不建辅助功能子树），`Profile` 改由**路由指纹**判定（见下）。
@@ -147,6 +202,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File univpn-instance.ps1 -Action 
 
 **⑦ 认证失败会真的失败。** 日志 `AUTH_MSGCODE_LOGIN_FAIL` 出现就停下问人，别重试——企业账号会锁。本轮就因为拿蓝区的账号去登 A5 连失败两次（日志里 `qstr_usernameUTF8` 还不是完整用户名），直到换成 A5 的 `vpn_xmz` 才成功。
 
+**⑧ 机器重装后 host key 变了，ssh 直接拒连。** 2026-11-03 `.190` 重装后实测：`ssh root@192.168.13.190` 报 `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!` + `Host key verification failed.`（`Offending ECDSA key in C:\Users\admin/.ssh/known_hosts:9`）。这不是中间人，是本机 `known_hosts` 还记着旧机的 key。修法：`ssh-keygen -R 192.168.13.190`，再连；paramiko 用 `AutoAddPolicy` 不受影响。
+
+**⑨ `.188` 连不上是「路径 MTU 黑洞」，不是 sshd 被饿死（2026-11-03 二次实测改判本条的旧结论）。**
+现象照旧：`ping` 与 `tcp 22` 都通，OpenSSH 报 `ssh_dispatch_run_fatal: Connection to 192.168.13.188 port 22: Connection timed out`，`ssh -vv` 卡在 `expecting SSH2_MSG_KEX_ECDH_REPLY`（握手大包发不出去）。
+**新证据（同日晚复测，旧结论被证伪）**：
+- `ping -f -l 1472 192.168.13.188` **100% 丢**、`-f -l 1416` 通 ⇒ 本机→VPN→`.188` 这段路径 MTU ≈1420（不是 1500），超长包被黑洞且不返回 ICMP Frag Needed ⇒ PMTUD 失效 ⇒ SSH 的 KEX 包正好落在这条死路上。`.190` 目标同样验收（1416 通 / 1424 丢），说明瓶颈在本机侧隧道而非某台服务器。
+- **跳板在 load≈800 时仍 100% 成功**（当日 10+ 次全通）：`ssh -o IPQoS=none -o ProxyJump=root@192.168.13.190 root@192.168.13.188` —— `.190→.188` 走内网 MTU 1500，完全绕开隧道。若真如旧条所写是"sshd 被负载饿死"，`KEX` 仍在 `.188` 上算，跳板不可能好用。
+- `-o IPQoS=none` 单独用**只是偶发有效**（时通时不通），不要当解决方案。
+- 改本机 MTU 走 `netsh interface ipv4 set subinterface` **需要管理员**；本机实测 `IsInRole(Administrator)=False`，改不了 ⇒ 别无脑推这条。
+⇒ **判据顺序**：① 先 `ping -f -l 1472` / `-l 1416` 二分定位 MTU，丢 1472 通 1416 就直接判 MTU，**别去查 sshd、负载、VPN 认证**；② 首选跳板（见上）；③ paramiko 能用是因为它协商出的包更小，但别再把它当唯一出路。旧结论「sshd 被高负载饿死」作废。
+
+**⑩ 免密公钥与「登录成功就先配」（2026-11-03 三台已全部配好）。** `.190` / A5 的 `ssh -o BatchMode=yes` 直接通；`.188` 的 key 用 paramiko 稳定，OpenSSH 会踩 ⑨ 的 MTU 黑洞（**不是 load**）。**新机器登录成功后仍要按 §0.1 先配**。坑在覆盖：A5 原有 **73 条**其它 key、`.190` 原有 1 条，直接 `cat >` / `>` 会把别人锁在外面——只能读出来、追加、写回。配完必须用 key-only 复核，别只看文件里有那行。密码 fallback 仍在 `credentials.txt`（paramiko 5.0.0；PowerShell 双引号里别拼 `!` / `$`）。
+
 ### 关键 AutomationId
 
 `MainUI.frame.w_left.pushButton_connect` / `...pushButton_disconnect`（**只有连上时才存在**）/ `label_netName` / `lb_username` / `lb_ipAddress` / `lb_certifyStatus` / `MainUI.frame.le_select`（搜索框）/ `MainUI.frame.listWidget`；登录页：`MainUI.basewidget.frame.stackedWidget.stackedWidgetPage1.le_username` / `le_password` / `cb_savePass`（记住密码）/ `cb_autoLogin`（自动登录）/ `MainUI.basewidget.frame.pb_login_SSL`（“登录”）；新建连接对话框：`MainUI.basewidget.frame.stackedWidget.page_ssl.scrollArea_ssl.qt_scrollarea_viewport.scrollAreaWidgetContents_ssl.le_connectNameSSL` / `le_gatewayAddress` / `le_port` / `cb_routecover`，按钮 `MainUI.basewidget.frame.w_bottom.pb_ok`。
@@ -155,11 +223,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File univpn-instance.ps1 -Action 
 
 - **`Switch` 与「自动填登录表单 + 点 `pb_login_SSL`」都已验证**（2026-10-26：填入 `vpn_xmz` 后登录成功，隧道 8 秒内起来；此后勾了记住密码，连登录页都不再出现）。**唯一仍要注意**：自动填表必须走「点进输入框 + `SendKeys`」，`ValuePattern.SetValue` 写不进去（读回是空串）。
 - **A5 是否也能到 `192.168.x`**：实测不能（路由里没有 `192.168.0.0/16`），未尝试手工 `New-NetRoute` 强加路由——2026-10-22 那次会话**非提权**（`BUILTIN\Administrators` 是 deny-only、中完整性），加路由与 `route add` 都需要管理员。若将来要试：连 A5 后在提权窗口跑 `New-NetRoute -DestinationPrefix 192.168.0.0/16 -InterfaceIndex 13 -NextHop 0.0.0.0`，再测 `.188`；**能不能通取决于 A5 网关是否转发**，不是客户端能决定的。⇒ **要两边同时通，直接走 §7 的多实例，别去改路由表。**
-- `177.8.21.1` 上只采到 §2 那几项（hostname/核数/内存/磁盘/NPU 型号），**CANN、conda、模型目录一概未采**，别编。
+- **`.190` 与 A5 都只采到 §0 的「规格 + 路径」层，没跑过 torch 或 vllm**（`.188` 有实测，别混）：`.190` 能看到 CANN 9.2.1 的安装目录，但没 `source` 后 `import acl`；A5 能看到 CANN 9.2.0 的目录，同理。**别把「装了 CANN」写成「CANN 可用」**。`.190` / A5 的 conda 环境、模型目录也都没盘点。
+- **`.190` 是新机，不是旧 `zj-131`**：2026-11-03 重装后，旧的 `/home/vllm/x00886548/...`、Debian 11、gcc 10.2 记录全部作废；当前只有 `/home/cann/921`、`/home/c30077422` 可见。别再按旧记录套 `.190`。
+- **A5 规格以 §0 为准**：2026-11-03 实测 192 核 / 2261 GiB / npu-smi 25.1.rc3；2026-10-22 记的 384 核 / npu-smi 26.2.0.b020 已作废（重装或当时读错），别混用。
 
-## 7. 双 VPN 同时在线（多实例补丁，2026-10-26 实测跑通）
+## 7. 双 VPN 同时在线（多实例补丁，2026-10-26 跑通 / 2026-11-03 复核）
 
-目标：`192.168.13.188`（a3）与 `177.8.21.1`（a5）**同时**可达。做法：在**同一台机器**再复制出一个独立的 UniVPN 产品实例（`UniVPN2` / 产品名 `UVP002`），两套 GUI + 引擎 + 服务 + TAP 各走各的，原客户端一个字节都不动。工具：`https://github.com/UsernameFull/univpn-multi`（PowerShell，按 SHA256 锁版本）。
+目标：`192.168.13.188` / `.190`（A3，蓝区网关）与 `177.8.21.1`（A5）**同时**可达。做法：在**同一台机器**再复制出一个独立的 UniVPN 产品实例（`UniVPN2` / 产品名 `UVP002`），两套 GUI + 引擎 + 服务 + TAP 各走各的，原客户端一个字节都不动。工具：`https://github.com/UsernameFull/univpn-multi`（PowerShell，按 SHA256 锁版本）。
 
 ### 7.1 为什么能共存 / 前置条件
 
@@ -229,17 +299,18 @@ LastLoginAddr = 120.46.228.63:49999
 
 ```powershell
 Get-NetAdapter | ? InterfaceDescription -match 'TAP' | select Name,ifIndex,Status
-# 本地连接    ifIndex 13  Up   192.168.201.2   ← 蓝区（原件）
-# 本地连接 2  ifIndex 55  Up   1.2.17.209      ← A5（副本，IP 每次都变）
+# 本地连接    ifIndex 13  Up   192.168.201.186 ← 蓝区（原件，IP 每次都变）
+# 本地连接 2  ifIndex 55  Up   1.2.16.162      ← A5（副本，IP 每次都变）
 
 Test-Connection 192.168.13.188 -Count 2 -Quiet    # True
+Test-Connection 192.168.13.190 -Count 2 -Quiet    # True（2026-11-03 复核）
 Test-Connection 177.8.21.1     -Count 2 -Quiet    # True
 Get-Process UniVPNCS,UVP002CS                     # 两个引擎各一个
 Get-NetRoute -AddressFamily IPv4 | ? DestinationPrefix -match '^(192\.168\.0\.0/16|177\.0\.0\.0/8|170\.70\.0\.0/16|197\.0\.0\.0/8|1\.2\.16\.0/21)$'
 # 192.168.0.0/16 走 ifIndex 13；177/170/197/1.2.16 走 ifIndex 55
 ```
 
-2026-10-26 实测：两目标 `ping` + `tcp 22` 全通，两 TAP 同时 Up，两套服务并存，互不影响。
+2026-11-03 复核：两 TAP 同时 Up（`本地连接` ifIndex 13 = 蓝区、`本地连接 2` ifIndex 55 = A5），三台目标（`.188` / `.190` / `177.8.21.1`）`ping` + `tcp 22` 全通；`UVP002.exe` 启动后按 `AutoLogin` 自动连回 A5（不必再手点）。两套服务并存，互不影响。
 
 ### 7.6 卸载 / 回退（按项目 `docs/MAINTENANCE.md`，本轮**未实做**）
 
@@ -270,3 +341,45 @@ sc.exe delete UVP002Service
 ## 8. 维护记录 → `references/maintenance-log.md`
 
 逐轮改动与取证时间。**用户不会问这个**，只在怀疑本文机制描述过时时才读。
+
+## 9. 两台 A3 之间互通体检（`188 ↔ 190`，2026-11-03 实测）
+
+**网段互通 ≠ 能协同干活。** 分四层查，只做前一层就会把「能 ping」当成「能跑多机任务」：
+
+| 层 | 命令（在任一台机器上跑） | 通过的样子（2026-11-03 实测） |
+|---|---|---|
+| L2 同广播域 | `ip neigh show <peer>` | `lladdr 00:e0:4c:68:07:b7 REACHABLE`（或 `STALE`，MAC 真实即可）⇒ 直连不经路由器；出现 `FAILED` / `incomplete` 说明跨网段或 ARP 不通 |
+| L3 + 帧大小 | `ping -c 3 -W 2 <peer>`；`ping -c 2 -s 1472 -M do <peer>` | 0% loss、RTT 0.2~0.4 ms；1472+28=1500 带 DF 也 0% loss ⇒ 两端 MTU 都是 1500，没有隧道/PPPoE 卡点 |
+| L4 端口 | `timeout 6 bash -c '</dev/tcp/<peer>/22'` | 立即成功；**别用 `Test-NetConnection` 代替** |
+| 吞吐 | `nc` 灌 1 GiB（见脚本） | 见下「带宽天花板」 |
+
+**一键体检**：`python scripts\node-pair-check.py 192.168.13.188 192.168.13.190 [--throughput]`——paramiko 走本机 key（失败自动用 `credentials.txt` 里的密码），打印上表全部判据 + 网卡速率/错误计数 + NFS 挂载数 + 「能否 ssh 到对端」；`--throughput` 才跑 1 GiB 双向灌流。**不要用 OpenSSH 驱动**：`.188` 的 sshd 在高负载下会卡 KEX（§5 ⑨），本脚本不受影响。
+
+**带宽天花板先看网卡再怀疑 TCP**：两台都是 `Speed: 1000Mb/s, Duplex: Full`（`.188` = `enxc8a362d975e9`，`.190` = `enp211s0u1`）⇒ `~110 MB/s` 就是上限。实测 `.188→.190` 71.6 MB/s、`.190→.188` 107.1 MB/s，**是线速不是故障**。`ethtool <ifc> | grep -E 'Speed|Duplex'` 看速率，`ip -s link show <ifc>` 看 `errors`（必须 0）；`.188` 的 RX `dropped` 是自开机累计（17 天 29 万，占 0.03%），高负载机器上属正常，别单看这个数判坏线。
+
+### 9.1 2026-11-03 的实测结论（双向）
+
+- 本机 → 两台：`ping` + `tcp 22` 全通；`.188` 用 paramiko key、`.190` 用 OpenSSH key 进。
+- **两机之间网络层完全正常**：同广播域、双向 0% 丢包、MTU 1500、TCP22 双向通、1 GiB 灌流双向成功。
+- **两机之间的 ssh 登录一层都没配**（这才是「不通」的那层）：
+  - `.188 → .190`：先撞 `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!`（`.190` 重装换过 host key，`Offending ECDSA key in /root/.ssh/known_hosts:10`）⇒ `ssh-keygen -f ~/.ssh/known_hosts -R 192.168.13.190`；**清完仍然不行**——`.190` 的 `authorized_keys`（2 条）里没有 `.188` 的 `id_ed25519.pub`。
+  - `.190 → .188`：`root@192.168.13.188: Permission denied (publickey,password)`——`.190` **整台机器没有私钥**（`/root/.ssh/` 只有 `authorized_keys` + `known_hosts`，`ls id_*` 为空），不是 key 没配，是压根没有 key 可配。
+  - 要跑多机（ray / 多机 vllm / 分发脚本）先补这层：`.190` 上 `ssh-keygen -t ed25519 -N ''`，两边互相追加公钥（**只追加不覆盖**，`.188` 的 `authorized_keys` 已有 22 条别人的 key）。
+- **共享存储不对等**：`.190` 挂 `suzblue.server:/share`(287T) + `/weight`；`.188` **一个 NFS 都没挂**（`mount | grep ' type nfs'` 返回 0），`/mnt/share` 是系统盘本地目录 ⇒ 「扔 `/mnt/share` 两边都读得到」只在 `.190` 成立。
+- `.188` 每次非交互登录都会往 stderr 打 `/root/.bashrc: line 36: /usr/local/Ascend/ascend-toolkit/set_env.sh: No such file or directory`——不影响连通性，但会污染所有 `ssh` 输出，别当成连接失败。
+
+## 10. 跨机（双机）NPU 通信可行性：三条硬闸门（2026-11-03 实测）
+
+问「188 和 190 能不能双机拉起一个 vllm / 跨机跑 HCCL」时，**先过这三条**，任一不过就别去装环境了——装了也只会卡在建链：
+
+1. **两端都必须有 NPU 互联网卡（RoCE）**：`lspci -nn | grep -iE 'mellanox|ethernet'`、`ls /sys/class/infiniband`、`ls /sys/class/net`。
+   - `.190`：2× `ConnectX-6 Dx`，`roceo112` ACTIVE **100Gb/s**、`roceo113` DOWN；netdev `eno112np0`/`eno113np1`（均无 IP）。
+   - `.188`：**只有一块 USB 1GbE（`enxc8a362d975e9`）+ iBMA 虚拟网卡，零 RoCE 网卡、无 `/sys/class/infiniband`、`lspci` 无 Mellanox** ⇒ 这一侧根本没有跨机通路。1GbE 管理网**不能**替代（HCCL 跨机只走 RoCE）。
+2. **`hccn_tool` 链路 UP 且两端 IP 同网段**：`for i in $(seq 0 15); do hccn_tool -i $i -link -g; hccn_tool -i $i -ip -g; done`
+   - 判读：`link status: DOWN`、或 `Get ipconf failed, because no ip was preset there!` ⇒ 这侧没配好。2026-11-03：两台 16 个 device **全 DOWN**；`.188` 有预置 IP（`90.14.123.21/24`、`90.14.122.21/24` 两平面）但链路不通，`.190` 连 IP 都没有。
+3. **两端 CANN + driver 同版本**：`npu-smi info -t board -i 0 | grep -iE 'software|firmware'`、`ls /etc/Ascend/ascend_cann_install.info`。
+   - 2026-11-03：`.188` = driver 25.5.1 / CANN 9.1.0；`.190` = driver 26.0.rc1 / CANN 9.2.1 ⇒ 混版本跨机 HCCL 不支持。
+
+**判据模板**：第 1 条不过 = **硬件不具备，装软件无意义**；第 2/3 条不过 = 配置或版本问题，可修但必须两端同时动。别把「两台机器 ssh 能通 + 1GbE 能灌流」当成「能双机跑模型」——那是 CPU/管理网层面的事，跟 HCCL 无关（§9 的结论只覆盖前者）。
+
+**顺带记**：`.188` 的 CANN 在 `/mnt/share/x00886548/cann/cann_9_1_0/`，`set_env.sh` 在 **`ascend-toolkit/set_env.sh`**；source 目录下同名文件不会报错但 `ASCEND_HOME_PATH` 仍为空，随后 `import torch_npu` 报 `ImportError: libhccl.so: cannot open shared object file`。`.190` 的 CANN 9.2.1 在 `/home/cann/921/`。

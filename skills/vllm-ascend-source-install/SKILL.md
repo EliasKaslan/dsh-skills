@@ -8,7 +8,7 @@ whenToUse: 要决定「怎么把 vllm 与 vllm-ascend 从源码装进已有环�
 
 范围：只做 vllm 与 vllm-ascend 两个 `pip install -e .`。**前置栈的从零搭建见总纲 skill `ascend-env`**（它按顺序指向 `ascend-server-layout` / `ascend-cann-env` / `ascend-conda-env` / `ascend-torch-npu` / `ascend-triton-ascend`）；跑起来见 `ascend-vllm-serve`。
 
-**默认机器：`root@192.168.13.188`（文档代称 `a3`，可用）**；备用 `root@192.168.13.190`（代称 `a3b`，**2026-10-22 整机不可达**）；A5 `root@177.8.21.1`（代称 `a5`，**需连 A5 VPN 后可达**，见 `univpn-vpn`）。**本机 ssh config 没有这几个别名，命令直连 IP**，见 `ascend-env` §1。`.188` 已配公钥免密（2026-10-22 复核仍有效），密码 fallback 见 `ascend-env/credentials.txt`。**两机差异（尤其 gcc 版本）会直接改变本流程的做法**，见下——`.190` 恢复后先复核 gcc / python 再决定要不要套用。
+**默认机器：`root@192.168.13.188`（文档代称 `a3`，可用）**；备用 `root@192.168.13.190`（代称 `a3b`，**2026-11-03 重装为 openEuler 22.03 / gcc 10.3.1 / py3.9.9；免密 + 密码都通**）；A5 `root@177.8.21.1`（代称 `a5`，**需连 A5 VPN 后可达**，openEuler 24.03 aarch64 / gcc 12.3.1 / py3.12.14）。**本机 ssh config 没有这几个别名，命令直连 IP**，见 `ascend-server-access` §0。`.188` 已配公钥免密（2026-11-03 复核；高负载时 OpenSSH 会卡 KEX，用 paramiko），密码 fallback 见 `ascend-server-access/credentials.txt`。**三机差异（尤其 gcc / python / CANN）会直接改变本流程的做法**——`.190` 与 A5 的 CANN 路径已知（9.2.1 / 9.2.0），但 `import acl` 与源码安装均未实测，别整套照搬 `.188`。
 
 ## 何时调用
 
@@ -33,7 +33,7 @@ whenToUse: 要决定「怎么把 vllm 与 vllm-ascend 从源码装进已有环�
 - Linux + 已装 CANN，且每次操作前 `source` 过 toolkit 与 nnal/atb 两段 `set_env.sh`；gcc/g++ ≥ 8（支持 C++17）**但编自带 C++ 扩展要 ≥ 9（见下一条与 §4.2）**；`MAX_JOBS` 按机器核数设，共享机别打满。
 - **先确认 gcc 版本，它决定 §3 要不要加 `--arctic`、§4.2 要用哪个编译器、以及要不要做 GLIBCXX 兜底**：
   - `.188`（默认）：系统**只有 gcc/g++ 8.3**，且系统 libstdc++ **无 `GLIBCXX_3.4.26`** → §3 **用这套系统 gcc 编时**必须加 `--arctic`（`CC`/`CXX` 已指向 conda gcc 10.4.0 时不需要，见 §3 的范围限定）；**但 `--arctic` 只解决 `arctic-inference` 编不过的问题，编 C++ 扩展 `vllm_ascend_C` 时 gcc 8.3 会直接失败**（torch 头文件要求 GCC ≥ 9）→ 必须按 §4.2 换成 conda 工具链里的 gcc 10；运行时还要 compat_lib 兜底（见 §6 坑 8）。
-  - `.190`（备用）：gcc/g++ 10.2，系统 libstdc++ 够用 → §3 不加 `--arctic`（反而要预装它，见 §6 坑 5），§4.2 也不用做。
+  - `.190`（备用，2026-11-03 重装后 gcc/g++ 10.3.1）：gcc≥9，系统 libstdc++ 够用 → §3 不加 `--arctic`（反而要预装它，见 §6 坑 5），§4.2 也不用做。**新 .190 未实跑过源码安装，先复核 gcc / python / CANN 再照搬。**
 - **硬条件：环境里已经有 torch / torch-npu / triton-ascend** —— 本流程会故意注释掉它们的 pin，不会去装它们。先确认：
 
 ```bash
@@ -109,6 +109,8 @@ cat "$SRC/vllm-ascend/.github/vllm-main-verified.commit"
 
 **纪律**：从 release tag 安装时，配对用 **vllm 的同名 release tag**；**不要照抄 tag 里的 `.github/vllm-main-verified.commit`** —— 该文件记的是 **`vLLM main`** 的 CI 验证 commit（`v0.23.0` 上是 `ee0da84…`，与 vllm `v0.23.0` tag 的 `0fc695f` 不同）。**只有 main 分支安装才用那个文件。**
 
+**判「某条 vllm 修复在不在配对版本里」**：取该 PR 的 `merge_commit_sha`，与 verified commit 做 `GET /repos/vllm-project/vllm/compare/<verified>...<merge_sha>` —— `status=ahead` 且 `behind_by=0` ⇒ **修复还没进配对树**（实测 2026-11-03：verified `544f182d`（2026-10-23 02:12）对 #63186（LoRA×SD drafter 校验）落后 **79** 提交、对 #59341（lm_head LoRA 按 logits 行对齐）落后 **350**，两条都不在配对树里）。**别用 release tag 的祖先关系判**：release 分支与 main `diverged`，backport 是另一个 sha，祖先关系给不出结论。
+
 逐字证据（vllm-ascend `v0.23.0` 的 release commit `5cb98ca`，标题 `[v0.23.0][Doc][Misc] Prepare for v0.23.0 official release`，提交信息尾部直接写明配对目标）：
 
 ```text
@@ -158,7 +160,7 @@ python3 "$SKILL/scripts/strip_torch_pins.py" --arctic .        # 仅当编译器
 git diff -- requirements.txt pyproject.toml                # 确认只动了目标行
 ```
 
-**`--arctic` 是干什么的**：额外把 `arctic-inference==0.1.1` 也注释掉。它的 C++ 扩展需要 C++20 `<span>`，**gcc 8.3 编不过**；该包只被 vllm 的可选 suffix-decoding 路径使用，vllm-ascend 源码不引用它，所以注释掉是安全的。默认不加这个 flag，`.190` 上的行为与以前完全一致（那里 gcc 10.2 能编，应改用 §6 坑 5 的预装法）。
+**`--arctic` 是干什么的**：额外把 `arctic-inference==0.1.1` 也注释掉。它的 C++ 扩展需要 C++20 `<span>`，**gcc 8.3 编不过**；该包只被 vllm 的可选 suffix-decoding 路径使用，vllm-ascend 源码不引用它，所以注释掉是安全的。默认不加这个 flag，`.190`（2026-11-03 重装后 gcc 10.3.1）能编，应改用 §6 坑 5 的预装法。
 
 > **2026-10-09 实测补的范围限定（`--arctic` 不是无条件必做）**：判据是**编译器支不支持 C++20**，不是"哪台机器"。`CC`/`CXX` 指向 conda-forge gcc/g++ **10.4.0**（§4.2 那套 `bi_0921` 的 `x86_64-conda-linux-gnu-gcc` / `-g++`）时，`pip install -r requirements.txt` 实测 **`RC=0`**，`arctic-inference-0.1.1` 由 pip 直接装上、`import arctic_inference` **成功**；该环境全程**没跑过 strip**（`git -C src/vllm-ascend status --porcelain` = **0 行**，§3 一行都没改，安装照样成功）。⇒ 有 conda gcc 10.4.0 这类 C++20 编译器时 `--arctic` **不必要**；只有系统 gcc 8 这类不支持 C++20 的编译器才必须加。
 > 范围仅限于 `arctic-inference` 这一项：**torch 家族注释（第 3 条）与 §6 坑 1 的理由不变**（本轮那个环境另有 `PIP_CONSTRAINT` 兜底，见 §6 坑 9）。
@@ -172,7 +174,7 @@ git diff -- requirements.txt pyproject.toml                # 确认只动了目�
 - 这些是本地构建旁路改动，**不要 commit/push**；还原用 `.pinbak` 或 `git checkout -- <file>`。
 
 **脚本没动、但同样受 `--no-build-isolation` 校验的 build 依赖（2026-09-22 实测）**：`[build-system].requires` 里除 torch 家族外还有一批**带版本约束**的项——`transformers==5.14.1`、`fastapi<0.124.0`、`fastokens==0.2.0`、`arctic-inference==0.1.1`、`xgrammar>=0.1.30`、`compressed_tensors>=0.11.0`、`cmake>=3.26`、`setuptools>=64`、`setuptools-scm>=8`。脚本有意只注释 torch 家族（`--arctic` 时额外注释 arctic-inference），所以**环境里其余包的版本必须已经满足**，否则构建期会报 build 依赖不满足。最常踩的是 `transformers`：vllm 装完可能是 5.17，而这里要求 5.14.1——先 `pip install transformers==5.14.1` 再装 vllm-ascend（或在 `strip_torch_pins.py` 的 `TORCH_TARGETS` 里加上它，但那样会让 pip 有权换 transformers，通常不想要）。
-> 注意 `arctic-inference==0.1.1` 在两台机器上**做法相反**：`.188`（gcc 8.3）编不了 → 用 `--arctic` 注释掉；`.190`（gcc 10.2）能编 → 用 §6 坑 5 预装。
+> 注意 `arctic-inference==0.1.1` 在两台机器上**做法相反**：`.188`（gcc 8.3）编不了 → 用 `--arctic` 注释掉；`.190`（2026-11-03 重装后 gcc 10.3.1）能编 → 用 §6 坑 5 预装。
 
 **脚本本身的实测记录（2026-09-22，上游 main）**：
 - 默认模式（pristine 文件）：`requirements.txt` 注释 5 行（torch / torch-npu / torchvision / torchaudio / triton-ascend），`pyproject.toml` 注释 4 行（torch-npu / torch / torchvision / triton-ascend），TOML 自校验通过（剩 26 项），`rc=0`；第二次运行幂等。
@@ -238,6 +240,14 @@ export VLLM_BATCH_INVARIANT=1     # 构建期生效
   `npu_fused_linear_online_max_sum_batch_invariant`；
   而 `vllm_ascend/batch_invariant.py:142-148`（`:96` 是另一处注册点）实际注册的只有 **`mm` / `matmul` / `fused_infer_attention_score` / `reduce_sum` 四个**。
   ⇒ **别拿"导出数 = 生效数"当判据**：多出来的算子只是被绑定出来，未必被 vllm-ascend 接进 `aten::` 分派。判生效读 `batch_invariant.py` 的注册行，不数 `dir()`（注意：`dir(batch_invariant_ops)` 是**模块侧**，与上一行那个"数不出算子的 `dir(torch.ops.batch_invariant_ops)`"不是同一个对象，别混）。
+
+### 4.1.1 BI 的 matmul tile 现状与可动范围（判「BI 性能还能不能优化」）
+
+- **两个 Triton kernel 的 tile 都写死**：`vllm_ascend/ops/triton/batch_invariant/matmul.py` 的 `matmul_persistent` = `128/128/64`（**所有 M、所有形状**，就是 vllm 的 default tile）；`linear_persistent` = BLOCK_K **256**（fp32 128）、BLOCK_M/N 由 M 分段启发式决定（`M<256` / `256–1024` / `≥1024`，grid = `num_vectorcore//2`）。两者都**不按 (N,K) 区分**，也没有设备族（A2/A3/950）表。
+- **谁在跑取决于装法**：装了 AscendC 包（镜像或源码 + 构建期 `VLLM_BATCH_INVARIANT=1`）→ `aten::mm`/`matmul` 走 `npu_*_batch_invariant`，Triton 只剩 `addmm`/`bmm`/`softmax`；**pip 装 wheel（不含 csrc）→ 没有 AscendC，全线 Triton**，并额外注册 `aten::linear`。
+- ⇒ **优化可动范围**：Triton 回退纯 Python 可改；**主力 mm/matmul 的 tiling 在 OBS 预编译 run 包里（910b/A3/950 三份），仓库内既不可见也不可调**——要动得推算子包侧，别在 vllm-ascend 里找。
+- **位级验收现状**：kernel 级 `tests/e2e/nightly/single_node/ops/singlecard_ops/triton/test_batch_invariant_ops.py` 是**容差对 fp32 golden**（抓不到「reduction 顺序随 M 变」）；位级门只有 e2e `tests/e2e/pull_request/four_card/rlhf/consistency/test_batch_invariant_tp4.py` 的 BS=1 vs BS=N logprobs `torch.equal`。改 tile 前先补「固定 probe row、跨 M 位级相等」的扫描。
+- **上游参照 vllm #62219**：`(N,K) → block_k + M 桶` 的表结构，硬约束是 **BLOCK_K 只随 (dtype,N,K) 变、绝不随 M**（`block_k` 放在 shape 层、M 桶里没有 k，让非法状态不可表示）。能借的是这个不变量与验收法，**不是它的 128/64 数字**（Hopper SM/L2/warps/stages 专用）。
 
 ### 4.2 编 `vllm_ascend_C` 的编译器（torch 2.10 头文件要求 GCC ≥ 9）
 
@@ -512,7 +522,7 @@ unset VLLM_TARGET_DEVICE        # 若为 cpu，在本 shell 清掉后重跑 §5 
   > **2026-10-08 改**：**不要再用 `(Get-Content -Raw …) | ssh … "tr -d '\r' [| tail -c +4] > /remote/x.sh"` 直推脚本正文**——实测本机管道**不注入 BOM**（`$OutputEncoding.GetPreamble().Length` = 0），`tail -c +4` 会吃掉脚本前 3 字符；而且**多行含中文脚本直推会静默损坏**（丢行 + 中文变私用区字符）。改用 base64，完整写法与判据见 `ascend-env` §5。
 - **`ssh -n` 与"脚本走 stdin"互斥**：要把本地脚本管道过去（`$body | ssh <host> "… bash -s"`）**绝不能加 `-n`**——stdin 被 `/dev/null` 占掉后脚本空跑且**不报错**，只看到输出为空。
 - 读远端中文文件/脚本一律显式 UTF-8（`[System.IO.File]::ReadAllText($p,[Text.Encoding]::UTF8)` 或 `Get-Content -Encoding UTF8`）；PowerShell 5.1 默认按 GBK 解码，会把 UTF-8 中文读成乱码。
-- **主机一律直连 IP**：`root@192.168.13.188`（默认可用）/ `root@192.168.13.190`（备用，**2026-10-22 整机不可达**）/ `root@177.8.21.1`（A5，**需连 A5 VPN 后可达**，见 `univpn-vpn`）。文档代称 `a3` / `a3b` / `a5` 只是叫法，**本机 `~/.ssh/config` 里没有这几个别名**（2026-10-08 与 2026-10-22 两次复核，见 `ascend-env` §1）。`.188` 的 `/root/.bashrc` 第 36 行 `. /usr/local/Ascend/ascend-toolkit/set_env.sh` 指向的是**真实断链**（`/usr/local/Ascend/ascend-toolkit` 现在是**空目录**，既无 `set_env.sh` 也无 `latest` 软链，2026-10-22 复核），所以每条 ssh 都会在 stderr 打一行 `No such file or directory`。**只要显式 source 生产 CANN（`/mnt/share/x00886548/cann/cann_9_1_0/...`）就不受影响**；别依赖 `/usr/local/Ascend/ascend-toolkit`。详见 `ascend-cann-env`。
+- **主机一律直连 IP**：`root@192.168.13.188`（默认可用）/ `root@192.168.13.190`（备用，**2026-11-03 重装为 openEuler 22.03；免密 + 密码都通**）/ `root@177.8.21.1`（A5，**需连 A5 VPN 后可达**）。文档代称 `a3` / `a3b` / `a5` 只是叫法，**本机 `~/.ssh/config` 里没有这几个别名**（2026-10-08 与 2026-11-03 两次复核，见 `ascend-server-access` §0）。`.188` 的 `/root/.bashrc` 第 36 行 `. /usr/local/Ascend/ascend-toolkit/set_env.sh` 指向的是**真实断链**（`/usr/local/Ascend/ascend-toolkit` 现在是**空目录**，既无 `set_env.sh` 也无 `latest` 软链，2026-10-22 复核），所以每条 ssh 都会在 stderr 打一行 `No such file or directory`。**只要显式 source 生产 CANN（`/mnt/share/x00886548/cann/cann_9_1_0/...`）就不受影响**；别依赖 `/usr/local/Ascend/ascend-toolkit`。详见 `ascend-cann-env`。
 - `scripts/strip_torch_pins.py` 就是为这种非交互场景准备的（单文件、参数简单，替代 vim）；推送示例（base64，实测逐字无损）：
 
   ```powershell
@@ -539,12 +549,12 @@ unset VLLM_TARGET_DEVICE        # 若为 cpu，在本 shell 清掉后重跑 §5 
 
 - vllm-ascend main 当日 pin（**与 2026-09-17 记录完全一致，未漂移**）：torch 2.10.0 / torchvision 0.25.0 / torchaudio 2.10.0 / torch-npu 2.10.0.post4 / triton-ascend 3.2.2 / transformers 5.14.1 / fastapi<0.124.0 / fastokens 0.2.0 / arctic-inference 0.1.1 / memfabric_hybrid 1.2.0 / memcache_hybrid 1.2.0。
 - **`.github/vllm-main-verified.commit` = `84030bbe3d74d99bad477a3d2e37a973ccd8865c`（2026-09-22 复核仍是这个值）**——这个文件比 vllm-ascend main 本身稳定得多，所以配对用的 vllm 不必跟着每次 main 更新而重装。
-- vllm-ascend main HEAD 已从 2026-09-17 的 `dc2b9b25` 走到 2026-09-22 的 `10d23bf5`（主线漂移）；`.190` 上现装的是中间的 `cb79183`（0.1.dev86），三层验证通过。
-- 实测配对：
+- vllm-ascend main HEAD 已从 2026-09-17 的 `dc2b9b25` 走到 2026-09-22 的 `10d23bf5`（主线漂移）；重装前的 `.190` 曾装中间的 `cb79183`（0.1.dev86，三层验证通过），**已随 2026-11-03 重装消失**。
+- 实测配对（**均为旧 `.190`，重装前**）：
   - vllm `84030bbe` + vllm-ascend `dc2b9b25` → 端到端 NPU 出文本（`.190`，2026-09-17）
   - vllm `84030bbe` + vllm-ascend `cb79183` → 三层验证通过，未重跑端到端（`.190`，2026-09-22）
   - vllm `84030bbe` + vllm-ascend **`bf439330c`** → 端到端 NPU 出文本，且批次不变性验证通过（**`.188`，2026-09-21**；带 `VLLM_BATCH_INVARIANT=1` 编，47 个 A3 算子 / 1219 个 .o）
-- **两台机器装出来的 vllm-ascend 版本串形态不同**（都正常，别当异常）：`.190` 报 `0.1.dev86+gcb79183b7`，`.188` 报 `0.19.1rc2.dev2317+gbf439330c`。
+- **两台机器装出来的 vllm-ascend 版本串形态不同**（都正常，别当异常）：重装前的 `.190` 报 `0.1.dev86+gcb79183b7`，`.188` 报 `0.19.1rc2.dev2317+gbf439330c`；**新 `.190` 尚未装过 vllm-ascend，版本串未采**。
 - **2026-09-28 实测配对（`.188`）**：vllm tag `v0.30.0` = commit `ced6857afa0ea7b2e3f0846a62e1394e90f15607`；vllm-ascend `9df651d` = `9df651d0ba8d92720275857199d38fc99a485f85`。该 checkout 的 `.github/vllm-main-verified.commit` **正好等于 `ced6857af…`** → 这两个版本就是上游自认证的配对。版本串形态：`vllm 0.1.dev1+gced6857af.d20260928` / `vllm-ascend 0.19.1rc2.dev2454+g9df651d0b.d20260928`。
 - **2026-10-08 实测（`.188`，只读）**：`git ls-remote` → vllm-ascend `refs/heads/main` = **`0bb59db162f6c98b207db14de0cae67246419e66`**（对比 2026-09-28 的 `9df651d…`，**主线已漂移**）；vllm `refs/tags/v0.30.0` = `ced6857afa0ea7b2e3f0846a62e1394e90f15607`；`raw.githubusercontent.com/vllm-project/vllm-ascend/main/.github/vllm-main-verified.commit` 实测仍返回 **`ced6857af…`** → **verified commit 依旧是 vllm `v0.30.0`**。该文件比 main 本身稳定得多——**这正是 §1「免 clone 读 commit、两仓真并行」成立的前提**。现成 checkout `/mnt/share/x00886548/workspace/batch_inv_qwen35/`：vllm HEAD `ced6857`、vllm-ascend HEAD `9df651d0b`，两仓都带本地构建旁路改动（torch 家族 pin 已注释、`csrc/build_batch_invariant_ops.sh` 的 `--max-time` 已改）。
 

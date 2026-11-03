@@ -6,7 +6,7 @@ whenToUse: 要装 / 查 / 修昇腾上的 triton-ascend，怀疑 triton 被别�
 
 # 昇腾 triton-ascend 检测 / 安装 / 验证 / 排障
 
-- **机器**：默认 `root@192.168.13.188`（文档代称 **`a3`**），备用 `root@192.168.13.190`（`a3b`，**2026-10-22 整机不可达**），A5 `root@177.8.21.1`（`a5`，**需连 A5 VPN 后可达**，见 `univpn-vpn`）。**本机 ssh config 没有这几个别名，命令直连 IP**，见 `ascend-env` §1。
+- **机器**：默认 `root@192.168.13.188`（文档代称 **`a3`**），备用 `root@192.168.13.190`（`a3b`，**2026-11-03 重装为 openEuler 22.03 / gcc 10.3.1 / py3.9.9**），A5 `root@177.8.21.1`（`a5`，**需连 A5 VPN 后可达**，openEuler 24.03 aarch64 / py3.12.14）。**本机 ssh config 没有这几个别名，命令直连 IP**，见 `ascend-server-access` §0。
 - **环境（写死）**：CANN 9.1.0 = `/mnt/share/x00886548/cann/cann_9_1_0`；conda 环境 `xmz_0921`，python = `/mnt/share/vllm/conda_envs/xmz_0921/bin/python`（Python 3.12.14）；site-packages = `/mnt/share/vllm/conda_envs/xmz_0921/lib/python3.12/site-packages`。
 - **只碰 triton 栈**：从 Windows 驱动远端的硬规则见 `ascend-env` §5（不重复）；CANN 激活见 `ascend-cann-env`。下文命令均为**远端 bash**（已 `source` CANN `set_env.sh` + `conda activate xmz_0921`）。
 
@@ -156,6 +156,15 @@ pip uninstall -y triton triton-ascend && pip install triton-ascend==3.2.2 --extr
   → 修法：同版本换 wheel **必须先 `pip uninstall -y triton`**（或 `pip install --force-reinstall <目标 wheel>`），装完**用 `WHEEL` 的 `Tag:` 行复核**，别信 pip 的 `Successfully installed`。
 - **为什么换 base wheel 买不到功能**：`triton-ascend` 安装时会**覆盖 `triton/` 的核心**——`triton_ascend-3.2.2.dist-info/RECORD` 里有 **243 条落在 `triton/` 内**，含 `triton/_C/libtriton.so`、`triton/_C/libentryC.so`、`triton/__init__.py` 与 `triton/backends/ascend/**`（其内还自带 `bishengir/bin/bishengir-compile` 与 `-a5` / `-opt` / `-opt-a5`）。实测两个 base wheel 装完后**真正在跑的 `libtriton.so` 逐字节同尺寸 = 140,886,096 B**，只有 profiler 侧不同（`libproton.so`：`2_17` 版 18,195,880 B、`2_27` 版 11,262,096 B）与 `instrumentation/`。
 - **结论**：换 base triton wheel **只买到 provenance / 可复现性，买不到功能差异**（功能来自 triton-ascend 的覆盖层）。若确为对账需要而换，按上面 `uninstall` 的做法做，且**两个 wheel 都留着**以便回滚。
+
+**坑 10｜想看某个 kernel 的 IR / 定位「编译期 ub overflow」与「跑崩 507015」时（2026-11-03 实测，triton-ascend 3.6.0 + bishengir 2.0.0）**
+- **一行开关**：`TRITON_DEBUG=1` 让后端打印真实命令行 `[DEBUG] cmd_list: …`，并自动给 `bishengir-compile` 加 `--mlir-print-ir-after-failure` 与 `--bishengir-print-ir-after=hivm-graph-sync-solver`（见 `backends/ascend/compiler.py` 里 `if opt.debug:` 那几行）。**这是拿到"失败点 IR"最省事的路**。
+- **IR 就在缓存里**：`$TRITON_CACHE_DIR/<hash>/` 有 `<kernel>.ttir`（Triton 方言）/ `.ttadapter`（交后端的 linalg+hivm）/ `.mlirbc` / `.source` / `.json`；`TRITON_DEBUG=1` 时另有一份在 `/root/.triton/dump/<hash>/kernel.{ttir.mlir,mlir}`。失败档可能**没有**缓存条目，此时去 dump 目录拿。
+- **手动复跑必须带 CANN 环境**，否则最后一步报 `Cannot find bisheng under $PATH` / `Failed to compile BiShengLIR to binary`：用 `bash -lc 'source <env.sh>; exec bishengir-compile …'`。
+- **`--mlir-print-ir-after-all` 只吐顶层 pipeline 的两三个 pass**（实测只有 `hivm-plan-memory`、`hivm-graph-sync-solver`），嵌套 pipeline 里的 pass 不打印；要精确打某一级用 `--bishengir-print-ir-after=<pass-arg>`。**`--mlir-print-ir-tree-dir` 只落"失败点"文件**（`000_PlanMemory_Failed_hivm-plan-memory.mlir` 这种），不是逐 pass 树，别指望它。
+- 逐 pass 文件要**自己按 stdout 里的 `// -----// IR Dump After <Pass> (<pass-arg>) //-----` 头切**；`--mlir-print-ir-before=hivm-plan-memory` 对嵌套 pass 不触发（实测 0 文件）。
+- 读 IR 的三个高频判据：`hivm.hir.vsel` 专治「`tl.where` 作用在 `tl.dot` 结果上 → 507015」（mask 带 `strided<[1], offset: ?>`、`temp_buffer` 比向量短是典型坏相）；`memref<...xf32, #hivm.address_space<ub>>` 的块大小 × `multibuffer_unroll_factor` 就是 UB 压力（4 字节 dtype 更容易撞 192 KiB 预算）；`#hivm.address_space<cbuf>` 是 L1，超了另有一套报错。
+- 每个版本档**必须给独立 `TRITON_CACHE_DIR`**，共享缓存会把上一版的产物当成本版结果。
 
 ## 不要做什么
 

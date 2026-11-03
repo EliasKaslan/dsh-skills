@@ -1,6 +1,6 @@
 ---
 name: dsh-longhaul-mode
-description: 长线工程模式 Longhaul（dsh-longhaul）——跨小时/跨天、需要交接的工程任务该用哪个模式、怎么开、完成了凭什么算完成：三角色（计划 / 执行 / 只读审计）、`.longhaul` 状态与哈希链账本、密封验收命令、契约审计 → feature 审计 → run 审计 → close 四道闸、审计 REVISE 怎么改；含安装位置、重启生效、状态自查与回滚。适用于"长线任务用哪个模式 / 怎么开 Longhaul / 这个功能做完了吗凭什么 / 审计说 REVISE 怎么办 / .longhaul 是什么 / Longhaul 装哪了 / 怎么关掉这个模式"。不适用：改 preset 挂载与生效时机 → 用 `dsh-agent-customization`；起隔离 host 实测 → 用 `dsh-isolated-web-host`；写或改 skill → 用 `dsh-skill-authoring`。
+description: 长线工程模式 Longhaul（dsh-longhaul）——跨小时/跨天、需要交接的工程任务该用哪个模式、怎么开、完成了凭什么算完成：三角色（计划 / 执行 / 只读审计）、`.longhaul` 状态与哈希链账本、密封验收命令、契约审计 → feature 审计 → run 审计 → close 四道闸、审计 REVISE 怎么改、没给 adversarial probe 为什么降级；含 v2 闸门（can-fail 红绿证明 / 改动范围 / 标尺封印 / 探针）、安装位置、重启与回滚。适用于"长线任务用哪个模式 / 怎么开 Longhaul / 这个功能做完了吗凭什么 / 审计说 REVISE 怎么办 / .longhaul 是什么 / Longhaul 装哪了 / 怎么关掉这个模式"。不适用：改 preset 挂载与生效时机 → 用 `dsh-agent-customization`；起隔离 host 实测 → 用 `dsh-isolated-web-host`；写或改 skill → 用 `dsh-skill-authoring`。
 whenToUse: 用户要做跨小时/跨天、需要中断续做或交接的工程任务，问该用哪个模式、怎么开、完成判定凭什么，或已经有 Longhaul 会话需要读懂 .longhaul 状态与审计裁决时用。模型看不到本节。
 ---
 
@@ -121,3 +121,20 @@ C:\Users\admin\.dsh\profiles\desktop\package.json                   dependencies
 - **只读是文件工具层的**：审计者的 `pwsh` 技术上能写文件；审计前后指纹会抓到，并降级结论。不要据此说"绝对不会写"。
 - **`.longhaul/` 不进指纹**：所以记账、写审计不会让验证过期；反过来，删掉 `.longhaul/` 就等于丢掉全部证据。
 - **`!!js` 表达式**：patch 里 `disabled: !!js ...` 是 Loader 方言，YAML 解析器直接读会报错，校验时先降级成字符串。
+
+## v2 闸门（比 v1 多拦的四件事）
+
+v1 只验"命令 exit 0 + 审计者说 pass"，于是"红测试从未真红过""改到不该改的文件""事后偷偷放宽判据"都能过。v2 在代码层补了四道，注意它们各自的**可观察信号**：
+
+- **can-fail 红绿证明**：验收命令必须先在**基线树**上跑出失败（红）再在实现树上跑出通过（绿），记录 `baseline.results`。只跑绿 = 不成立；命令在基线上退出 0 说明它从没能力证伪。`longhaul_feature` 里 `canFail.allowGreenBaseline` 是给"基线本来就不该过"的场景开口子的，别默认打开。
+- **改动范围（writable）**：`longhaul_run` 声明本 feature 允许改的路径，写到声明外会在 verify 时被抓。契约里写清"改哪些、为什么"。
+- **标尺封印（yardstick）**：acceptance 与 commands 一起算 sha256。改任何一个字都要 `longhaul_feature action=update` 并给 `reason`；手改 `features.json` 等同篡改。
+- **审计探针（probe）**：feature 审计的 `pass` 必须带至少一条真实对抗探针（`input`/`expected`/`observed` 三个字段都非空）；没有就被机械降级成 `revise`，`probeGate.reason` 会是 `no-adversarial-probe`，而不是审计者心情问题。
+
+## 操作经验（v2 实测，2026-11）
+
+- **审计调用要限长**：`longhaul_audit` 的 `focus` 写成"只回结构化 verdict、最多 3 条、别引用契约全文"能显著降低 `verdict: error` / `stopReason=max-tokens`（本机实测：不限长连续 3 次 error，限长后一次过）。error 不是 finding，重试一次比改材料划算。
+- **一次契约文字修正 = 一次完整重审**：改契约文件会让 `contract-stale` 生效，verify 与 feature 审计都被挡住，直到重新 `scope=contract` 审过。所以改契约要"一次改净"（把审计者点的每条都在同一轮改完），否则每轮多付 12–20 分钟。
+- **指纹方言取决于跑它的 host 进程**：`.longhaul` 与日志类产物是否计入指纹，由当时加载的模块版本决定；老进程与新代码会算出不同 hash。**结论：verify 与审计必须在同一个新起的 host 上跑**，否则"同一棵树两个指纹"会被判过期。
+- **审计者会看工作区里的凭据**：`.dsh-lab/.credentials.yaml`、带 token 的会话日志都算泄露面。实验环境放 `%TEMP%`，别放在被审计的树里。
+- **别把会误报的检查塞进闸门**：本轮试过"transcript 判决必须等于记录判决"，在干净树上就误报 3 条（审计者 transcript 里出现的 `verdict:pass` 来自它读过的别的审计 JSON）。闸门加严前先在未篡改的树上跑通，否则等于自毁验收命令。

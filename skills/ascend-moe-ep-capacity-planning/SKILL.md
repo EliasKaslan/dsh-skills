@@ -6,7 +6,7 @@ whenToUse: 起服务【之前】决定要占几张卡、EP/TP/DP 怎么配、预
 
 # 昇腾 MoE + EP 起服务前的显存容量规划
 
-实测环境：`192.168.13.188`（A3，8 NPU × 2 die = 16 个 Ascend910_9382，每 die `npu-smi` 报 65536 MB，2026-10-22 复核 16 die 全 `Health OK`）。**其它机器没有实测**：`.190` 2026-10-22 整机不可达、A5（`177.8.21.1`）需先连 A5 VPN 才可达（见 `univpn-vpn`） ⇒ 它们上面的卡数 / HBM 一律 `未采`，本 skill 的数字只能套在 `.188` 上；机器准入状态见 `ascend-env` §1。
+实测环境：`192.168.13.188`（A3，8 NPU × 2 die = 16 个 Ascend910_9382，每 die `npu-smi` 报 65536 MB，2026-10-22 复核 16 die 全 `Health OK`）。**`.190` 已采到 16 个 `Ascend910` die × 65536 MB（2026-11-03，未跑 torch）；A5 是 8 × `Ascend950DT` × 98304 MB（96 GB/卡，需连 A5 VPN）**。两台的 torch / 实测可用显存都 `未采` ⇒ **本 skill 的「64GB 卡预算 56.378 GiB」只对 A3 的 65536 MB die 成立，A5 的 96 GB 卡不能套**；机器准入见 `ascend-server-access` §0。
 对象 = Kimi-K3 类 MoE（`num_experts=896`、`num_experts_per_token=8`、`num_shared_experts=1`、`hidden_size=7168`、`moe_intermediate_size=3584`、KDA 线性注意力 + MLA 混合、`tie_word_embeddings`）。
 **这是「起服务之前」的阶段**：本 skill 回答"几张卡 / 怎么配"，`ascend-vllm-serve` 回答"怎么跑起来 / 报错了怎么办"。
 配套脚本：本目录 `scripts/ep_mem_model.py`（含 `--help` 全参数、真跑过 `EXIT=0`；含 legal-deployment scan：按 N 重推合法 TP）。下面只留路径与样例命令。
