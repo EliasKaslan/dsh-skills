@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "publish-dsh-skills.ps1",
-  "skill_count": 45,
-  "file_count": 117,
-  "total_bytes": 1992081,
+  "skill_count": 46,
+  "file_count": 133,
+  "total_bytes": 2117331,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -18,6 +18,13 @@
       "description": "AI 厂商官方源真伪与覆盖——这家厂商官方报告有哪些来源、这个文档链接是真的吗、抓下来是空壳还是真页：产品名≠API model id（按官方列表逐名计数）、新闻页与详情页都抓；体积极小或与假 slug 同档判空壳；HF &full=true 拿时间、401 只按状态码判（裸名要回列表按前缀核）、createdAt≠发布日；/raw/ vs /resolve/ 二进制验 magic。适用于\"这家厂商官方报告有哪些来源 / 这个文档链接是真的吗 / 抓下来是空壳还是真页 / 这个模型 id 官方有没有对外提供 / 某模型是否真发布了 / 二手稿说的超越是真的吗 / 这个 arXiv 编号算不算官方 / 某产品是否已下线查无\"。不适用：只精读论文并核查开源声称 → 用 `arxiv-paper-deep-read-and-claim-verification`；只做外部热度量级 → 用 `external-buzz-magnitude-check`；只看 GitHub 组织增量 → 用 `github-org-delta-watch`。",
       "files": 1,
       "bytes": 23205
+    },
+    {
+      "name": "anime-art",
+      "path": "skills/anime-art",
+      "description": "本地离线画二次元图（SDXL Animagine XL 4.0 Opt + diffusers 自建管线，不调在线画图 API）——一条命令约 8 秒出 832×1216：角色预设（鲸鱼娘／DeepSeek 拟人、Q 版、通用少女、子午）、中文场景直出（200+ 词表，超 77 token 自动裁剪并报告裁了什么）、画风（赛璐璐／柔光／电影感／单色线稿／贴纸）、景别与画幅、批量抽卡与拼图、hires 精修、可复现种子与 PNG 内嵌提示词。含 16 项自检与 4 篇参考文档。适用于「画一张二次元图／画鲸鱼娘／生成动漫头像立绘／出表情包／给文档配二次元插图／这张图用的什么提示词／批量出同一角色多张图／要单色线稿」。不适用：只是把现成图片排进 Word／PPT／PDF → 用 `office-render`；要改 skill 的 frontmatter 写法 → 用 `dsh-skill-authoring`；要把 skill 发布到公开仓 → 用 `dsh-skills-publish`。",
+      "files": 16,
+      "bytes": 125250
     },
     {
       "name": "arxiv-paper-deep-read-and-claim-verification",

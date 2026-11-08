@@ -1,0 +1,394 @@
+"""中文场景词 -> Danbooru 风格英文 tag 的映射表。
+
+设计原则：
+- **宁精不多**：每个词条只映射 1~2 个最能代表画面的 tag。SDXL 正向提示词只有 77 token，
+  一个概念塞三个近义 tag 会挤掉真正重要的画风/构图词。
+- 最长匹配优先：一句话里命中多个词条时先替换长词（「毛毛细雨」优先于「下雨」）。
+- 未命中的中文片段会回报给调用方，方便补词表。
+
+覆盖：天气/时间/地点/构图/动作/服装/氛围/光影/道具/季节。
+"""
+
+from __future__ import annotations
+
+import re
+
+CN_TAG_MAP: dict[str, list[str]] = {
+    # ---------- 天气 / 环境 ----------
+    "下雨": ["rain"],
+    "雨天": ["rainy day"],
+    "毛毛细雨": ["drizzle"],
+    "暴雨": ["heavy rain"],
+    "雨后": ["after rain", "wet"],
+    "下雪": ["snowing"],
+    "雪天": ["snowy day"],
+    "积雪": ["snow"],
+    "樱花飘落": ["falling cherry blossoms"],
+    "樱花": ["cherry blossoms"],
+    "落叶": ["falling leaves"],
+    "大雾": ["heavy fog"],
+    "起雾": ["fog"],
+    "晴天": ["clear sky"],
+    "阴天": ["overcast"],
+    "多云": ["cloudy sky"],
+    "星空": ["starry sky"],
+    "银河": ["milky way"],
+    "流星": ["meteor shower"],
+    "夕阳": ["sunset"],
+    "黄昏": ["dusk"],
+    "日出": ["sunrise"],
+    "清晨": ["early morning"],
+    "深夜": ["late night"],
+    "夜晚": ["night"],
+    "夜里": ["night"],
+    "月夜": ["moonlight"],
+    "满月": ["full moon"],
+    "月光": ["moonlight"],
+    "霓虹灯": ["neon lights"],
+    "霓虹": ["neon lights"],
+    "烟花": ["fireworks"],
+    "彩虹": ["rainbow"],
+    "极光": ["aurora"],
+    "海浪": ["ocean", "waves"],
+    "海边": ["beach"],
+    "沙滩": ["beach"],
+    "海面": ["ocean"],
+    "水下": ["underwater"],
+    "泳池": ["swimming pool"],
+    "湖边": ["lake"],
+    "河边": ["river"],
+    "瀑布": ["waterfall"],
+    "竹林": ["bamboo forest"],
+    "森林": ["forest"],
+    "树林": ["forest"],
+    "花海": ["flower field"],
+    "花园": ["garden"],
+    "向日葵": ["sunflower field"],
+    "草原": ["grassy field"],
+    "山顶": ["mountain"],
+    "雪山": ["snowy mountain"],
+    "沙漠": ["desert"],
+    "太空": ["space"],
+    "宇宙": ["galaxy"],
+    "云端": ["above clouds"],
+    "天空": ["sky"],
+
+    # ---------- 地点 / 背景 ----------
+    "教室窗边": ["classroom", "window"],
+    "教室": ["classroom"],
+    "学校": ["school"],
+    "走廊": ["hallway"],
+    "天台": ["rooftop"],
+    "图书馆": ["library"],
+    "咖啡馆": ["cafe"],
+    "咖啡店": ["cafe"],
+    "奶茶店": ["cafe"],
+    "便利店": ["convenience store"],
+    "十字路口": ["crosswalk"],
+    "电车站": ["train station"],
+    "火车站": ["train station"],
+    "车站": ["train station"],
+    "地铁": ["train"],
+    "列车": ["train"],
+    "街道": ["street"],
+    "马路": ["street"],
+    "小巷": ["alley"],
+    "公园": ["park"],
+    "鸟居": ["torii"],
+    "神社": ["shrine"],
+    "寺庙": ["temple"],
+    "城堡": ["castle"],
+    "废墟": ["ruins"],
+    "屋顶": ["rooftop"],
+    "卧室": ["bedroom"],
+    "房间": ["room"],
+    "客厅": ["living room"],
+    "厨房": ["kitchen"],
+    "浴室": ["bathroom"],
+    "办公室": ["office"],
+    "实验室": ["laboratory"],
+    "书店": ["bookstore"],
+    "集市": ["market"],
+    "祭典": ["festival"],
+    "舞台": ["stage"],
+    "演唱会": ["concert"],
+    "窗边": ["window"],
+    "阳台": ["balcony"],
+
+    # ---------- 构图 / 镜头 ----------
+    "特写": ["close-up"],
+    "上半身": ["upper body"],
+    "半身": ["cowboy shot"],
+    "全身像": ["full body"],
+    "全身": ["full body"],
+    "站姿": ["standing"],
+    "坐姿": ["sitting"],
+    "坐着": ["sitting"],
+    "躺着": ["lying"],
+    "跪坐": ["seiza"],
+    "背对镜头": ["from behind"],
+    "回头看": ["looking back"],
+    "回头": ["looking back"],
+    "侧脸": ["profile"],
+    "正脸": ["looking at viewer"],
+    "看镜头": ["looking at viewer"],
+    "仰视": ["from below"],
+    "俯视": ["from above"],
+    "广角": ["wide shot"],
+    "浅景深": ["depth of field"],
+    "景深": ["depth of field"],
+    "虚化背景": ["blurry background"],
+    "倒影": ["reflection"],
+    "对称构图": ["symmetry"],
+    "低角度": ["low angle"],
+    "高角度": ["high angle"],
+    "倾斜构图": ["dutch angle"],
+
+    # ---------- 动作 / 姿势 ----------
+    "浅浅的笑": ["light smile"],
+    "微笑": ["smile"],
+    "大笑": ["laughing"],
+    "得意": ["smug"],
+    "害羞": ["blush"],
+    "脸红": ["blush"],
+    "生气": ["pout"],
+    "鼓脸": ["pout"],
+    "撒娇": ["pout", "blush"],
+    "流泪": ["tears"],
+    "哭": ["crying"],
+    "惊讶": ["surprised"],
+    "困惑": ["confused"],
+    "叹气": ["sigh"],
+    "闭眼": ["closed eyes"],
+    "眨眼": ["one eye closed"],
+    "吐舌": ["tongue out"],
+    "思考": ["thinking"],
+    "看书": ["reading", "book"],
+    "写字": ["writing"],
+    "画画": ["drawing"],
+    "吃饭": ["eating"],
+    "吃白饭": ["eating", "rice"],
+    "喝奶茶": ["drinking", "bubble tea"],
+    "喝咖啡": ["drinking", "coffee"],
+    "打游戏": ["playing games"],
+    "睡觉": ["sleeping"],
+    "伸懒腰": ["stretching"],
+    "转头": ["head turned"],
+    "挥手": ["waving"],
+    "比心": ["heart hands"],
+    "剪刀手": ["v"],
+    "抱住膝盖": ["hugging own legs"],
+    "撑着伞": ["holding umbrella"],
+    "打伞": ["holding umbrella"],
+    "撑伞": ["holding umbrella"],
+    "抱玩偶": ["holding stuffed toy"],
+    "抱着书": ["holding book"],
+    "看手机": ["looking at phone"],
+    "自拍": ["selfie"],
+    "奔跑": ["running"],
+    "走路": ["walking"],
+    "跳跃": ["jumping"],
+    "飞": ["flying"],
+    "游泳": ["swimming"],
+    "起舞": ["dancing"],
+    "唱歌": ["singing"],
+    "演奏": ["playing instrument"],
+    "弹琴": ["playing piano"],
+    "弹吉他": ["playing guitar"],
+    "伸手": ["outstretched arm"],
+    "双手合十": ["own hands together"],
+    "托腮": ["hand on own cheek"],
+    "被摸头": ["headpat", "blush"],
+    "摸头": ["headpat"],
+    "抱抱": ["hug"],
+    "牵手": ["holding hands"],
+
+    # ---------- 服装 ----------
+    "女仆装": ["maid"],
+    "女仆": ["maid"],
+    "水手服": ["serafuku"],
+    "校服": ["school uniform"],
+    "制服": ["uniform"],
+    "西装": ["suit"],
+    "和服": ["kimono"],
+    "浴衣": ["yukata"],
+    "汉服": ["hanfu"],
+    "旗袍": ["china dress"],
+    "白色连衣裙": ["white dress"],
+    "连衣裙": ["dress"],
+    "长裙": ["long skirt"],
+    "百褶裙": ["pleated skirt"],
+    "短裙": ["skirt"],
+    "卫衣": ["hoodie"],
+    "毛衣": ["sweater"],
+    "针织衫": ["cardigan"],
+    "白衬衫": ["white shirt"],
+    "衬衫": ["shirt"],
+    "T恤": ["t-shirt"],
+    "风衣": ["trench coat"],
+    "外套": ["jacket"],
+    "大衣": ["coat"],
+    "羽绒服": ["down jacket"],
+    "运动服": ["track suit"],
+    "死库水": ["school swimsuit"],
+    "比基尼": ["bikini"],
+    "泳装": ["swimsuit"],
+    "睡衣": ["pajamas"],
+    "围裙": ["apron"],
+    "披风": ["cape"],
+    "斗篷": ["cloak"],
+    "军装": ["military uniform"],
+    "护士服": ["nurse"],
+    "婚纱": ["wedding dress"],
+    "白丝": ["white thighhighs"],
+    "黑丝": ["black thighhighs"],
+    "过膝袜": ["thighhighs"],
+    "连裤袜": ["pantyhose"],
+    "短袜": ["socks"],
+    "手套": ["gloves"],
+    "领带": ["necktie"],
+    "领结": ["bowtie"],
+    "蝴蝶结": ["hair bow"],
+    "发带": ["hairband"],
+    "发饰": ["hair ornament"],
+    "女仆头饰": ["maid headdress"],
+    "头饰": ["headwear"],
+    "贝雷帽": ["beret"],
+    "草帽": ["straw hat"],
+    "帽子": ["hat"],
+    "耳机": ["headphones"],
+    "眼镜": ["glasses"],
+    "围巾": ["scarf"],
+    "项链": ["necklace"],
+    "耳环": ["earrings"],
+    "宝石": ["gem"],
+    "缎带": ["ribbon"],
+
+    # ---------- 氛围 / 光影 / 风格 ----------
+    "柔和光线": ["soft lighting"],
+    "逆光": ["backlighting"],
+    "侧光": ["side lighting"],
+    "斑驳光影": ["dappled sunlight"],
+    "丁达尔效应": ["light rays"],
+    "体积光": ["volumetric lighting"],
+    "暖色调": ["warm lighting"],
+    "冷色调": ["cool lighting"],
+    "高饱和": ["vivid colors"],
+    "低饱和": ["muted colors"],
+    "赛博朋克": ["cyberpunk"],
+    "蒸汽波": ["vaporwave"],
+    "蒸汽朋克": ["steampunk"],
+    "奇幻": ["fantasy"],
+    "魔法": ["magic"],
+    "治愈": ["soft lighting"],
+    "忧郁": ["melancholic"],
+    "静谧": ["calm"],
+    "热闹": ["crowded"],
+    "节日": ["festival"],
+    "万圣节": ["halloween"],
+    "圣诞节": ["christmas"],
+    "新年": ["new year"],
+    "春天": ["spring"],
+    "夏天": ["summer"],
+    "秋天": ["autumn"],
+    "冬天": ["winter"],
+    "水彩": ["watercolor"],
+    "油画": ["oil painting"],
+    "厚涂": ["thick painting"],
+    "素描": ["sketch"],
+    "线稿": ["lineart"],
+    "赛璐璐": ["cel shading"],
+    "像素风": ["pixel art"],
+    "复古": ["retro artstyle"],
+    "电影感": ["cinematic lighting"],
+    "胶片": ["film grain"],
+    "光斑": ["bokeh"],
+    "粒子": ["particles"],
+    "泡泡": ["bubbles"],
+    "雨滴": ["rain"],
+    "水面反光": ["water reflection"],
+    "漂浮花瓣": ["floating petals"],
+
+    # ---------- 道具 ----------
+    "书本": ["book"],
+    "手机": ["holding phone"],
+    "奶茶": ["bubble tea"],
+    "咖啡杯": ["coffee cup"],
+    "饭团": ["onigiri"],
+    "白饭": ["rice"],
+    "筷子": ["chopsticks"],
+    "蛋糕": ["cake"],
+    "冰淇淋": ["ice cream"],
+    "气球": ["balloon"],
+    "花束": ["bouquet"],
+    "雨伞": ["umbrella"],
+    "纸伞": ["paper umbrella"],
+    "吉他": ["guitar"],
+    "钢琴": ["piano"],
+    "猫咪": ["cat"],
+    "小狗": ["dog"],
+    "鲸鱼": ["whale"],
+    "小鱼": ["fish"],
+    "玩偶": ["stuffed toy"],
+    "抱枕": ["pillow"],
+    "灯笼": ["lantern"],
+    "风铃": ["wind chime"],
+    "蜡烛": ["candle"],
+    "星星": ["stars"],
+    "爱心": ["heart"],
+    "音符": ["musical note"],
+    "电脑": ["computer"],
+    "键盘": ["keyboard"],
+    "终端": ["computer", "screen"],
+    "代码": ["code"],
+}
+
+_SEPARATORS = ",，、;；/|"
+_WS_RE = re.compile(r"\s+")
+
+# 中文虚词：被词条切开后残留的「的」「了」等不应算作未收录内容
+_STOP_CHARS = set("的了着在是和与也都就又很太而前后里中内外上下一个只把被让给对从向")
+_STOP_WORDS = {"的", "了", "着", "地", "得", "们", "个", "呀", "啊", "呢", "吧", "哦", "嘛", "・", "·"}
+
+
+def _is_functional_residue(text: str) -> bool:
+    stripped = text.strip(" 　、,，.。!！?？~～" + "".join(_STOP_WORDS))
+    if not stripped:
+        return True
+    return all(ch in _STOP_CHARS for ch in stripped)
+
+
+_KEYS = sorted(CN_TAG_MAP, key=len, reverse=True)
+
+
+def translate_cn(text: str, weight: float | None = None) -> tuple[list[str], list[str]]:
+    """把一段中英混合的描述翻译成 tag 列表。
+
+    返回 (tags, unmatched_segments)。英文片段原样保留（按分隔符切分）。
+    """
+    if not text:
+        return [], []
+
+    work = text
+    tags: list[str] = []
+    for key in _KEYS:
+        if key and key in work:
+            for tag in CN_TAG_MAP[key]:
+                tags.append(f"({tag}:{weight})" if weight and weight != 1.0 else tag)
+            # 用空格吞掉已匹配的词，避免残留「的」等连接字被误判为未收录
+            work = work.replace(key, " ")
+
+    parts = [p.strip() for p in re.split("[%s]" % re.escape(_SEPARATORS), work) if p.strip()]
+    unmatched: list[str] = []
+    for part in parts:
+        if any("\u4e00" <= ch <= "\u9fff" for ch in part):
+            if not _is_functional_residue(part):
+                unmatched.append(part)
+        else:
+            # 英文片段整段保留（"silver hair" 是一个 tag，不拆成两个词）
+            tags.append(_WS_RE.sub(" ", part))
+    return tags, unmatched
+
+
+def known_terms() -> list[str]:
+    return sorted(CN_TAG_MAP)

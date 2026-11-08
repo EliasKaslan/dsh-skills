@@ -1,0 +1,146 @@
+{
+  "_comment": "风格 / 构图预设。kind=style 影响画风与光影；kind=composition 影响景别。tag 数量刻意精简：SDXL 正向提示词只有 77 token 预算。",
+  "presets": [
+    {
+      "id": "anime",
+      "name": "赛璐璐动画风（默认）",
+      "kind": "style",
+      "tags": [],
+      "negative": [],
+      "notes": "Animagine 系模型的原生风格，不加 tag —— 加了只会挤占 77 token 里更值钱的场景词。"
+    },
+    {
+      "id": "soft",
+      "name": "柔和厚涂 / 轻水彩",
+      "kind": "style",
+      "tags": [
+        "painterly",
+        "soft lighting",
+        "pastel colors"
+      ],
+      "negative": [
+        "harsh shadows"
+      ],
+      "notes": "适合治愈、日常、抒情场景。"
+    },
+    {
+      "id": "cinematic",
+      "name": "电影感 / 逆光光斑",
+      "kind": "style",
+      "tags": [
+        "cinematic lighting",
+        "backlighting",
+        "bokeh",
+        "depth of field"
+      ],
+      "negative": [
+        "flat lighting"
+      ],
+      "notes": "强氛围、强光影，适合宣传图 / 封面。"
+    },
+    {
+      "id": "sketch",
+      "name": "线稿 / 铅笔素描",
+      "kind": "style",
+      "tags": [
+        "monochrome",
+        "greyscale",
+        "pencil sketch",
+        "lineart",
+        "hatching"
+      ],
+      "negative": [
+        "color",
+        "colored",
+        "colorful",
+        "vivid colors",
+        "chromatic aberration",
+        "painting"
+      ],
+      "notes": "真·单色铅笔稿：用 drop 剔掉角色颜色词，再叠 monochrome/greyscale/pencil sketch/hatching，并把 color 系列做负面。",
+      "drop": [
+        "dark blue hair",
+        "blue hair",
+        "gradient hair",
+        "blue eyes"
+      ]
+    },
+    {
+      "id": "sticker",
+      "name": "贴纸 / 表情包",
+      "kind": "style",
+      "tags": [
+        "sticker",
+        "white background",
+        "flat color"
+      ],
+      "negative": [
+        "scenery",
+        "complex background"
+      ],
+      "notes": "配合 whale-chan-chibi 出头像和表情包。"
+    },
+    {
+      "id": "bust",
+      "name": "构图：上半身胸像",
+      "kind": "composition",
+      "tags": [
+        "upper body",
+        "looking at viewer"
+      ],
+      "notes": "脸部占比最大，最容易出好细节，默认构图。"
+    },
+    {
+      "id": "headshot",
+      "name": "构图：头肩特写",
+      "kind": "composition",
+      "tags": [
+        "portrait",
+        "headshot",
+        "looking at viewer"
+      ],
+      "notes": "头像 / Q 版用。"
+    },
+    {
+      "id": "half",
+      "name": "构图：半身（牛仔镜头）",
+      "kind": "composition",
+      "tags": [
+        "cowboy shot",
+        "looking at viewer"
+      ],
+      "notes": "能带上服装细节和一点背景。"
+    },
+    {
+      "id": "full",
+      "name": "构图：全身站姿",
+      "kind": "composition",
+      "tags": [
+        "full body",
+        "standing"
+      ],
+      "notes": "展示完整服装与鲸尾；全身图脸部像素少，建议开 --hires 1.5。"
+    },
+    {
+      "id": "back",
+      "name": "构图：回头（背对镜头）",
+      "kind": "composition",
+      "tags": [
+        "from behind",
+        "looking back",
+        "upper body"
+      ],
+      "notes": "适合展示头发与背影氛围。"
+    },
+    {
+      "id": "sit",
+      "name": "构图：坐姿",
+      "kind": "composition",
+      "tags": [
+        "sitting",
+        "cowboy shot"
+      ],
+      "notes": "室内 / 窗边场景常用。"
+    }
+  ]
+}

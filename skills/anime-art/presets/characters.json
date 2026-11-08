@@ -1,0 +1,165 @@
+{
+  "_comment": "角色预设。tags=核心特征（高优先级，必保）；detail=细节补充（token 紧张时先被裁）。",
+  "presets": [
+    {
+      "id": "whale-chan",
+      "name": "鲸鱼娘（DeepSeek 拟人 · 女仆装）",
+      "kind": "character",
+      "tags": [
+        "1girl",
+        "solo",
+        "dark blue hair",
+        "blue hair",
+        "gradient hair",
+        "ahoge",
+        "fin ears",
+        "blue eyes",
+        "maid",
+        "white apron",
+        "navy dress"
+      ],
+      "detail": [
+        "whale tail",
+        "maid headdress",
+        "hair bow",
+        "bowtie",
+        "gem"
+      ],
+      "negative": [
+        "multiple girls",
+        "cat ears",
+        "fox ears"
+      ],
+      "defaults": {
+        "composition": "bust",
+        "style": "anime",
+        "aspect": "portrait",
+        "cfg": 6.0,
+        "steps": 30,
+        "sampler": "euler_a"
+      },
+      "source": {
+        "license": "CC BY-NC-SA 4.0（非商用 / 署名 / 相同方式共享）",
+        "origin": "原创角色「溟月」by 上善无形（2025-06）；DeepSeek 化·女仆装版本 by B站 @ZipZipPipe（2026-04-25）",
+        "community": "2026-07 DeepSeek V4-Flash GA 后，成为 B 站「AI 模型娘」里受众最广的版本，昵称「大肥鱼」",
+        "refs": [
+          "https://space.bilibili.com/3747573030456892",
+          "https://www.tmtpost.com/8110298.html"
+        ]
+      },
+      "notes": "深蓝渐变长发 + 呆毛 + 鲸类头鳍耳 + 深蓝白女仆装 + 鲸尾。人设：爱吃白饭、傲娇、拒绝被叫胖、管用户叫「鱼片」。商用须遵守 CC BY-NC-SA 4.0。"
+    },
+    {
+      "id": "whale-chan-chibi",
+      "name": "鲸鱼娘（Q 版 / 表情包风）",
+      "kind": "character",
+      "tags": [
+        "1girl",
+        "solo",
+        "chibi",
+        "dark blue hair",
+        "blue hair",
+        "gradient hair",
+        "ahoge",
+        "fin ears",
+        "blue eyes",
+        "maid",
+        "white apron",
+        "navy dress"
+      ],
+      "detail": [
+        "sticker",
+        "simple background"
+      ],
+      "negative": [
+        "realistic",
+        "photo",
+        "multiple girls"
+      ],
+      "defaults": {
+        "composition": "headshot",
+        "style": "sticker",
+        "aspect": "square",
+        "cfg": 6.0,
+        "steps": 28,
+        "sampler": "euler_a"
+      },
+      "source": {
+        "license": "CC BY-NC-SA 4.0（非商用 / 署名 / 相同方式共享）",
+        "origin": "同上，Q 版衍生"
+      },
+      "notes": "用于头像、表情包、贴纸。建议 --aspect square + --style sticker。"
+    },
+    {
+      "id": "anime-girl",
+      "name": "通用二次元少女（不绑定角色）",
+      "kind": "character",
+      "tags": [
+        "1girl",
+        "solo"
+      ],
+      "detail": [
+        "beautiful detailed eyes",
+        "detailed face",
+        "beautiful hair"
+      ],
+      "negative": [
+        "multiple girls",
+        "old",
+        "child"
+      ],
+      "defaults": {
+        "composition": "bust",
+        "style": "anime",
+        "aspect": "portrait",
+        "cfg": 6.0,
+        "steps": 30,
+        "sampler": "euler_a"
+      },
+      "source": {
+        "license": "无角色版权限制（外形完全由提示词决定）"
+      },
+      "notes": "不给角色特征时用这个，外形由 --scene / --tags 决定，比如 “1girl, silver hair, red eyes, kimono”。"
+    },
+    {
+      "id": "whale-boy",
+      "name": "子午（DeepSeek 拟人 · 男性）",
+      "kind": "character",
+      "tags": [
+        "1boy",
+        "solo",
+        "male focus",
+        "blue hair",
+        "short hair",
+        "blue eyes",
+        "suit",
+        "white shirt",
+        "necktie"
+      ],
+      "detail": [
+        "messy hair",
+        "sharp eyes",
+        "black suit",
+        "blue necktie",
+        "collared shirt"
+      ],
+      "negative": [
+        "1girl",
+        "female"
+      ],
+      "defaults": {
+        "composition": "bust",
+        "style": "anime",
+        "aspect": "portrait",
+        "cfg": 6.0,
+        "steps": 30,
+        "sampler": "euler_a"
+      },
+      "source": {
+        "license": "社区同人形象，授权请参照原作者声明",
+        "origin": "B 站用户对 DeepSeek 的另一种拟人：蓝发西装男性形象「子午」"
+      },
+      "notes": "与鲸鱼娘对照的男性版形象。"
+    }
+  ]
+}
