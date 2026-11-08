@@ -81,6 +81,24 @@
       "notes": "配合 whale-chan-chibi 出头像和表情包。"
     },
     {
+      "id": "gaming-night",
+      "name": "场景：夜间电竞房（屏幕光 + 冷蓝暗调）",
+      "kind": "style",
+      "tags": [
+        "night",
+        "dark room",
+        "computer monitor",
+        "bloom",
+        "rim lighting"
+      ],
+      "negative": [
+        "daytime",
+        "sunlight",
+        "overexposed"
+      ],
+      "notes": "实战沉淀的场景型风格：把「夜/暗房/显示器/辉光/轮廓光」这套打光一次给全，配合 --composition half + --tags 'holding controller, looking at viewer, smile, sitting' 就是「夜晚打游戏」。注意它会占 5 个 tag 的预算，因此角色细节层（鲸尾/发带）一定被裁，要保就写进 --tags。"
+    },
+    {
       "id": "bust",
       "name": "构图：上半身胸像",
       "kind": "composition",

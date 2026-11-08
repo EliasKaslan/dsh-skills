@@ -59,19 +59,39 @@ curl.exe -L -C - -o "$env:DSH_HOME\models\anime-art\animagine-xl-4.0-opt.safeten
 | 手部畸形 | SDXL 通病 | 多抽几张；`--negative-extra "extra arms, fused fingers"`；不要全身+手部特写 |
 | 画面糊、颜色灰 | 步数太低 / cfg 太高 | `--steps 30`（**低于 20 步质量断崖式下降**，实测 12 步会出拼贴怪图） |
 | 角色不像 | 关键 tag 被裁 | `--dry-run` 检查；场景写短一点 |
+| 少了女仆头饰/鲸尾/发带 | detail 层最先被裁（`--dry-run` 的 `dropped_tags` 里能看到） | 把它们写进 `--tags`（优先级高于场景/构图/细节层），或删掉一两个场景词 |
+| 说"打游戏"但桌面是空的 | 模型不会自己布景 | 场景词点名道具：`显示器`／`键盘`／`手柄`／`台灯`，或用 `--style gaming-night` |
 | 出现文字/水印 | 模型学到的封面习惯 | 负面词已含 `text, watermark`；仍出现就换 seed |
 | 构图不对（说回头却是正面） | 场景词被裁 + 构图冲突 | 用 `--composition back` 显式指定 |
 | 出图慢得离谱 | 在跑 CPU 或 offload | `--doctor` 确认；关 `--offload` |
 | **越跑越慢（第二张开始慢 10~20 倍）** | Windows WDDM 在显存超额时把显存换到内存，不报 OOM 只降速 | 引擎已内置 `set_per_process_memory_fraction(0.92)` + 碎片回收；若自己写脚本，务必在每次生成后 `gc.collect(); torch.cuda.empty_cache()`，并检查 `torch.cuda.memory_reserved()` 是否超过显存（实测曾飙到 18.4GB / 16GB，单张从 12s 变 489s） |
 
 ## D. 文件与元数据
-
 - 图片在哪：`--out` 指定，默认 `./anime-out`（相对当前工作目录）。
 - 元数据怎么看：同名 `.json`；或直接读 PNG tEXt：
   ```powershell
   & $py -c "from PIL import Image; print(Image.open('x.png').text)"
   ```
 - 路径含中文/空格没问题（已在含中文的工作目录下实测）。
+
+### 精修尺寸上不去（想要 1248×1824 却只给 1048×1528）
+hires 默认把放大后的像素压到 1.6MP，所以 `--hires 1.5` 实际落到 1048×1528。要更大就调上限：
+
+```powershell
+& $py $gen ... --hires 1.5 --hires-denoise 0.38 --hires-max-mp 2.3   # 1248×1824
+```
+
+16GB 卡单张 2.3MP 实测不 OOM（1248×1824 精修约 15 秒）；真爆了引擎会自动按 0.75 降档重试，
+元数据里 `hires_fix.retried_after_oom=true` 就是触发过降档。再往上（>2.5MP）收益很小、风险很大。
+
+### PowerShell 里命令"报错"但图其实出好了
+把 python 的 stderr 接进管道时（`... 2>&1 | Select-Object`），PowerShell 会把进度/警告行当成
+ErrorRecord，进程退出码变 1 且整条命令看起来失败。判据是**文件在不在、尺寸对不对**，不是退出码：
+
+```powershell
+& $py $gen ... *> run.log    # 想留日志就这样写，避免 stderr 混进管道
+Write-Output "exit=$LASTEXITCODE"   # 单独跑一次才准
+```
 
 ## E. 自检
 

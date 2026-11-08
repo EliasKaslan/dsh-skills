@@ -11,7 +11,7 @@
 
 | # | 用例 | 断言要点 |
 |---|---|---|
-| U1 | 预设目录可加载 | 15 个预设；`whale-chan` 必须有 `1girl/blue hair` 且带授权字段 |
+| U1 | 预设目录可加载 | 16 个预设（4 角色 + 6 风格/场景 + 6 构图）；`whale-chan` 必须有 `1girl/blue hair` 且带授权字段 |
 | U2 | 非法预设被拒绝 | 未知 id、类型不匹配都抛 `PresetError` |
 | U3 | 中文场景转译 | 「雨天的电车站，撑着伞回头看」→ `train station/holding umbrella/looking back`；虚词不报未收录；「毛毛细雨」优先于「下雨」 |
 | U4 | 提示词组装 | 质量词在前、`safe` 评级、`Blue_Hair` 与 `blue hair` 去重、token ≤ 77、超预算只裁尾部 |
@@ -36,6 +36,7 @@
 | 1024×1024 / 30 步 | 8.1 s | ~26 s |
 | 1216×832 / 30 步 | 8.0 s | ~23 s |
 | 832×1216 → hires 1.258× (1048×1528, 60 步) | 12.6 s | — |
+| 832×1216 → hires 1.5× (1248×1824, 60 步, `--hires-max-mp 2.3`) | **15.2 s** | 无 OOM、无需降到 0.75 重试 |
 | `--offload` 1024×1024 / 12 步 | 11.4 s（同参数常规 4 s，约 2.8×） | — |
 
 显存：常驻 6.58 GB，峰值约 7.4 GB（修好碎片治理后；修复前 reserved 曾涨到 18.4 GB / 16 GB 并触发 WDDM 换页，单张退化到 489 s）。
@@ -91,3 +92,44 @@
 2. 表情包批量：`--count 8` 固定 seed 段 + 网格挑图，再脚本合成表情包九宫格。
 3. LoRA 微调：若要在商用场景替换 IP，训练一个自有角色 LoRA 最划算。
 4. 加速：SDXL-Lightning/DMD2（4~8 步）能把单张压到 2 秒级，代价是细节损失。
+
+## 8. 追加验收：夜间打游戏（2026-11-08 第二版实测）
+
+需求：鲸鱼娘深夜打游戏，要求"尽量精致"。产出 `anime-out/whale-chan-night-gaming/`。
+
+**定稿参数**
+
+```powershell
+& $py $gen --preset whale-chan --style anime --composition half `
+  --tags "holding controller, looking at viewer, smile, sitting, maid headdress, rim lighting" `
+  --scene-tags "computer monitor, dark room, night, bloom" --max-tokens 77 `
+  --aspect portrait --steps 32 --sampler dpmpp_2m_karras `
+  --seed <选中 seed> --hires 1.5 --hires-denoise 0.38 --hires-max-mp 2.3
+```
+
+（等价于新预设：`--style gaming-night --tags "holding controller, looking at viewer, smile, sitting, maid headdress"`）
+
+**结果**
+
+| 项 | 数值 |
+|---|---|
+| 抽卡量 | 4 批共 34 张 832×1216（每张 7.3~8.2 s） |
+| 可用率 | 约 60% 构图/身份可用；手部干净且道具清楚的约 1/3 |
+| 终稿 | 4 张 1248×1824（hires 0.38，各 15.2 s） |
+| 提示词预算 | 75/75 token，`--dry-run` 仅裁掉 `cowboy shot`（构图由 `sitting`+桌面场景补足） |
+
+**逐张人工检查（4 张均过）**
+
+| 图 | 结论 | 备注 |
+|---|---|---|
+| 01 正面（hero, seed 804199322） | 通过 | 双鳍耳、女仆头饰、呆毛、宝石领结、手柄握持关系清楚、显示器+键盘在画 |
+| 02 回眸（seed 873287625） | 通过 | 鳍耳透光细节最好；回眸+手柄，键盘辉光 |
+| 03 暖台灯（seed 1666422308） | 通过 | 冷暖对撞最强；手柄按键/摇杆可辨 |
+| 04 夜景窗（seed 1851811044） | 通过 | 城市光斑、发梢飘动，脸最漂亮；手柄略糊（如实记录） |
+
+**如实记录的瑕疵**
+
+- 鲸尾在 `half` 构图 + 预算 75 下必被裁，四张都没有尾鳍；要鲸尾得 `--composition full` 并让出场景词。
+- 正脸时通常只有一侧鳍耳露出，另一侧被头发遮住——不是画错，是 `fin ears` 与 `hair bow` 抢位置。
+- 约 1/3 的 seed 会把手指与手柄糊在一起；`--negative-extra "fused fingers, mutated hands"` 只是略微改善。
+- 显示器屏幕多为纯蓝/纯白无内容，写 `屏幕` 或 `bloom` 都压不出 UI；需要"屏上有画面"只能靠 img2img 局部重绘。

@@ -27,13 +27,13 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **46** 个 skill、**133** 个文件、**2117331** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **46** 个 skill、**133** 个文件、**2127827** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
 | 1 | [`aidd-report-reader`](skills/aidd-report-reader/SKILL.md) | 读华为 AIDD（aidd.huawei.blue）文档质量扫描报告并导出问题清单——检查 AIDD 扫描报告、解析 AIDD 问题、导出 issue 数据：gitcode OAuth 登录（DevUI 复选框要直接注入 Vue 状态）、R... | 1 |
 | 2 | [`ai-vendor-official-source-audit`](skills/ai-vendor-official-source-audit/SKILL.md) | AI 厂商官方源真伪与覆盖——这家厂商官方报告有哪些来源、这个文档链接是真的吗、抓下来是空壳还是真页：产品名≠API model id（按官方列表逐名计数）、新闻页与详情页都抓；体积极小或与假 slug 同档判空壳；HF &full=tru... | 1 |
-| 3 | [`anime-art`](skills/anime-art/SKILL.md) | 本地离线画二次元图（SDXL Animagine XL 4.0 Opt + diffusers 自建管线，不调在线画图 API）——一条命令约 8 秒出 832×1216：角色预设（鲸鱼娘／DeepSeek 拟人、Q 版、通用少女、子午）、... | 16 |
+| 3 | [`anime-art`](skills/anime-art/SKILL.md) | 本地离线画二次元图（SDXL Animagine XL 4.0 Opt 本地自建管线，不调在线 API）——约 8 秒出 832×1216：角色预设（鲸鱼娘／DeepSeek 拟人、Q 版、通用少女、子午）、中文场景直出（200+ 词表，含... | 16 |
 | 4 | [`arxiv-paper-deep-read-and-claim-verification`](skills/arxiv-paper-deep-read-and-claim-verification/SKILL.md) | arXiv 论文精读 + 开源声称独立核查——精读这篇论文、论文说的开源仓真实存在吗、论文数字能复现吗：web_fetch 抓 /html 会在正文中段被 (Content truncated.) 截断，改用 pwsh Invoke-Web... | 1 |
 | 5 | [`ascend-cann-env`](skills/ascend-cann-env/SKILL.md) | 昇腾 CANN 的检测/安装/激活/换版本/卸载（默认 a3=192.168.13.188，备用 a3b=.190）——权威定位看 /etc/Ascend/ascend_cann_install.info，toolkit+ops+nnal ... | 1 |
 | 6 | [`ascend-conda-env`](skills/ascend-conda-env/SKILL.md) | 昇腾服务器 conda 环境的检测 / 新建 / 激活与换 python 版本（默认 a3=192.168.13.188，备用 a3b=.190）——共享 miniconda3 在 /mnt/share/x00886548/minicond... | 1 |

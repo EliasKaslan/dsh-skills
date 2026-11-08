@@ -116,6 +116,13 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--count", type=int, default=1, help="生成张数（种子依次递增）")
     g.add_argument("--hires", type=float, default=0.0, help="hires-fix 放大倍数，如 1.5；0 表示关闭")
     g.add_argument("--hires-denoise", type=float, default=0.45, help="hires-fix 重绘强度（0.3~0.6）")
+    g.add_argument(
+        "--hires-max-mp",
+        type=float,
+        default=1.6,
+        help="hires-fix 的像素上限（百万像素，默认 1.6）。16GB 卡单张可放到 2.3，"
+        "再大注意力开销平方增长；真爆显存会自动降档重试",
+    )
     g.add_argument("--max-tokens", type=int, default=75, help="正向提示词 token 预算（SDXL 上限 77）")
     g.add_argument("--no-safety", action="store_true", help="移除 NSFW 负面词（默认开启安全过滤）")
 
@@ -284,6 +291,7 @@ def main(argv: list[str] | None = None) -> int:
                     cfg=cfg,
                     sampler=sampler,
                     seed=res.seed,
+                    max_pixels=max(400_000, int(args.hires_max_mp * 1_000_000)),
                 )
                 image = refined.image
                 hires_meta = dict(refined.extra.get("hires", {}))
@@ -291,7 +299,8 @@ def main(argv: list[str] | None = None) -> int:
                 if hires_meta.get("clamped"):
                     eprint(
                         f"[warn] 放大倍率被压到 {hires_meta['applied_scale']}×（{image.width}x{image.height}）："
-                        "16GB 显存下超过约 160 万像素会被显存拖垮。想要更大尺寸请分块处理或换更小的基础尺寸。"
+                        f"超过 --hires-max-mp={args.hires_max_mp} 的像素上限被截断。"
+                        "想要更大尺寸就调高这个上限（16GB 卡单张约 2.3），或换更小的基础尺寸。"
                     )
 
             stats = image_stats(image)

@@ -1,6 +1,6 @@
 ---
 name: anime-art
-description: "本地离线画二次元图（SDXL Animagine XL 4.0 Opt + diffusers 自建管线，不调在线画图 API）——一条命令约 8 秒出 832×1216：角色预设（鲸鱼娘／DeepSeek 拟人、Q 版、通用少女、子午）、中文场景直出（200+ 词表，超 77 token 自动裁剪并报告裁了什么）、画风（赛璐璐／柔光／电影感／单色线稿／贴纸）、景别与画幅、批量抽卡与拼图、hires 精修、可复现种子与 PNG 内嵌提示词。含 16 项自检与 4 篇参考文档。适用于「画一张二次元图／画鲸鱼娘／生成动漫头像立绘／出表情包／给文档配二次元插图／这张图用的什么提示词／批量出同一角色多张图／要单色线稿」。不适用：只是把现成图片排进 Word／PPT／PDF → 用 `office-render`；要改 skill 的 frontmatter 写法 → 用 `dsh-skill-authoring`；要把 skill 发布到公开仓 → 用 `dsh-skills-publish`。"
+description: "本地离线画二次元图（SDXL Animagine XL 4.0 Opt 本地自建管线，不调在线 API）——约 8 秒出 832×1216：角色预设（鲸鱼娘／DeepSeek 拟人、Q 版、通用少女、子午）、中文场景直出（200+ 词表，含夜间游戏房道具，超 77 token 自动裁剪并报告）、画风与场景打光包（赛璐璐／柔光／电影感／单色线稿／贴纸／夜间电竞房）、景别与画幅、批量抽卡与拼图、hires 精修（最高 1248×1824）、可复现种子与 PNG 内嵌提示词。含 16 项自检与 4 篇参考文档。适用于「画一张二次元图／画鲸鱼娘／画夜晚打游戏／生成动漫头像立绘／出表情包／给文档配二次元插图／这张图用的什么提示词／批量出同一角色多张图／要单色线稿」。不适用：只是把现成图片排进 Word／PPT／PDF → 用 `office-render`；要改 skill 的 frontmatter 写法 → 用 `dsh-skill-authoring`；要把 skill 发布到公开仓 → 用 `dsh-skills-publish`。"
 whenToUse: "要生成或重画二次元图、动画风插画、角色立绘头像或表情包时用；也用于复现某张图的提示词。模型看不到本节。"
 ---
 
@@ -41,8 +41,9 @@ $gen = "$env:DSH_HOME\skills\anime-art\scripts\anime_gen.py"
 
 - 运行时缺失（`$py` 不存在）→ 先跑一次安装脚本（约 8GB 下载，一次性）：
   `powershell -ExecutionPolicy Bypass -File "$env:DSH_HOME\skills\anime-art\scripts\setup_runtime.ps1"`
-- 生成 1 张 832×1216 / 30 步实测 **7~8 秒**（RTX 4070 Ti SUPER）；加 `--hires 1.5` 精修到 1048×1528 约再 **20~35 秒**。换显卡按算力线性估。
+- 生成 1 张 832×1216 / 30 步实测 **7~8 秒**（RTX 4070 Ti SUPER）；加 `--hires 1.5` 精修到 1048×1528 约再 **20~35 秒**；加 `--hires-max-mp 2.3` 放到 1248×1824 约 **15 秒**（默认上限 1.6MP 只到 1048×1528）。换显卡按算力线性估。
 - **出图后必须用 `read_image` 亲眼看**（见第 6 节验收红线），不要凭"命令成功"就交付。
+- 要"精致"的成品图：`--count 8~10 --grid` 先抽卡 → 挑 1 张 → 同 `--seed` + `--hires 1.5 --hires-denoise 0.38 --hires-max-mp 2.3` 出终稿。一次过（不抽卡）的废图率约三成，主要坏在手和道具。
 
 ---
 
@@ -52,13 +53,14 @@ $gen = "$env:DSH_HOME\skills\anime-art\scripts\anime_gen.py"
 |---|---|---|
 | `--preset` | 角色预设 | `whale-chan`（鲸鱼娘女仆装）·`whale-chan-chibi`（Q 版）·`anime-girl`（通用）·`whale-boy`（子午） |
 | `--scene` | 中文/英文画面描述 | 「樱花树下微笑」「夜晚的天台，星空，回头」 |
-| `--style` | 画风 | `anime`（默认，不加词）·`soft`·`cinematic`·`sketch`（真·单色铅笔稿）·`sticker` |
+| `--style` | 画风 / 场景打光包 | `anime`（默认，不加词）·`soft`·`cinematic`·`sketch`（真·单色铅笔稿）·`sticker`·`gaming-night`（夜间电竞房：屏幕光+冷蓝暗调） |
 | `--composition` | 景别 | `bust`（默认）·`headshot`·`half`·`full`·`back`·`sit` |
 | `--aspect` / `--size` | 画幅 | `portrait` 832×1216 ·`square` 1024×1024 ·`landscape` 1216×832 ·`portrait_tall` ·`card` ·`wide` · 或 `832x1216` |
 | `--count` | 张数（种子递增） | 1~16 |
 | `--seed` | 种子，-1 随机 | 复现某张图时用元数据里的 seed |
-| `--steps` / `--cfg` / `--sampler` | 采样参数 | 28~32 步 / 5~7 / `euler_a`（默认）·`dpmpp_2m_karras` |
-| `--hires` / `--hires-denoise` | 放大精修 | `1.5` + `0.45`（全身图建议开） |
+| `--steps` / `--cfg` / `--sampler` | 采样参数 | 28~34 步 / 5~7 / `euler_a`（默认）·`dpmpp_2m_karras` |
+| `--hires` / `--hires-denoise` | 放大精修 | `1.5` + `0.38~0.45`（精修终稿用 0.38，改得多会跑掉构图） |
+| `--hires-max-mp` | 精修的像素上限（百万） | 默认 `1.6`→1048×1528；`2.3`→1248×1824（16GB 卡单张上限） |
 | `--tags` | 追加 danbooru tag | `looking at viewer, wind, smile` |
 | `--grid` | 出拼图 | 多张时用 |
 | `--json` | 机器可读输出 | 程序化调用时用 |
@@ -83,8 +85,11 @@ $gen = "$env:DSH_HOME\skills\anime-art\scripts\anime_gen.py"
 
 写场景的经验：
 - 主体动作放前面（`回头`/`微笑`/`撑着伞`），环境放后面。
+- **道具要一个词一个词点名**：只说「打游戏」模型常给"坐在桌前笑"，桌面是空的；补 `显示器`/`键盘`/`手柄`（词表已收录）或 `--scene-tags "computer monitor, keyboard, game controller"`。
+- **要保住的角色识别点写进 `--tags`**：预算一紧，detail 层（`maid headdress` / `whale tail` / `hair bow`）会整条被裁——实测不给干预时女仆头饰会消失，成品立刻"不像她"。
 - `--composition full` 全身图脸部像素少，配 `--hires 1.5` 补细节。
-- 想要"海报感"用 `--style cinematic`；想要"治愈日常"用 `--style soft`；想要线稿/立绘设计稿用 `--style sketch`。
+- 想要"海报感"用 `--style cinematic`；想要"治愈日常"用 `--style soft`；想要线稿/立绘设计稿用 `--style sketch`；想要夜间室内氛围用 `--style gaming-night`。
+- 夜景要"精致"靠冷暖对撞（暖台灯 + 冷屏幕），纯冷色会发平；这套已固化在 `gaming-night` 预设里。
 - 同一批图尽量用同一画幅：切来切去会让 cuDNN 反复重选卷积算法，偶发明显变慢。
 
 ---
@@ -133,6 +138,7 @@ foreach ($s in "anime","soft","cinematic") { & $py $gen --style $s --seed 42 --o
 2. 多张时用 `--grid` 拼图一次看全。
 3. 不满意就调参重抽，**不要把坏图当成"生成成功"交付**。
 4. 引用他人角色形象要带授权说明（见下）。
+5. 交付多张时顺手做一张带标签的联系表（挑图用，也省得用户逐张点开对比）。
 
 ---
 

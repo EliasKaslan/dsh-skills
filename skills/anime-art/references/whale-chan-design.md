@@ -49,6 +49,7 @@ maid headdress, hair bow, blue bow, bowtie, white collar, gem, frills, blue them
 | 雨天电车站回头 | `--scene "雨天的电车站，撑着伞回头看"` |
 | 樱花树下微笑 | `--scene "樱花树下微笑" --style soft` |
 | 夜晚天台星空 | `--scene "夜晚的天台，星空，回头" --style cinematic` |
+| 夜间打游戏 | `--style gaming-night --composition half --tags "holding controller, looking at viewer, smile, sitting, maid headdress"`（配方见 prompt-cookbook §7） |
 | 吃白饭 | `--scene "吃白饭，得意"` |
 | Q 版头像 | `--preset whale-chan-chibi --aspect square --style sticker` |
 | 全身站姿 | `--composition full --hires 1.5` |
@@ -58,6 +59,7 @@ maid headdress, hair bow, blue bow, bowtie, white collar, gem, frills, blue them
 - ❌ 只写 `blonde hair` 或换发色——立刻"不是她"。
 - ❌ 用 `cat ears` / `animal ears` 近似"鳍耳"——会变猫娘。
 - ❌ 场景写满 5 个以上概念——77 token 装不下，角色特征会被挤掉。
+- ❌ 只给 `--scene` 就交付：预算一紧，detail 层（`maid headdress` / `whale tail` / `hair bow`）会整条被裁，成品"像蓝发女仆但不是她"。**关键识别点写进 `--tags`**（优先级高于场景/构图/细节，不会先被砍）。
 - ❌ 商用、印周边、做付费内容——CC BY-NC-SA 明确禁止商用。
 - ❌ 抹掉作者署名直接发布。
 

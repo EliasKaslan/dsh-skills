@@ -3,7 +3,7 @@
   "generated_by": "publish-dsh-skills.ps1",
   "skill_count": 46,
   "file_count": 133,
-  "total_bytes": 2117331,
+  "total_bytes": 2127827,
   "skills": [
     {
       "name": "aidd-report-reader",
@@ -22,9 +22,9 @@
     {
       "name": "anime-art",
       "path": "skills/anime-art",
-      "description": "本地离线画二次元图（SDXL Animagine XL 4.0 Opt + diffusers 自建管线，不调在线画图 API）——一条命令约 8 秒出 832×1216：角色预设（鲸鱼娘／DeepSeek 拟人、Q 版、通用少女、子午）、中文场景直出（200+ 词表，超 77 token 自动裁剪并报告裁了什么）、画风（赛璐璐／柔光／电影感／单色线稿／贴纸）、景别与画幅、批量抽卡与拼图、hires 精修、可复现种子与 PNG 内嵌提示词。含 16 项自检与 4 篇参考文档。适用于「画一张二次元图／画鲸鱼娘／生成动漫头像立绘／出表情包／给文档配二次元插图／这张图用的什么提示词／批量出同一角色多张图／要单色线稿」。不适用：只是把现成图片排进 Word／PPT／PDF → 用 `office-render`；要改 skill 的 frontmatter 写法 → 用 `dsh-skill-authoring`；要把 skill 发布到公开仓 → 用 `dsh-skills-publish`。",
+      "description": "本地离线画二次元图（SDXL Animagine XL 4.0 Opt 本地自建管线，不调在线 API）——约 8 秒出 832×1216：角色预设（鲸鱼娘／DeepSeek 拟人、Q 版、通用少女、子午）、中文场景直出（200+ 词表，含夜间游戏房道具，超 77 token 自动裁剪并报告）、画风与场景打光包（赛璐璐／柔光／电影感／单色线稿／贴纸／夜间电竞房）、景别与画幅、批量抽卡与拼图、hires 精修（最高 1248×1824）、可复现种子与 PNG 内嵌提示词。含 16 项自检与 4 篇参考文档。适用于「画一张二次元图／画鲸鱼娘／画夜晚打游戏／生成动漫头像立绘／出表情包／给文档配二次元插图／这张图用的什么提示词／批量出同一角色多张图／要单色线稿」。不适用：只是把现成图片排进 Word／PPT／PDF → 用 `office-render`；要改 skill 的 frontmatter 写法 → 用 `dsh-skill-authoring`；要把 skill 发布到公开仓 → 用 `dsh-skills-publish`。",
       "files": 16,
-      "bytes": 125250
+      "bytes": 135746
     },
     {
       "name": "arxiv-paper-deep-read-and-claim-verification",
