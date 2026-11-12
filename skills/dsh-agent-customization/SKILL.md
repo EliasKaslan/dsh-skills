@@ -975,3 +975,19 @@ web_fetch https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/
 ### 未验证（需真机确认）
 
 浏览器侧已注入的客户端代码是否在关闭开关时**即时** dispose：主机侧确认是即时的，但页面里已加载的模块可能要到刷新才彻底消失。本插件 `apply()` 返回了清理函数（移除角标与观察器），理论上会即时清理——这一条必须看真页面，不能只看 `list_plugins`。
+
+## 补：super agent 与 DSH 的架构层关系（bundle / preset / 独立 profile）
+
+### 三个层次（回答"它跟 DSH 是什么关系"时按这个顺序讲）
+
+1. **形态**：它不是 DSH 功能，是一个 **bundle**。`package.json` 里 `"dsh": {"bundle": {"patch": "./cordis.patch.yml"}}`，`engines.dsh: ^0.2.1-alpha.2`，peerDependencies 全是 `@deepseek-ai/dsh-*`（session / tools / agent / permission-presets / client-ui-* …）。⇒ DSH 是运行时与扩展框架，它是上层应用。
+2. **运行**：装在**独立 profile**（`dsh superagent --from-default-profile`，见 SETUP.md / `docs/006-deployment.md`），与日常 profile 隔离；往宿主里新增两样东西——两个 agent preset（主会话 `dsh-superagent-router` = `ROUTER_PRESET`；执行者 `WORKER_PRESET`，定义在 `cordis.patch.yml`）和三个插件（核心 + GitHub Source + 飞书 Source，飞书默认关）。面板是 DSH web client 插件。⇒ 全程走 DSH 的扩展点，不改本体一行。
+3. **概念**：DSH 自带的多 agent 原语是 subagent / workflow / agent-team（进程内 fork/spawn、脚本编排、一次性任务）；super agent 是**产品形态**——常驻、事件驱动（监听 GitHub/飞书）、有授权模型（Policy → Mandate → Ticket）、每件活在自己的 DSH Session 里跑完再回原会话交 PR。它内部就是用 DSH Session 承载 Router/Worker 两层、用 DSH 的 subagent/skill/jobs 工具干活。⇒ 同一底座上的两种"agent 长什么样"。
+
+### 事实源（都可复核）
+
+- 仓库 `deepseek-ai/dsh-superagent-prototype`，包名 `dsh-superagent` v0.1.0，MIT，`author: DeepSeek Harness Team <team@dsh.dev>`，repo description `Towards a More Autonomous Agent System`。
+- README 首行：`Research prototype for reference only, not an official DeepSeek product.` ⇒ **"官方团队出品" ≠ "官方产品"**，媒体标题（"DeepSeek 发布编程 agent"）是二手解读。
+- `docs/007-architecture.md`：14 个主会话 `orchestrator_*` 工具；SQLite `orchestrator.sqlite`；`tests/bundle-patch.spec.ts`「The bundle's patch, read as DeepSeek Harness reads it」。
+- 本机 0.2.2-rc.2 反证：480 个 docs md / 337 个 `@deepseek-ai` 包 / 30 个 profile bundle 均无它，preset 只有 standard/ptc/minimal/cordis ⇒ **发布包不含**，要玩必须单独装。
+- 易混淆：第三方 `dsh-super-ptc-mode`、`dsh-superpowers-preset`（名字带 super 的 preset，无关）；`got`/`undici` README 里的 `superagent` 是 HTTP 库。全树搜 `super` 会大量命中 JS `super` 关键字与 `superseded`。
