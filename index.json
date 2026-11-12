@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 60,
   "file_count": 239,
-  "total_bytes": 26471399,
+  "total_bytes": 26484897,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -143,7 +143,7 @@
       "path": "skills/dsh-agent-customization",
       "description": "DSH 改造入口总纲：五层生效时机、插件 bundle、上线纪律与回滚。适用于\"改 DSH 行为该改哪一层 / 插件行坏了怎么回滚 / MCP 怎么挂 / 恢复后会话打不开 / 自己写 host 插件\"。",
       "files": 2,
-      "bytes": 72298
+      "bytes": 82029
     },
     {
       "name": "dsh-agent-preset-live-verification",
@@ -171,7 +171,7 @@
       "path": "skills/dsh-isolated-web-host",
       "description": "起隔离 DSH host（重定向 DSH_HOME）：401 判就绪、落盘 pid 收尾、端口枚举恒空。适用于\"起个隔离 host 试试 / 不污染真实环境验插件 / 真实 host 占着端口不能重启\"。",
       "files": 1,
-      "bytes": 15190
+      "bytes": 17128
     },
     {
       "name": "dsh-longhaul-mode",
@@ -185,7 +185,7 @@
       "path": "skills/dsh-phone-remote-relay",
       "description": "手机远程接管电脑上的 DSH：公共 broker 中继 + 端到端加密；多标签互斥、外壳/插件版本分列核对、任务分组落到未分组、偶发断连排查。",
       "files": 1,
-      "bytes": 46574
+      "bytes": 48403
     },
     {
       "name": "dsh-repo-sync",

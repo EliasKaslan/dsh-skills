@@ -290,7 +290,7 @@ session generation filename identifies v<文件名版本>, but its header identi
 - 包布局：`main: lib/index.js`（host ESM，`@deepseek-ai/*` 保持 external）+ `exports["./client"]: lib/client.js`（**预构建自注册 CJS factory**：`window.__ModuleLoader__.load({id, factory:(require)=>{…; return module.exports}})`；只 require 平台 seed：react / react-dom / react/jsx-runtime / cordis / dsh-client-store / dsh-client-ui-primitives / dsh-client-ui-slots / dsh-client-ui-dockkit）。非平台依赖写 `dsh.client.external`；手写 ESM 必失败（宿主原样拼接）。
 - bundle 安装：`dsh.bundle.patch: "./cordis.patch.yml"` 让插件管理器可装；patch 里 `- insert: - id: <id> name: '<包名>'`。手工安装 = profile `node_modules` 放 junction + profile patch 加同一行。
 - 生效：profile patch 改动热重载；**实测只改 profile patch 可能不唤醒 watcher → touch `~/.dsh/cordis.patch.yml` 触发一次重组合**；改插件自身 `package.json` 清单需重启。
-- 验证（不带 token）：`GET /plugins/events` 首帧 graph 里按 `id` 找行（**不要**用 pluginInventory，它只投影宿主行）；`GET /plugins/??<pkg>/client.js&rev=<rev>` 200，旧 rev 404。`/plugins/*` 免令牌，`/` 401 只是 token 围栏。
+- 验证（不带 token）：`GET /plugins/events` 首帧 graph 里按 `id` 找行——**注意这条只对 host+client 双半插件成立**；纯 host-only bundle 在客户端图里**恒为 0**（实测：真实 host 里已发布两次的 host-only 插件同样是 0 命中），拿它判缺席会得到假阴性（**不要**用 pluginInventory，它只投影宿主行）；`GET /plugins/??<pkg>/client.js&rev=<rev>` 200，旧 rev 404。`/plugins/*` 免令牌，`/` 401 只是 token 围栏。
 - RPC：宿主 service 继承 `TypertRemoteService`（`super(ctx,'<svc>',{namespace:'<ns>'})`）+ 原型 marker `@deepseek-ai/dsh-typert-protocol/remote-methods`；无 strict 描述符时网关走 SRC 兜底（参数名从 `Function.prototype.toString()` 解析，**signal 必须字面量最后一位**）。client 最省事走 `ctx.connection.rpc.call('/api','<ns>/<method>',{args},signal)`，返回 `{ok,value}|{ok:false,error}`，**免 zod / 免 $mount / 免 generator**。
 - 验收：隔离 host 冷启动 + boot graph + bundle 200；真会话验 UI；只读用主会话 `session.vN.jsonl.zstd` 的 size/mtime 不变做证据。
 - 完整示例与细节：`D:\workspace\agent\dsh-sidecar`（README 的 How it works / Development）。
@@ -377,8 +377,6 @@ f.seek(16); hdr = json.loads(f.read(json_len).decode('utf-8'))
 
 ## 本机 DSH 取证入口（源码 / 会话日志）
 
-## 本机 DSH 取证入口（源码 / 会话日志）
-
 何时用：要确认「DSH 内部到底怎么做的」（上下文压缩、注入、工具表），或回看某次会话到底发生了什么。方向是**只读取证**，不改配置——要改配置回总纲的「五层」那一节。
 
 ### 1) 源码不在 runtime context 给的那个路径上
@@ -411,3 +409,149 @@ rg: IO error for operation on D:\tools\dsh\resources\app.asar\dsh: 系统找不�
 - profile 级：`C:\Users\admin\.dsh\profiles\<profile>\cordis.patch.yml`（本机 profile = `desktop`）
 - 两层都**没有**压缩 / 上下文相关条目 ⇒ 该行为走内置默认；想调必须先从包里挖出默认键名，别假设有现成开关
 - **先确认 `DSH_HOME` 环境变量再拼路径**：本机是 `C:\Users\admin\.dsh`，不是 `C:\Users\Administrator`；按用户名猜路径会扑空（`Test-Path` 返回 False，且不会报错）
+
+## host-only 插件 bundle：安装、生效判定与免启动验证（实测 2026-11-12）
+
+## 用 `plugin_manager` 装本地 link bundle（省掉手工三步）
+
+`install_bundle` 的 `target` 直接收 `link:<绝对路径>`：
+
+```
+plugin_manager install_bundle target='link:D:\workspace\agent\<你的插件目录>'
+```
+
+成功返回 `{"stage":"enable","target":"<包名>","enabled":true,"changed":true,"application":"applied"}`，它一次做完：建 `node_modules` junction → 写 profile `package.json` 的 `dependencies`（`link:D:/...`）→ 追加进 `dsh.profile.bundles` → 跑 pnpm。
+
+- **pnpm 的 peer 警告是噪音，不是故障**：link 形态必然打
+  `The linked in dependency will not resolve the peer dependencies from the target node_modules`，
+  而 peer 实际由 app-boot 的拦截层按插件 `peerDependencies` 解析（见本 skill 上面那节），实测不影响加载。
+- **不要在 link 形态下往插件目录 vendored 一份 `@deepseek-ai/*`**，那会绕开拦截层。
+- 幂等复查用 `set_plugin target='include:<rowId>' enabled=true`：返回 `application: applied` + `changed: false` 就是行已在且启用。
+
+## 改了插件源码 ≠ 已经生效；"行到底挂没挂"也别猜
+
+**先纠正一条本 skill 早前的错误断言**：此前写的是"bundle 目录里的源码不会被热重载"。**已被实测证伪**——
+同一个插件在真实 host 里，改 `lib/*.js` 之后 `publish.log` **确实出现过新的 `loaded(...)` 行**（两次，间隔 17 秒）。
+
+实测（2026-11-12，真实 host）：
+
+| 我做了什么 | 运行期有没有跟着变 |
+|---|---|
+| 改 `lib/*.js` | **有**——日志里出现两条新的 `loaded(...)` |
+| 同一轮里再改 `index.js` | 数分钟内**没有**任何新行 |
+
+⇒ 结论不是"会不会热重载"，而是**"无法预判"**。唯一判据是**运行期痕迹**：在 `apply()` 开头自己写一行落盘日志
+（不要只靠 `ctx.logger`，它不进 stderr），改完看有没有新行。有新行 = 新代码在跑；没有 = 仍是旧版，重启 host。
+**文件 mtime 不是证据**，`401` 更不是（见下一节）。
+
+## 判"插件行到底挂没挂"：唯一可靠判据是插件自己的副作用
+
+三组对照（隔离 host，0.2.2-rc.1，同一个 host-only 插件）：
+
+| 组 | 改动 | 无 token `GET /` | stderr | 插件副作用 |
+|---|---|---|---|---|
+| A | 原样 | 401 | 空 | `<stateDir>/<plugin>.log`，config = profile 覆盖后的值 |
+| B | 把 row 的 `name` 改成不存在的包名 | 401 | 空 | 痕迹改用**默认** config（`enabled=true repo=<默认路径>`） |
+| C | 把 bundle 从 `dsh.profile.bundles` 里删掉 | 401 | 空 | 两个 state 目录**都不生成** |
+
+两条反直觉结论：
+
+- **`401` 对"行挂没挂"是恒真断言**：三种状态码、`stdout`、`stderr` 全都一模一样。判据只能是插件自己写出的副作用（状态文件 / 日志文件）。
+- **B 组：坏 `name` 不会让行消失**。它把整段 patch（**连 `config`**）静默丢弃，插件**退回 bundle 自带的默认配置照常挂载**。
+  所以"好像加载了但配置没生效"要优先怀疑 `name` 拼错或包名不存在。反过来这也是最便宜的判据：
+  **在 `apply()` 里把关键 config 值打进那行日志**，值不对就是 profile 的覆盖根本没吃上。
+
+## 不启 host 也能验接线（比冷启动便宜得多）
+
+把插件目录复制到一个桩目录，造两个最小 peer 包，然后用 `ctx` 桩直接调 `apply()`：
+
+```js
+// 桩：node_modules/@deepseek-ai/dsh-tools/index.js
+export const defineTool = (o) => o
+// 桩：node_modules/@deepseek-ai/schemastery/index.js  —— 每个类型返回 {default:()=>d, parse:v=>v}
+```
+
+```js
+const regs = []
+const ctx = {
+  logger: { info() {}, warn() {} },
+  effect: (fn, label) => { const d = fn(); if (typeof d !== 'function') throw new Error('no disposer: ' + label) },
+  on: (evt) => regs.push('on:' + evt),
+  tools: { register: (def) => regs.push('tool:' + def.name) },
+}
+mod.apply(ctx, cfg)   // 断言 regs === ['tool:...','tool:...','on:session/event']
+```
+
+它能一次证掉四件事：`exports` 面（`name` / `inject` / `Config` / `apply`）、**注册的工具名清单**、
+**订阅的事件名清单**、以及 `ctx.effect` 的回调**真的返回了 disposer**（返回 `undefined` 会在真 host 里埋泄漏）。
+`node --check` 只能证语法，证不了这些。
+
+## 两个事件/定时器事实（0.2.2-rc.1）
+
+- **`turn/end` 不是 cordis 事件**，`ctx.on('turn/end', …)` 收不到（全 asar 搜 `turn/end` 只命中会话日志的 append）。
+  它是会话日志类型，必须走：`ctx.on('session/event', (session, event) => { if (event?.type !== 'turn/end') return; … })`。
+- cordis **没有** `ctx.setInterval`；用 Node 全局包在 effect 里，并 `unref()` 否则 host 退不掉：
+
+```js
+ctx.effect(() => {
+  const t = setInterval(tick, ms)
+  if (typeof t.unref === 'function') t.unref()
+  return () => clearInterval(t)
+}, '<plugin>: poll timer')
+```
+
+- 同理 **`ctx.on('dispose')` 也不存在**：清理一律走 `ctx.effect(() => disposer)` 或让 `apply` 返回函数。
+
+## 写盘类插件的"可审计"底线
+
+发布/同步类插件（把文件推出去的那种）除了自带回读自检（写完 `readFile` 断言），还要**把删除动作留痕**：
+把本次删掉的路径写进状态文件（例：`state.json` 的 `deleted[]`）。否则"发布后少了文件"只能靠事后
+`git diff <old> <new>` 反推——而那一刻你往往已经不知道 `<old>` 是哪个 sha 了。
+
+## 自己写「行内装饰」型客户端插件（手写 bundle + 取数链 + 免重启安装）
+
+## 自己写「行内装饰」型客户端插件（实测 0.2.2-rc.1）
+
+用户要「对话每一行常显这步的开始时间」这类**逐行装饰**需求时，先排除 slots：`conversation.chat.node` 是接管式槽（`entryKey: kind`，fallback 才是默认渲染），`tool.call.toolview` 同样是接管式（`dsh-diff-stat` 就靠它重画 diff，代价是自己渲染整个工具视图）。要在**每行加一枚小标签**而不管宿主怎么渲染，只能做 DOM 装饰。
+
+### 包与 bundle 契约（手写即可，不需要构建）
+
+- `package.json`：`"exports": { "./client": "./lib/client.js" }` + `"dsh": { "client": { "platform": "web", "inject": [] } }`。
+- `lib/client.js` 用宿主同款信封，**零 `require`** 就是「纯 bundle」（宿主有 bundle purity gate，外部 specifier 会抛）：
+  ```js
+  window.__ModuleLoader__.load({ id: '<pkg>', factory: function () { /* ... */ return { apply: apply, inject: [] }; } });
+  ```
+- `lib/index.js` 只要 `export function apply() {}`（无宿主行为）。
+
+### 已验证的取数链
+
+```js
+const sessionId = el.closest('[data-conversation-session]')?.getAttribute('data-conversation-session');
+const binding   = ctx.sessions.binding(sessionId);
+const chat      = ctx.uiConversation.binding(binding).target('chat');   // 返回 { getSnapshot, subscribe }
+const node      = chat.getSnapshot().nodes.get(el.getAttribute('data-chat-node-key'));  // nodes 是 Map
+const t0 = node.kind === 'tool-call'  ? node.data.root.callTime                 // 运行中只有 time
+         : node.kind === 'assistant-step' ? node.data.finalNode.timing.stepStartTime
+         : node.data.time;
+```
+
+- 会话 id 的 DOM 锚点是 `data-conversation-session`（渲染在包住 chat 区的容器上）；**没有** `data-session-id`。
+- `data-chat-node-key` 的值形如 `${kind.length}:${kind}${id}`（例如 `9:tool-call<callId>`）——**只当 map key，不要解析**。
+- 稳定性排序（从稳到脆）：`target('chat')` → `nodes.get()` → `node.data.*` 字段名。把这三层各写成一个可替换的适配器，升级时只动一层。
+
+### 一个必踩的坑：双角标
+
+`[data-disclosure-row]` 是工具行**内部的折叠头**、不带身份；真正带 `data-chat-call-id` 的元素（`callRow`）才是工具行容器。两个选择器都装饰 → 同一行出现两枚角标。规则：先装饰 `[data-chat-call-id]`，再装饰 `[data-disclosure-row]`/`[data-sample]` 时跳过 `closest('[data-chat-call-id]')` 命中的；flow item 一律「最内层获胜」（内含 `[data-chat-node-key]` 或 `[data-chat-group-key]` 的跳过）。
+
+### 安装：本机不要碰 pnpm
+
+`pnpm.ps1` 被执行策略拦（`无法加载文件 ... 因为在此系统上禁止运行脚本`）。两步即可，且**热生效不用重启**：
+
+1. `cmd /c mklink /J %USERPROFILE%\.dsh\profiles\desktop\node_modules\<pkg> <源码目录>`
+2. profile 的 `cordis.patch.yml` 追加 `- insert:` → `- id: <rowId>` / `name: '<pkg>'`
+
+反例：把同样内容写成包的 `dsh.bundle.patch`，需要重启宿主才应用（bundle 列表只在启动时读）。行是否生效用 `plugin_manager set_plugin target=include:<rowId>` 验，`application: applied` 即为已挂载。
+
+### 单测不需要 jsdom
+
+手写极简 DOM（元素 + `attributes` + `children` + `parentElement` + `parentNode` + `querySelector(All)`，选择器只需支持 `[a]` 与 `[a="b"]`、以及逗号分隔），把 bundle 源码用 `eval` 跑在注入了假 `window.__ModuleLoader__` 的全局里，即可验证：适配器命中、两种时间来源、缺服务不抛错、dispose 清干净、服务晚到后重扫能补上。这套假 DOM 能抓出真 bug——例如插件里用了 `parentNode`/元素级 `querySelector` 而假 DOM 没实现（真宿主有，属于测试缺口，但要补上才能继续跑）。

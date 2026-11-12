@@ -8,6 +8,32 @@ whenToUse: 需要一个不污染真实 ~/.dsh、不占 3080 的第二 host 来�
 
 > 本 skill 是总纲 `dsh-agent-customization` 的子 skill：只负责「起一个隔离 host」这一段；DSH 的分层、生效时机与上线纪律见总纲。
 
+## ⚠ 本机 launcher 已变（2026-11-12 实测，先读这段再看正文）
+
+正文里反复出现的 `C:\Users\admin\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js` 在本机**不存在**（我亲自 `Test-Path` 过，两条都是 `False`）：
+
+```
+Test-Path 'C:\Users\admin\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js'   -> False
+Test-Path 'C:\Users\admin\.dsh\profiles\node_modules'                                -> False
+```
+
+⇒ **正文第 1～3 步的「junction `profiles\node_modules` + 用 node 跑 bin.js」方案作废**（asar 内的代码只有 Electron 能读，裸 `node` 起不来）。
+
+**本机实测可用的起法**（真实入口是个 `.cmd`，它自己设 `ELECTRON_RUN_AS_NODE=1` 再调 Electron exe）：
+
+```powershell
+$env:DSH_HOME = $T                                   # 隔离 home
+$env:ELECTRON_RUN_AS_NODE = '1'
+& 'D:\tools\dsh\resources\runtime\cli\bin\dsh.cmd' --profile probe --no-open --port 31973
+```
+
+- **profile 名不能叫 `desktop`**：`error: profile "desktop" is managed exclusively by the Electron application`。换个名字（如 `probe`），`dsh probe …` 等价于 `dsh --profile probe …`。
+- 先 `dsh --profile probe --dump-config` 做一次 exit 0 的廉价前置校验，再起 host。
+- 就绪判据仍是**不带 token `GET /` = 401**，并看 stdout 那行 `dsh web: http://127.0.0.1:<port>/?token=…`。
+- **`GET /plugins/events` 是 SSE**：`Invoke-WebRequest` 会永久挂住（120 s 后被转后台 job），要读首帧请用 node `fetch` + `AbortController`。
+- 收尾 `taskkill /PID <pid> /T /F`；本机端口枚举是盲的，确认死没死靠连一下（`NO-CONN`），不要用 `netstat`。
+- 另外：纯 host-only 插件**不会**出现在 `/plugins/events` 的客户端模块图里，别拿它判「插件没挂」（判据见总纲 `dsh-agent-customization` 的「判插件行到底挂没挂」一节）。
+
 ## 何时调用
 
 **加载本 skill 当：**
