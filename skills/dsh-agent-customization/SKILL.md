@@ -991,3 +991,40 @@ web_fetch https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/
 - `docs/007-architecture.md`：14 个主会话 `orchestrator_*` 工具；SQLite `orchestrator.sqlite`；`tests/bundle-patch.spec.ts`「The bundle's patch, read as DeepSeek Harness reads it」。
 - 本机 0.2.2-rc.2 反证：480 个 docs md / 337 个 `@deepseek-ai` 包 / 30 个 profile bundle 均无它，preset 只有 standard/ptc/minimal/cordis ⇒ **发布包不含**，要玩必须单独装。
 - 易混淆：第三方 `dsh-super-ptc-mode`、`dsh-superpowers-preset`（名字带 super 的 preset，无关）；`got`/`undici` README 里的 `superagent` 是 HTTP 库。全树搜 `super` 会大量命中 JS `super` 关键字与 `superseded`。
+
+## 在打包版 ASAR 里读源码，并快速判"智能体团队协作"成熟度
+
+## 前提：先确认是不是打包版
+
+`DSH_INSTALL_DIR` 形如 `<安装根>\resources\app.asar\dsh\node_modules\@deepseek-ai\dsh`，且 `D:\tools\dsh` 下是 `DeepSeek Harness.exe` + `resources\app.asar` → 走本节。若是源码 checkout（`pnpm-workspace.yaml` 在根），直接用 `glob`/`grep`。
+
+## 在 ASAR 里取证
+
+- `read` 工具**能**直接读 ASAR 内路径，已知文件就直接读，别绕。
+- `glob` / `grep` / `Get-ChildItem` / `Get-Content` 对 `app.asar\...` 是黑盒：返回空输出 + `[exit code: 1]`，或 `PathNotFound`。**这不是路径写错**，别反复试。
+- 列目录 / 全文搜：写一个 `.js`，用 `ELECTRON_RUN_AS_NODE=1` 把 Electron/DSH 可执行文件当 node 起，它会穿 ASAR。最省事的封装是 Python：
+
+```python
+# run.py <script.js> [args...]
+env = dict(os.environ); env["ELECTRON_RUN_AS_NODE"] = "1"
+subprocess.run([EXE, script] + extra, env=env, capture_output=True)  # EXE = D:\tools\dsh\DeepSeek Harness.exe
+```
+
+子脚本里 `process.argv[2]` 是第一个参数；搜索时先 `fs.statSync(f).size` 过滤 >1MiB 再读。
+
+- 行号只认 `src/*.ts`；`lib/*.js` 是另一份构建产物，行号对不上。
+
+## 踩过的坑
+
+- 照抄文档里的 PS7 写法 `$start.ArgumentList.Add($a)` → `不能对 Null 值表达式调用方法。 (InvokeMethodOnNull)`，而命令**仍 exit 0**，得到"假通过"。Windows PowerShell 5.1 的 `ProcessStartInfo` 没有 `ArgumentList`（.NET Core 才有）。修法：改用上面的 Python 封装，别在 PS 里跟引号搏斗。
+- 搜索过滤器传 `"dsh-subagent/src/"` 命中 0 条：ASAR 内路径分隔符是反斜杠，先 `.replace(/\\/g,'/')` 再比。
+
+## 判"智能体团队协作"成熟度：5 个可验证闸
+
+1. `docs/user/` 有没有独立章节（写清限额、失败处理、什么任务不该用）
+2. `subagent` 与 `workflow.agent()` 两条创建路径是否共用同一套深度/配额校验
+3. 子代理失败是否回传结构化结论（而不是散文）
+4. `interrupt` 是否默认开启且能打断正在跑的工具调用
+5. 团队面板是否有成员实时态与空态
+
+0.2.2-rc.2 实测基准：`TeamId` = 根 SessionId（`dsh-agent-team/src/types.ts:7-17`）、`maxDepth` 默认 1、`maxActiveSubagents` 默认 8（`dsh-subagent/src/index.ts:195-198`）、`defaultEnabled` 默认 false（`dsh-agent-team/src/index.ts:51`）、standard preset 里 `interrupt: false`（`presets/standard.patch.yml:95-98`）。结论：2 层星型可用，团队协作未闭环 — 升版后按上面 5 条重跑即可定级。
