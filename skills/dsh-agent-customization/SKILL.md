@@ -945,3 +945,33 @@ web_fetch https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/
 2. `cordis.patch.yml`：有没有同 `id` 的手写 `- insert:`？
 3. 三者只能"两者成立"：**依赖 + bundles**（开关控、需重启）或 **仅 patch insert**（热生效、无开关）；三条同时成立必坏。
 4. 改完 `python -c "import yaml,io;yaml.safe_load(io.open(p,encoding='utf-8'))"` 验一次 YAML，再重启验证运行时。
+
+## 更正：插件页两种开关（bundle 级 / 行级）都是热生效
+
+## 更正：插件页的两种开关都是热生效的（不必重启）
+
+> 上一节说"bundle 变更需重启"，那是按"bundles 只在启动时读"的先验推断，**实测不成立**。本版本（0.2.2-rc.2）两种开关都即时应用。
+
+插件页其实有**两种开关**，调的是两个不同的远端方法：
+
+| 开关 | 方法 | 作用对象 | 副作用 |
+| --- | --- | --- | --- |
+| 包级（插件条目那一行） | `setBundleEnabled(packageName, enabled)` | `dsh.profile.bundles` 列表 | 关掉 = 从列表移除，该包提供的行立刻消失 |
+| 行级（条目里的每一行） | `setPluginEnabled(entryId, enabled)` | profile `cordis.patch.yml` | 自动追加/删除 `- id: <rowId>` + `disabled: true`，且**关→开会把这段删干净**（自清洁） |
+
+### 热生效的判据（不用重启，两次调用即可自证）
+
+1. 记录 `list_plugins` 的 `total`；
+2. 关掉开关，返回应为 `{"changed":true,"application":"applied"}`，再看 `list_plugins`：`total` **减一**、目标项消失（或 `enabled:false` + `fiberPhase:null`）；
+3. 打开开关，`total` 恢复、该项回到 `fiberPhase:"active"`。
+
+只要 `changed:true` 且 total 跟着动，就是真的热生效；**不要用"改完重启再看"来敷衍**。
+
+### 因此选型规则要更新
+
+- 想让开关有权威、又不想重启：**依赖 + `dsh.profile.bundles` 登记即可**（不必为了热生效去手写 `- insert:`）。
+- 手写 `- insert:` 仍然可用，但它会与 bundle 登记**争同一个 `id`** ⇒ 候选重复 ⇒ 该行变 `unaddressable`（见前节），而且开关形同虚设。**同一模块只保留一种声明。**
+
+### 未验证（需真机确认）
+
+浏览器侧已注入的客户端代码是否在关闭开关时**即时** dispose：主机侧确认是即时的，但页面里已加载的模块可能要到刷新才彻底消失。本插件 `apply()` 返回了清理函数（移除角标与观察器），理论上会即时清理——这一条必须看真页面，不能只看 `list_plugins`。
