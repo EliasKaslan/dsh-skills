@@ -167,3 +167,44 @@ python -c "import io,sys; sys.stdout.reconfigure(encoding='utf-8'); t=io.open(r'
 
 **自检**：替换类命令跑完后，立刻用 `Select-String` 确认目标串**已存在**（计数 ≥1），
 并确认文件 mtime 变了；只看"没有报错"不足以证明写入成功。
+
+## ProcessStartInfo.ArgumentList 在 .NET Framework 上不存在
+
+## `ProcessStartInfo.ArgumentList` 在 .NET Framework 上不存在
+
+本机 pwsh 跑在 .NET Framework 上，`ArgumentList`（.NET Core 2.1+ / PS7 成员）恒为 `$null`，逐个 `Add` 会**每个参数报一次**同样的错，且循环体一次都没执行——脚本看起来跑完了，其实什么都没传：
+
+```
+不能对 Null 值表达式调用方法。
+所在位置 行:18 字符: 55
++ ...  @('-e', $script, '--') + @()) { $start.ArgumentList.Add($argument) }
++                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : InvokeMethodOnNull
+```
+
+DSH 文档 `dsh-doc/references/locate-docs.md` 里给的 PowerShell 模板用的就是 `ArgumentList`，直接抄必踩。
+
+改用**单字符串 `Arguments`**，参数自己加引号；多行脚本先落盘成 `.js` / `.py`，传路径而不是塞进 `-e`：
+
+```powershell
+$start = [System.Diagnostics.ProcessStartInfo]::new($env:DSH_NODE_EXECUTABLE)
+$start.Arguments = '"D:\workspace\tmp\probe.js"'
+$start.EnvironmentVariables['ELECTRON_RUN_AS_NODE'] = '1'
+$start.UseShellExecute = $false
+$start.RedirectStandardOutput = $true
+$start.RedirectStandardError = $true
+$start.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+$start.StandardErrorEncoding = [System.Text.Encoding]::UTF8
+$process = [System.Diagnostics.Process]::Start($start)
+$stderr = $process.StandardError.ReadToEndAsync()
+$stdout = $process.StandardOutput.ReadToEnd()
+$process.WaitForExit()
+[Console]::Out.Write($stdout)
+[Console]::Error.Write($stderr.Result)
+exit $process.ExitCode
+```
+
+同族的 .NET-Core-only 成员：`$start.Environment`（.NET Framework 只有 `EnvironmentVariables` 索引器）。
+
+未验证：其余 PS7-only 成员在本机是解析期报错还是运行期为 `$null`；本次只实测了 `ArgumentList` 这一条，以及 `EnvironmentVariables` 索引器可用。

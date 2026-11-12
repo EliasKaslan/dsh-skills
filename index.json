@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 60,
   "file_count": 239,
-  "total_bytes": 26521040,
+  "total_bytes": 26529400,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -143,7 +143,7 @@
       "path": "skills/dsh-agent-customization",
       "description": "DSH 改造入口总纲：五层生效时机、插件 bundle、上线纪律与回滚。适用于\"改 DSH 行为该改哪一层 / 插件行坏了怎么回滚 / MCP 怎么挂 / 恢复后会话打不开 / 自己写 host 插件\"。",
       "files": 2,
-      "bytes": 100886
+      "bytes": 103566
     },
     {
       "name": "dsh-agent-preset-live-verification",
@@ -185,7 +185,7 @@
       "path": "skills/dsh-phone-remote-relay",
       "description": "手机接管电脑上的 DSH：中继丢包 / 唤醒断连 / 建联失败 / 多标签互斥 / 任务落到未分组 / 版本是否生效",
       "files": 1,
-      "bytes": 56922
+      "bytes": 58843
     },
     {
       "name": "dsh-repo-sync",
@@ -304,7 +304,7 @@
       "path": "skills/node-test-false-green-audit",
       "description": "Node 测试与 CI 的「假绿」排查——六类会让你以为跑过其实没跑的陷阱：CI 里写死测试目录或空 glob 静默跳过、await 一个 unref 定时器让 Node 22 把整个文件判 cancelledByParent（fail 仍是 0）、fetch 设 host 头被 undici 静默丢弃导致伪造 Host 的断言恒真、断言里写死版本号每次发版必假红、改名字段后旧断言读 undefined 而空转通过、把平台相关行为当统一行为（大小写折叠只在 win32）。适用于「CI 绿了但本地没跑 / 测试数对不上 / Node 22 全 cancelled / 某个文件后面的测试全没执行 / 这条断言真的会红吗 / 变异测试怎么验 / 发版后测试突然红 / 改名之后测试还绿」。不适用：PowerShell 自身的编码与执行策略坑 → 用 `pwsh-on-windows`；把跑通的流程沉淀成 skill → 用 `sedimenting-skills`。",
       "files": 1,
-      "bytes": 5711
+      "bytes": 7468
     },
     {
       "name": "orchestrating-subagents",
@@ -339,7 +339,7 @@
       "path": "skills/pwsh-on-windows",
       "description": "本机 pwsh 实为 Windows PowerShell 5.1：GBK 解码、BOM、PS7 语法静默坑。适用于\"中文乱码 / 行数或 CR 数不对 / 计数总是 0 / 执行策略拦 / PS7 语法报错\"。",
       "files": 1,
-      "bytes": 27569
+      "bytes": 29571
     },
     {
       "name": "qq-mail-control",

@@ -827,3 +827,20 @@ HMR transactions cannot be nested
    | 线上静态产物（构建哈希 + 前端版本串） | 用户实际加载的前端 | 发布后变 |
 
    只有"运行中实例"落后时，功能不受影响（若本次只改版本号）；若改的是逻辑，就必须重启，否则你以为改了其实没生效。
+
+## 查当前装的是哪版 DSH、这一版改了什么（发行取证链）
+
+## 查"当前是哪一版"与"这一版改了什么"
+
+用户问"最新发行版有什么新特性/修了什么 bug"时，按下面的顺序取证，别只信一个来源。
+
+1. **本机版本**：`$env:DSH_INSTALL_DIR/package.json` 的 `version`（`@deepseek-ai/dsh`）。桌面打包版另看 `...\resources\app.asar\dsh\package.json`（`@deepseek-ai/dsh-desktop-runtime`），两者一致才算确认。
+2. **渠道与最新版**：桌面端 `resources\app-update.yml` 给出 `provider` / `url` / `channel`（渠道名 `nightly` 或 `stable`；`stable` 是从旧名 `latest` 改的，无别名）。把 `url` 与 `<channel>.yml` 拼起来：
+   - `https://download.deepseek.com/dsh-desk/feeds/win-x64/nightly.yml` → `version`、`releaseDate`、`sha512`。
+   - 同目录下 `latest.yml` / `stable.yml` 会 404，**别把 404 当成"没有正式版"**。
+   - `web_fetch` 拒收 yaml：`Error: unsupported content type "application/yaml"` → 用 `[System.Net.WebRequest]::Create($u)` 取流 + `[Text.Encoding]::UTF8.GetString($ms.ToArray())` 读原文（别用 `Invoke-RestMethod`，中文会按 Latin-1 乱码）。
+3. **真正的 release notes**：仓 `github.com/deepseek-ai/deepseek-harness` 公开，`GET https://api.github.com/repos/deepseek-ai/deepseek-harness/releases?per_page=30`，tag 形如 `dsh-v<version>`，全部 `prerelease: true`；正文中英双语，分「新增功能 / 体验优化 / 问题修复 / 其他变更」四节。单版正文 7–28 KB，用 Python `urllib` 落盘再按需 read，别整段灌进上下文。
+4. **npm 侧的坑**：`registry.npmjs.org/-/package/@deepseek-ai/dsh/dist-tags` 里 `latest` 可能**落后**于 `next`（rc 线发到 `next`）。只看 `latest` 会得出"最新版是旧版"的结论；要判断时间线得读 packument 的 `time` 字段排序。另外 DSH 至今没有 `x.y.z` 正式版，全是 alpha/rc，"最新发行版"= 最新预发布版。
+5. **发行包自带迁移说明**：`docs/upgrade-guide/README.md` + 各节 `guide.zh.md`，讲"从某版升到下一版要改什么"。**它的分节与 GitHub Release 不是严格一一对应**（同一主题的迁移说明和公告会落在不同版本）→ 判断"哪版发布"只认 Release + yml，指南只用来查"该怎么改"。
+
+读 asar 内文件的姿势：文件用 read 工具直接读；要**列目录**得用 electron 以 `ELECTRON_RUN_AS_NODE=1` 跑 `fs.readdirSync`（原生 glob / grep / cat 进不去 asar，会报 `系统找不到指定的路径`）。启动该进程时注意 `ProcessStartInfo.ArgumentList` 在本机不存在，见 skill `pwsh-on-windows`。

@@ -827,3 +827,36 @@ python -c "import yaml,io; d=yaml.safe_load(io.open(r'<patch>',encoding='utf-8')
 
 **附带经验**：读接口（`GET /tasks/:id`）与写接口（`POST /tasks/:id/answer`）
 在白名单里是两条独立条目，只放行读不会让写自动可用——加功能时要显式确认这两条都在。
+
+## 外壳更新不生效：导航 cache-first 与构建号漏掉 SW
+
+症状：在浏览器里**手动刷新**拿不到新前端外壳，只有关掉页面重新打开（或重新扫码）才更新。
+
+**根因几乎总是同一处：导航请求是纯 cache-first。**
+Service Worker 里这段是致命的：
+
+```js
+if (request.mode === 'navigate') {
+  event.respondWith(caches.match(INDEX_URL).then((hit) => hit ?? fetch(request)));
+}
+```
+
+刷新就是一次导航 → 永远命中缓存的旧 `index.html` → 继续加载旧 JS。
+"关掉重开能更新"恰好是反证：那次导航之前，浏览器的 SW 更新检查刚好完成、新 SW 已接管。
+
+**修法三件套（缺一件体验都不对）**
+1. **壳资源与导航改成 network-first**，网络失败再回退缓存（离线能力不变）。
+   壳文件小、部署在静态 CDN 上，先网络的延迟可忽略。
+2. **新 SW 接管后自动刷新一次**：监听 `controllerchange` → `location.reload()`，
+   并用"加载时是否已有 controller"（`hadController`）排除首次安装，
+   否则用户第一次注册就会莫名刷新。
+3. **页面加载时主动 `registration.update()`**：等用户手动刷新才开始查更新太晚。
+
+**连带陷阱：构建号必须覆盖 SW 源码。**
+若构建哈希是在**写入 `sw.js` 之前**算完的，那么"只改 SW 的发布"会得到同一个构建号：
+缓存名不变，客户端靠"比缓存名"的旧外壳检测全部失效，旧 SW 也可能长期驻留。
+自检：只改 SW 源 → 构建 → 构建号必须变；还原 → 必须回到原值。
+
+**验证纪律**：这条链路上"改了源文件"毫无意义，必须核对**构建产物**里
+导航分支是否真的先 `fetch`。产物里还是 `caches.match(...)` 就说明你改错了文件
+（同名副本、构建 skip 列表）——这属于另一类问题，见"断言指向未被构建使用的文件"。
