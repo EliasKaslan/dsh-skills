@@ -630,3 +630,67 @@ GitCode 与 Gerrit 不同：版本分支没有独立合入系统，维护者可�
 ## 13. 维护记录
 
 **历史条目已移入 `references/maintenance-log.md`**（含逐次 PR 实测数据点与自我纠错记录；其中的章节号是**当时**的编号）。
+
+## 把自己的仓库发布到 GitCode：建仓、打 tag、双端一致性核验
+
+## 把自己的仓库发布到 GitCode（建仓 + 推 tag）
+
+与「向上游提 PR」不同：这是新建自己的仓并打版本 tag。走 OpenAPI 建仓，再用 git 推。
+
+### 凭据在哪（本机）
+
+| 用途 | 位置 |
+| --- | --- |
+| GitCode 访问令牌 | `D:\key\gitcode_访问令牌_xmz_agent用.txt`（`dsh-plugin-skill-publish` 的 `tokenFile` 配置就是这个） |
+| GitHub PAT | `~/.dsh/.secrets/github-pr-flow.token`（classic，`ghp_` 前缀，40 字符） |
+| GitCode 用户名 | `EliasKaslan`（`GET /user` 的 `name` 是 `xmz`） |
+
+### 建仓：OpenAPI v5
+
+```
+GET  https://api.gitcode.com/api/v5/user?access_token=<token>            # 验身份
+POST https://api.gitcode.com/api/v5/user/repos?access_token=<token>      # 建仓
+GET  https://api.gitcode.com/api/v5/repos/<owner>/<repo>?access_token=   # 查在不在
+```
+
+body：`{"name":"<repo>","description":"...","private":false,"has_issues":true,"auto_init":false}`。
+注意 `api.gitcode.com` **可达**（TCP/HTTPS 都通），不要因为一次 push 卡住就判定网络不通。
+
+### 推送：必须同时「用对 URL 形式」+「关掉凭据助手」
+
+**血证**：`https://<token>@gitcode.com/<owner>/<repo>.git` 会让 git 把 token 当**用户名**、回头找密码，Windows 的 Git Credential Manager 被拉起、**在用户桌面上弹出窗口并把 token 显示在用户名框里**，进程挂住等输入直到超时被杀。
+
+正确形式是 **`https://<user>:<token>@...`**，并且推送命令必须禁掉一切交互：
+
+```bash
+GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never GIT_ASKPASS=echo \
+git -c credential.helper= -c core.askPass= \
+    push "https://<user>:<token>@gitcode.com/<owner>/<repo>.git" main --tags
+```
+
+- `-c credential.helper=` 置空才真正禁用助手（只设 env 不够，wincred/GCM 仍会被调起）。
+- 推完把 remote 换成**不含 token** 的干净 URL，别把令牌写进 `.git/config`。
+- 不要为了省事用「密码填在 prompt 里」的方式：一旦弹窗，任务会挂到超时。
+
+### 发布后必须做的双端一致性核验
+
+不要相信 `push` 的输出。用**匿名**（不带凭据）回读两边，比对 tag 对象与 peeled commit：
+
+```bash
+git -c credential.helper= ls-remote --tags https://github.com/<owner>/<repo>.git
+git -c credential.helper= ls-remote --tags https://gitcode.com/<owner>/<repo>.git
+```
+
+两行输出的 `<tag-object>` 与 `refs/tags/v1.0.0^{}` 的 commit **完全相同**，才算「两端内容一致」。GitCode 侧还会回一行 `remote: Start Git Hooks Checking [PASSED]`，可作旁证。
+
+### GitHub 侧补一个 Release
+
+`POST https://api.github.com/repos/<owner>/<repo>/releases`，header `Authorization: Bearer <pat>`，body `{"tag_name":"v1.0.0","name":"...","body":"<markdown>","draft":false}`。正文直接复用 CHANGELOG 本节内容，省得再写一遍。
+
+### 发布前清单（缺一项就会发布出残版本）
+
+1. `package.json`：去 `private`、版本号、`files` 白名单、`repository/homepage/bugs`。
+2. 代码里的版本常量（如 `VERSION`）与 `package.json` 一致——否则线上自检会报旧版本。
+3. `LICENSE`、`.gitignore`、`CHANGELOG.md`。
+4. 兼容性声明写进 README + CHANGELOG + Release 正文（实测的宿主版本、最低版本区间）。
+5. 提交 → 打**附注** tag（`git tag -a`）→ 推送 `main --tags`。

@@ -607,3 +607,28 @@ const t0 = node.kind === 'tool-call'  ? node.data.root.callTime                 
 
 **验收方式**：给行类型各写一条断言，并且**成对写**「该有」和「不该有」——
 `Think 行角标在 flow item 上` + `折叠头里没有角标`；`兜底行角标在父容器上` + `折叠头本身干净` + `整行只有一枚`。只写「有角标」会漏掉这种位置错误。
+
+## 插件状态异常：先读 bundle 的 error，最常见是 overlay 写成 // 注释
+
+**先看 bundle 级 `error`，不要预设是哪个插件。**
+`plugin_manager list_bundles` 的每个条目都可能带 `error: { code, diagnostic }`，
+`diagnostic` 里通常直接写着**文件路径、行号和解析原因**。用户报"某个插件异常"时，
+先用它定位到底是哪一个——实测出现过用户以为是 A 插件，实际是 B 插件的情况。
+交叉判据：被怀疑的插件若 `/health` 正常、且它的 bundle 条目没有 `error`，它就不是故障源。
+
+**最高频的一类：overlay 的 YAML 注释写成了 `//`。**
+bundle 的 `cordis.patch.yml`（loader overlay）是 **YAML**，注释只能用 `#`。
+写成 JS 风格的 `//` 会让解析器在那一行直接失败，报
+`YAMLException: end of the stream or a document separator is expected (n:1)`，
+**整份 overlay 作废** → 该 bundle 在插件列表里显示异常、它的 row 也不注册。
+这类错误与 DSH 版本升级无关（任何版本的 YAML 都不接受 `//`），不要往升级上归因。
+
+**修法与核对**
+- `link:` 形态的 bundle，`<profile>/node_modules/<name>` 是软链，改**源目录**即可，
+  改完核对两处首行一致（`Get-Content -TotalCount 1`）。
+- 复验用 `list_bundles` 带 `offset` + `limit:1` 精读那一条，确认 `error` 消失、
+  `rows` 重新出现——整份列表输出很大，不要整份重拉。
+- 只修故障本身；原本 `enabled: false` 的插件**不要顺手打开**，那是用户的意图。
+
+**通用纪律**：插件"状态异常"时先读诊断字段，再动手；诊断字段里往往已经有答案，
+凭猜测去改代码或重装，成本高且容易把故障带到别处。

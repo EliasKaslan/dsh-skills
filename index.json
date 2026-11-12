@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 60,
   "file_count": 239,
-  "total_bytes": 26489368,
+  "total_bytes": 26495450,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -143,7 +143,7 @@
       "path": "skills/dsh-agent-customization",
       "description": "DSH 改造入口总纲：五层生效时机、插件 bundle、上线纪律与回滚。适用于\"改 DSH 行为该改哪一层 / 插件行坏了怎么回滚 / MCP 怎么挂 / 恢复后会话打不开 / 自己写 host 插件\"。",
       "files": 2,
-      "bytes": 86500
+      "bytes": 88267
     },
     {
       "name": "dsh-agent-preset-live-verification",
@@ -227,7 +227,7 @@
       "path": "skills/gitcode-pr-flow",
       "description": "GitCode 仓提 PR：compile 门禁、双 CI、标签审计、OpenAPI、backport。适用于\"向 GitCode 提 PR / 冲突 rebase / 补门禁 / pre-commit 抖动\"。",
       "files": 4,
-      "bytes": 114073
+      "bytes": 116894
     },
     {
       "name": "github-org-delta-watch",
@@ -339,7 +339,7 @@
       "path": "skills/pwsh-on-windows",
       "description": "本机 pwsh 实为 Windows PowerShell 5.1：GBK 解码、BOM、PS7 语法静默坑。适用于\"中文乱码 / 行数或 CR 数不对 / 计数总是 0 / 执行策略拦 / PS7 语法报错\"。",
       "files": 1,
-      "bytes": 26075
+      "bytes": 27569
     },
     {
       "name": "qq-mail-control",
