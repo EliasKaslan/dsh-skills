@@ -58,3 +58,27 @@ whenToUse: 问「插件市场里有什么能装/兼容当前 DSH 版本吗/Disco
 - 索引条目里 `repository` 是对象 `{url,directory}`，`category/keywords/stars` 在 `metadata` 下，不在插件顶层——按顶层读会全是 None。
 - `publishTimestamp` 写成毫秒会被整份拒绝（上界 `1e11`）。
 - 一次装错版本（如把 rc.1 精确 pin 的插件装到 rc.2）不会自动纠正，要先卸再装或记精确豁免。
+
+## 安装市场 bundle：必须重启，且会动三处文件
+
+## 安装市场 bundle：必须重启，并且会改三处文件（0.2.2-rc.2 实测）
+
+装法固定写全版本，不能用 latest（`latest` 是 0.2.1-alpha.4）：
+
+```
+plugin_manager install_bundle target=@deepseek-ai/dsh-experimental-plugin-market-bundle@0.2.2-rc.2
+```
+
+返回 `application: "restart-required"`、`restartReason: "package-moved"`、`nextStep` 要求重启 DSH。**HMR 不覆盖**：新包解析到了另一个目录，必须重启 host；重启前 Plugins 页没有 Discover，`plugin_market` 工具也不会出现在工具列表里。
+
+一次安装会动三处：
+
+1. profile 的 `package.json`：`dependencies` 加包，`dsh.profile.bundles` 数组追加 bundle 名；
+2. profile 的 `pnpm-workspace.yaml`：`minimumReleaseAgeExclude` 自动追加本包及其依赖的 13 条 `0.2.2-rc.2` 条目（pnpm 11 的 supply-chain 策略，不是报错，别手动删）；
+3. `node_modules`：pnpm 落 51 个包，日志在 `profiles/<name>/.plugin-manager/logs/operation-*/pnpm.log`。
+
+bundle 自带的 `cordis.patch.yml` 只 insert 两行：`plugin-market`（`disabled: !!js "!ctx.get('profileContext')"`）和 `ui-plugin-market`。profile 里已有的 `- id: plugin-market` + `config.indexes` 是对这两行的 **override**，不要再写 `name`/`moduleName`，否则同一模块声明两次会 `unaddressable`。
+
+peer 判断：bundle 只要求 `@deepseek-ai/cordis ~4.1.0`，运行时 `app.asar/dsh/node_modules/@deepseek-ai/cordis/package.json` 的 version 是 `4.1.0`，满足。pnpm 那句 `[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.` 是 profile 里其它第三方插件的既有警告，别归因给市场包。
+
+回滚：`plugin_manager set_bundle enabled=false`（config 保留）或 `remove_bundle`（同时删依赖）。两者同样 `restart-required`，回滚后也要重启才算数。
