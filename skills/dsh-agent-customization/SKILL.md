@@ -879,3 +879,35 @@ HMR transactions cannot be nested
 - 别用 `Test-Path` / `Get-ChildItem` 在 `app.asar` 里找包：对原生 FS 不可见，恒 `False`（假阴性）。列目录要用 `ELECTRON_RUN_AS_NODE=1` 跑 `<DSH_NODE_EXECUTABLE>` 的 `fs.readdirSync`，或用宿主 `read` 直接读已知路径。
 - 别只读 `docs\user\`：用户文档大多是跳转页，真正解释"东西去哪了"的是 `docs\upgrade-guide\`。
 - 别把"我这一版没有这个 bundle"说成"官方删了/砍了"：先按第 1 步分类，`RETIRED` 与"被下架"是两种不同的结论。
+
+## 回答"为什么改成这样"：上游决策笔记 + upgrade-guide 版本段语义
+
+## 硬坑：upgrade-guide 的版本段不是"生效版本"
+
+`<DSH_INSTALL_DIR>\docs\upgrade-guide\README.md:3` 原文：`A v<T> section lists what to change when upgrading from release vT to the release after it; vT is the release being left, not the target.` ⇒ 段名 `v0.2.1-rc.2` 里的条目，**实际落地版本是 0.2.1-rc.3**。按段名回答"哪一版变的"必然错一版（本轮差点这么答）。
+
+## 想知道"为什么改成这样"：本地 docs 没有，去上游决策笔记
+
+本地 `docs\` 里的 team / 迁移类条目**只有"怎么做"，没有动机句**（全量扫过：中英同文，英文版也没多写）。真正的理由在上游仓库 `deepseek-ai/deepseek-harness` 的 `.agents/notes/implemented/{feature,architecture,process,simplification}/<YYYY-MM-DD>-<slug>.md`（头部 `Status: implemented`），notes 之间互相引用，并指向对应 upgrade guide。
+
+取数（比 GitHub MCP 干净、不截断，实测 HTTP 200）：
+
+```
+web_fetch https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/.agents/notes/implemented/architecture/2026-10-20-session-team-mode.md
+```
+
+本轮验证过的三份（回答"某个功能为什么改形态"时的样板）：
+
+- `feature/2026-08-05-agent-teams.md`——当初**为什么不做进默认 catalog**：Alternatives 原文拒绝 `Enable Teams in the default catalog`，理由 "unsolicited coordination and Team tool schemas would add latency and token cost to simple tasks"。
+- `architecture/2026-10-15-agent-teams-as-subagents.md`——成员统一成 subagent 身份；独立 roster "duplicates identity, provisioning recovery, and teardown"，Team 专属工具 "shadow the standard subagent tools, forcing profiles to disable ordinary delegation"。
+- `architecture/2026-10-20-session-team-mode.md`——**形态错位的直接证据**：插件级开关要求为"一次会话的协作决定"去改**共享 profile**，"It can disable another Session's capability and leaves a second control beside the Session selection"；Alternatives 否掉"保留两个开关"与"只藏插件卡不加载 Team"（后者 "would violate product isolation; moving them to their owning product groups makes the delivered support explicit"）。
+
+## "正式 / 官方"≠ 成熟
+
+`packages/experimental/README.md#status` 原文：`Official means the project maintains and lists the package in the Plugins page. Neither describes maturity; publication, default installation, and GUI visibility do not determine maturity either.` 升格条件是五条可验收项：named product role / documented public behavior and limitations / current consumers / release contents / test evidence，"Move the package to its product group and update affected consumers together"。⇒ 用户说"某某变成正式功能了吗"，先按这五条与"默认开没开"回答，别用"进了插件页 / 进了默认包"当成熟度。
+
+## 取证坑
+
+- `mcp__github__list_commits` 的 `path` 过滤**静默失效**（不报错，返回全仓最新提交）；`search_issues` 不带 `is:issue` / `is:pull-request` 会 422。
+- **release notes 常常只写"怎么迁"甚至一字不提**：`dsh-v0.2.1-rc.2` / `-rc.3` 的发布说明都没有 team 段落，但变更确实发生了。别把"release notes 没写"当"没发生"，判版本要用 upgrade-guide + 安装体里的 patch 行。
+- 判"某个开关现在在哪"要落到安装体：`dsh-base\cordis.patch.yml`（服务与工具行）/ `dsh-web-app\cordis.patch.yml`（UI 行）/ `plugin_manager list_plugins`（`enabled`+`fiberPhase=active`）。`docs\user\guide\` 往往**还没有**对应章节（Agent Teams 就是：服务内置、UI 齐全、用户手册无独立页）。
