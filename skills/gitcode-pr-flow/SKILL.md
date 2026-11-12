@@ -727,3 +727,43 @@ body:   {"tag_name":"v1.0.1","name":"...","body":"<markdown>","prerelease":false
 ### 落地建议
 
 把"建 release"写进发布流程的最后一步，与"推 tag"紧挨着，两端各一次；正文直接复用 CHANGELOG 对应小节，避免版本说明两处不一致。发布后按上表各核验一次页面，别只信 POST 的状态码。
+
+## 把某个 tag 刷成唯一版本：并内容、重指 tag、清 release 与本地残留
+
+## 把某个 tag「刷成」唯一版本（含清 release 与本地残留）
+
+场景：已经发过 `v1.0.0` 和 `v1.0.1`，现在决定只保留 `v1.0.0` 作为"正式认可的版本"。
+
+**第一个判断：只是删掉 `v1.0.1` 吗？不。**
+删 tag 只让 `v1.0.0` 重新成为最新，但它**仍指向旧提交** —— 如果 `v1.0.1` 里含有修复（YAML 语法、配置项、文档更正），那些修复就丢了。正确顺序是**先并内容，再动 tag**：
+
+1. 把 `v1.0.1` 的变更**并入**目标版本：改代码里的版本常量、`package.json`、CHANGELOG（删掉 1.0.1 小节，把内容折进 1.0.0）、README 里的自检示例版本号；
+2. 跑一遍该仓库的验证（单测/构建校验），确认没退化；
+3. 提交；然后**重指 tag**：
+   ```bash
+   git tag -d v1.0.0
+   git tag -a v1.0.0 -m "v1.0.0 - ..."
+   git push <remote> main refs/tags/v1.0.0 --force
+   git push <remote> :refs/tags/v1.0.1          # 删对端 tag
+   ```
+4. **release 对象要单独删**，删 tag 不会连带删掉它：
+   - GitHub：`GET /repos/{o}/{r}/releases` 拿 id → `DELETE /releases/{id}`（204）。最省事是**全删后按新 tag 重建**，避免旧 release 的 `target_commitish` 与正文残留。
+   - GitCode：`GET /api/v5/repos/{o}/{r}/releases` → `DELETE .../releases/{id}?access_token=`。注意列表项**不一定带 `id` 字段**；拿不到 id 时同样走"全删重建"，或只保留一条并重建。
+5. **本地 tag 也要删**：远端删掉后 `git tag -l` 里仍留着 `v1.0.1`，忘了删会让人以为版本还在。
+6. 复核：两端 `git ls-remote --tags` 的附注 tag 与 peeled commit **逐个字符相同**；release 列表各只剩目标版本。
+
+### 判「页面还在不在」别看 HTTP 状态码
+
+GitCode 对**不存在的** `releases/tag/<tag>` 仍返回 **200**，但响应只有一个几 KB 的 SPA 空壳，正文里搜不到 tag 名。判存在以 **API 列表**为准；页面只作辅证，且要看内容而不是状态码。
+
+### 附：发布/交接前把工作树改动导出成补丁
+
+未提交的改动要交给别人时，用 stash 导出最省事：
+
+```bash
+git stash push -u -m "handoff: ..."          # 连未跟踪文件一起收
+git stash show -p --include-untracked stash@{0} > handoff.patch
+git status --short                            # 应为空
+```
+
+**坑**：`git add -Aa -N` 里的 `-A` 与 `-a` 冲突，命令返回 129，随后 `git diff` 可能为空 → 你会得到一个 **0 字节补丁**却毫不知情。生成后一定先看字节数，别只看命令退出码。
