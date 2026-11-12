@@ -911,3 +911,37 @@ web_fetch https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/
 - `mcp__github__list_commits` 的 `path` 过滤**静默失效**（不报错，返回全仓最新提交）；`search_issues` 不带 `is:issue` / `is:pull-request` 会 422。
 - **release notes 常常只写"怎么迁"甚至一字不提**：`dsh-v0.2.1-rc.2` / `-rc.3` 的发布说明都没有 team 段落，但变更确实发生了。别把"release notes 没写"当"没发生"，判版本要用 upgrade-guide + 安装体里的 patch 行。
 - 判"某个开关现在在哪"要落到安装体：`dsh-base\cordis.patch.yml`（服务与工具行）/ `dsh-web-app\cordis.patch.yml`（UI 行）/ `plugin_manager list_plugins`（`enabled`+`fiberPhase=active`）。`docs\user\guide\` 往往**还没有**对应章节（Agent Teams 就是：服务内置、UI 齐全、用户手册无独立页）。
+
+## 界面开关关着却仍生效：bundle 与手写 insert 是两套机制
+
+## 界面开关关着、插件却还在跑：bundle 与手写 insert 是两套机制
+
+**症状**：插件界面里这一项显示"未启用"，但功能照常生效（角标照画、面板照出）。
+
+**根因**：`package.json` 里 **有依赖、但没有进 `dsh.profile.bundles`**，而真正的加载来自 profile `cordis.patch.yml` 里手写的 `- insert:`。两条路径互不相干：
+
+| 写法 | 谁控制它 | 生效时机 |
+| --- | --- | --- |
+| 依赖 + `dsh.profile.bundles` 登记（包内带 `dsh.bundle.patch`） | **界面开关**（开关就是在改 `bundles`） | 启动时读 bundles ⇒ **需重启** |
+| profile patch 里手写 `- insert: - id/name` | 没人控；文件在就加载 | **热生效**（改完即应用） |
+
+所以为了"改完不用重启"而选了手写 insert 的插件，等于**绕过了界面开关** —— 用户关掉的只是 bundle 那一侧。
+
+### 怎么选（二选一，别混用）
+
+- **要开关有权威** → 走 bundle：依赖 + 写进 `dsh.profile.bundles`，并**删掉** profile patch 里的手写 insert。代价：改动需重启。
+- **要热生效** → 只留手写 insert，并**把包从 `dependencies` 里去掉**（否则界面里仍会显示一个永远关不掉/无意义的开关）。代价：没有图形开关。
+- **两者都留** → 候选项重复 ⇒ 该行变 `unaddressable`（见上节），且开关依旧无效。
+
+> 更正上一节的一个读法：「删掉 bundle 登记让 patch 行可寻址」只在**你要热生效**时成立；若目标是让开关能控，必须反过来做。
+
+### 改完为什么"看起来没生效"
+
+插件行一旦加载，**改文件不会热卸**；`bundles` 又只在启动时读。所以删掉 insert 之后 `list_plugins` 里那一行**仍显示 active**——这是旧进程残留，不是改失败。验收方式：文件侧确认 patch 里该 id 已消失 + YAML 仍可解析，再**重启**一次看运行时。
+
+### 核对清单（一行一条）
+
+1. `package.json`：包在 `dependencies` 里吗？在 `dsh.profile.bundles` 里吗？
+2. `cordis.patch.yml`：有没有同 `id` 的手写 `- insert:`？
+3. 三者只能"两者成立"：**依赖 + bundles**（开关控、需重启）或 **仅 patch insert**（热生效、无开关）；三条同时成立必坏。
+4. 改完 `python -c "import yaml,io;yaml.safe_load(io.open(p,encoding='utf-8'))"` 验一次 YAML，再重启验证运行时。

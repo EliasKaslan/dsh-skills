@@ -82,3 +82,43 @@ bundle 自带的 `cordis.patch.yml` 只 insert 两行：`plugin-market`（`disab
 peer 判断：bundle 只要求 `@deepseek-ai/cordis ~4.1.0`，运行时 `app.asar/dsh/node_modules/@deepseek-ai/cordis/package.json` 的 version 是 `4.1.0`，满足。pnpm 那句 `[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.` 是 profile 里其它第三方插件的既有警告，别归因给市场包。
 
 回滚：`plugin_manager set_bundle enabled=false`（config 保留）或 `remove_bundle`（同时删依赖）。两者同样 `restart-required`，回滚后也要重启才算数。
+
+## 自建索引：托管位置、git 源不能自引用、发布前自检
+
+"把插件注册到 DSH 市场"没有提交入口——市场只按**配置的索引 URL** 渲染，聚合索引由各自的运营方决定收录。
+所以唯一可执行的"注册"是：**自己发布一个 format:1 索引**，把自己的插件登记进去，再把该 URL 加进 `plugin-market.config.indexes`。
+
+## 索引文件放哪：不要放构建产物目录
+
+构建脚本通常会 `rm -rf` 输出目录再重建（静态站常见做法），手放进去的文件会在下次构建时**被删掉**。
+放**仓库根的独立目录**（如 `market/index.json`），用 raw HTTPS 提供：
+
+- `raw.githubusercontent.com/<owner>/<repo>/main/market/index.json` —— 可匿名抓取，实测 200
+- GitCode 的 raw 端点对抓取器常返回 **403（反爬）**，不要用它当索引源
+
+## 循环依赖：git 源必须指向"已存在的提交"
+
+`source.git.commit` 要求 40 位小写 hex，而索引文件本身要**随后**才提交 ——
+索引不可能引用包含自己的那个提交。做法固定为两步：
+
+1. 先发布代码提交（它就是"已发布版本"）；
+2. 再把索引写成**指向第 1 步的 commit**，单独提交一次。
+
+代价是历史里多一个提交；这是格式要求带来的，不是纪律问题。
+
+## 发布前自检清单（对着校验器，不是对着文档）
+
+- `format` 必须是**数字** `1`（字符串会被拒）
+- `title` 是对象时**必须含 `en`**
+- 每版 `version` 是精确 SemVer；`publishTimestamp` 是**整数 Unix 秒**（毫秒会让整份被拒，上界 1e11）
+- `source` 三选一：`{type:'npm'}` 或 `{type:'git', url, commit:40位hex}`
+- `engines` 可选；一旦写了，就用**与 DSH 相同的判据**本地复验：
+  `semver.satisfies(runtimeVersion, range, { includePrerelease: true })`
+  （npm 自带 semver：`require('<nodejs>/node_modules/npm/node_modules/semver')`，profile 里通常没有 semver 包）
+- **预发布陷阱**：`^0.2.2` 匹配不到 `0.2.2-rc.2`；要覆盖 rc 必须写 `>=0.2.2-rc.1 <0.3.0-0` 这类显式范围
+
+## 可见性与边界
+
+索引没有签名，`name/version/engines` 都是索引方的说法，安装时 DSH 会用源 manifest 复检——
+所以插件自己的 `package.json` 里也要有同样的 `engines.dsh`，两处必须一致。
+自建索引只在**配了该 URL 的机器**上可见；想让别人也能装，对方要么加同一 URL，要么由大索引运营方收录（无提交渠道）。
