@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 60,
   "file_count": 239,
-  "total_bytes": 26510025,
+  "total_bytes": 26511801,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -227,7 +227,7 @@
       "path": "skills/gitcode-pr-flow",
       "description": "GitCode 仓提 PR：compile 门禁、双 CI、标签审计、OpenAPI、backport。适用于\"向 GitCode 提 PR / 冲突 rebase / 补门禁 / pre-commit 抖动\"。",
       "files": 4,
-      "bytes": 116894
+      "bytes": 118670
     },
     {
       "name": "github-org-delta-watch",

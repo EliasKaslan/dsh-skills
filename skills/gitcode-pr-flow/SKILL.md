@@ -694,3 +694,36 @@ git -c credential.helper= ls-remote --tags https://gitcode.com/<owner>/<repo>.gi
 3. `LICENSE`、`.gitignore`、`CHANGELOG.md`。
 4. 兼容性声明写进 README + CHANGELOG + Release 正文（实测的宿主版本、最低版本区间）。
 5. 提交 → 打**附注** tag（`git tag -a`）→ 推送 `main --tags`。
+
+## tag 推上去不等于 release 建好（GitHub / GitCode 各建一次）
+
+## tag 推上去 ≠ release 建好：两端 release 对象要各自建
+
+**症状**：`git push --tags` 成功、远端 `git ls-remote --tags` 能看到 tag，但仓库的 **Releases 页面是空的**。tag 是 git 对象，release 是**平台侧的独立对象**，两者互不生成，而且 GitHub 与 GitCode 之间也**不会互相同步**——一边建了，另一边仍然是空。
+
+自查一条命令就够：`GET .../releases` 返回 `[]` 即"没有 release 对象"，不是网络问题。
+
+### GitHub
+
+```
+POST https://api.github.com/repos/<owner>/<repo>/releases
+header: Authorization: Bearer <PAT>
+body:   {"tag_name":"v1.0.1","name":"...","body":"<markdown>","draft":false,"prerelease":false}
+```
+
+核验：`GET /releases`（列全部）与 `GET /releases/latest`（确认哪个是最新）。页面：`/releases/tag/<tag>`。
+
+### GitCode
+
+```
+POST https://api.gitcode.com/api/v5/repos/<owner>/<repo>/releases?access_token=<token>
+body:   {"tag_name":"v1.0.1","name":"...","body":"<markdown>","prerelease":false}
+```
+
+- v5 沿用 Gitee 风格：字段是 **`tag_name`**（用 `tag` 不认），成功返回 200 而非 201。
+- 返回体里的 `target_commitish` 就是该 tag 指向的 commit——**用它确认 release 没挂到别的提交上**（tag 由 `git tag -a` 产生时尤其值得看）。
+- 核验：同一路径 `GET`，从 `[]` 变成一条即成功。页面：`/releases` 与 `/releases/tag/<tag>`。
+
+### 落地建议
+
+把"建 release"写进发布流程的最后一步，与"推 tag"紧挨着，两端各一次；正文直接复用 CHANGELOG 对应小节，避免版本说明两处不一致。发布后按上表各核验一次页面，别只信 POST 的状态码。
