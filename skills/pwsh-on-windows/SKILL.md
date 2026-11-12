@@ -208,3 +208,13 @@ exit $process.ExitCode
 同族的 .NET-Core-only 成员：`$start.Environment`（.NET Framework 只有 `EnvironmentVariables` 索引器）。
 
 未验证：其余 PS7-only 成员在本机是解析期报错还是运行期为 `$null`；本次只实测了 `ArgumentList` 这一条，以及 `EnvironmentVariables` 索引器可用。
+
+## git clone 成功也可能报 exit code 1
+
+## git clone 成功也会给 `[exit code: 1]`
+
+本机 PowerShell 5.1 里 `git clone` 即便完整成功，也可能返回 `[exit code: 1]`：git 把进度行 `Cloning into '...'` 写到 **stderr**，5.1 在默认设置下把它变成 `NativeCommandError`，于是退出码非 0。
+
+- 判成功**不要看退出码**，看落盘：`Test-Path <dir>\.git` 为真即成功（再顺手 `Get-ChildItem <dir>` 确认工作树非空）。
+- 需要区分「真失败」时，把目录存在性当主判据，`$LASTEXITCODE` 只作辅助；不要因为看到 `[exit code: 1]` 就重试或改用别的方式下载。
+- 同理适用于其它把进度/警告写 stderr 的原生命令（`npm`、`pnpm`、`curl` 的部分子命令）：退出码不可靠时，用产物是否落盘来判定。

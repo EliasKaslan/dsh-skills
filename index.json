@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 61,
   "file_count": 240,
-  "total_bytes": 26586550,
+  "total_bytes": 26590966,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -192,7 +192,7 @@
       "path": "skills/dsh-plugin-market",
       "description": "DSH 插件市场/索引源：无官方源、format:1 校验、engines.dsh 兼容判定与第三方源陷阱",
       "files": 1,
-      "bytes": 9900
+      "bytes": 13490
     },
     {
       "name": "dsh-repo-sync",
@@ -346,7 +346,7 @@
       "path": "skills/pwsh-on-windows",
       "description": "本机 pwsh 实为 Windows PowerShell 5.1：GBK 解码、BOM、PS7 语法静默坑。适用于\"中文乱码 / 行数或 CR 数不对 / 计数总是 0 / 执行策略拦 / PS7 语法报错\"。",
       "files": 1,
-      "bytes": 29571
+      "bytes": 30397
     },
     {
       "name": "qq-mail-control",
