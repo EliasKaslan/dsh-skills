@@ -555,3 +555,25 @@ const t0 = node.kind === 'tool-call'  ? node.data.root.callTime                 
 ### 单测不需要 jsdom
 
 手写极简 DOM（元素 + `attributes` + `children` + `parentElement` + `parentNode` + `querySelector(All)`，选择器只需支持 `[a]` 与 `[a="b"]`、以及逗号分隔），把 bundle 源码用 `eval` 跑在注入了假 `window.__ModuleLoader__` 的全局里，即可验证：适配器命中、两种时间来源、缺服务不抛错、dispose 清干净、服务晚到后重扫能补上。这套假 DOM 能抓出真 bug——例如插件里用了 `parentNode`/元素级 `querySelector` 而假 DOM 没实现（真宿主有，属于测试缺口，但要补上才能继续跑）。
+
+## 行内装饰客户端插件的自审清单（DOM 装饰 + 订阅型数据源）
+
+写完这类插件后按表过一遍，每条都是实测踩过的：
+
+| 症状 | 修法 |
+| --- | --- |
+| 流式输出时页面发涩 | **订阅必须按快照引用去重**：`if (snap === lastSnap) return;`，再按 rAF 合并一次 pass。订阅在流式 token 上高频触发，每通知一次全量重建索引是长会话的主要卡点 |
+| 每帧扫全文档 | `document.querySelectorAll` 换成 `root.querySelectorAll`，root = `[data-conversation-session]` 容器 |
+| 控制台每帧一条报错 | rAF 回调整段包 `try/catch`：一次意外 DOM 形状不该打死 observer，也不该每帧刷日志 |
+| 服务缺失时 CPU 飙 | 适配器重试要退避（如 1s），不要每帧试 `sessions.binding()` / `target('chat')`——它们失败时会造异常对象 |
+| 某些行的时间明明有却不显示 | 别写 `map.get(k) \|\| null`：开始时间为 `0` 会被判成"无数据"。用 `=== undefined` 判断 |
+| 折叠区里的行被白装饰、展开后不刷新 | 跳过带 `hidden` 属性的祖先；展开本身会触发 MutationObserver，下一帧自然补上 |
+| 装配早于 `<body>` 就永不生效 | `document.body === null` 时 `setTimeout` 重试并返回取消句柄，不要 `return` |
+| 切会话后旧数据还挂着 | 视图卸载（容器属性没了 / sessionId 变空）时 `detach()`：退订 + 清索引 |
+| 角标样式突然丢 | 每 pass 检查 `styleTag.parentNode === null`，被 HMR 的样式簿记收走就重新注入（样式标签务必打 `data-plugin` 标记，否则会被邻近插件认领清理） |
+| 读屏把每个时间念一遍 | 装饰性角标加 `aria-hidden="true"`；再配 `pointer-events:none` + `user-select:none` |
+| 切到后台回来角标不更新 | 不要用 `setInterval` 主驱动；rAF 在隐藏页不跑，回前台自动补一帧 |
+
+死代码自检（一行）：用 python 统计 `function NAME(` 声明名在全文的出现次数，`==1` 即只声明未调用。注意**以函数表达式放进数组的适配器**（`ADAPTERS = [function a(){}, ...]`）只会出现一次，属合法，不要误删。
+
+验收顺序固定：`node --check` → `node test/run.mjs` → `plugin_manager set_plugin target=include:<rowId>` 看 `application: applied`。前两步过了再谈浏览器效果，别用"刷新试试"当验收。
