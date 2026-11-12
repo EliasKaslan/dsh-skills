@@ -1,6 +1,6 @@
 ---
 name: batch-invariance-acceptance
-description: batch 不变性验收：减层模型能否作为证据、算子级判据、外推六条件、昇腾 BI 白名单审计。
+description: batch 不变性验收：减层证据、算子级判据、外推六条件、昇腾 BI 白名单审计、验收成本优化（三层锚点+分派同构）。
 version: 1.0.0
 domain: inference-model
 function: batch-invariance-validation
@@ -418,3 +418,57 @@ BI 是**进程级全局 patch + 白名单**，不是"整模式"。审的时候�
 ### 判决词
 
 新增两档，避免把"没测到"写成"通过"：`PASS_SLICE_SCOPE_ONLY`（切片范围通过，须附形状域声明）、`BLOCKED_OPERATOR_COVERAGE`（白名单外算子族未定性）。
+
+## 验收成本优化：三层锚点 + 分派同构 diff（把 70 小时压到 5 小时）
+
+## 把 BI 验收从 70 小时压到 5 小时（保绝对性）
+
+适配对象：MindSpeed-Agent `skills/inference-model-skills/batch-invariance-validation`（master `7cb5678`）。结论：**贵不在测得多，在把端到端当证明**。
+
+### 时间账（先算再改）
+
+单场景成本 ≈ `加载 + Σ_BS1[prompt/ρ_prefill + max_tokens/ρ_dec_single] + max_tokens/ρ_dec_batch`。
+BS=1 是**逐条串行**跑，所以成本 ∝ BS；默认矩阵（长输出 20480、长输入 20480、矩阵 36 组合 ×3 轮、38 次加载）≈ 70~82 h，其中 **94~96% 在 BS=1 那一侧**。模型加载 38 次约 1.9 h；BS=N 批跑 + 调度解析 <3%。
+
+### 三个反模式（见到就改）
+
+1. **P0 自伤**：`--auto-install` 默认开 + 构建与注册检查共用 `--timeout=120s` ⇒ 真构建必超时 ⇒ 判 BLOCKED ⇒ 整套复检。修：默认关、超时分离、OPP 路径按 SOC_VERSION 解析、结果按 `(pip freeze, SO SHA, SOC_VERSION, commit)` 缓存。
+2. **P1 唯一通道**：要求逐 rank `op_statistic.csv` 且"不得用其他文件替代"，而本栈采不到 ⇒ 恒 BLOCKED 且每次先白耗数小时。修：改成 `op_statistic.csv` **或** 真实前向 `TorchDispatchMode` 计数二者其一。
+3. **P3 同构重放**：10 轮同 seed/temperature=0/同顺序/同 max_num_seqs ⇒ 第 3~10 轮只是重放，证明不了批组成敏感。修：500 题 × 2 轮，第 2 轮**打乱顺序 + 改 max_num_seqs**；判据补 token id 级比较，`len(set(acc))==1` 要加"分数非退化"。
+
+### 三层锚点（严格性不降，成本 ÷10~20）
+
+端到端本来就只是抽样（`∀批组成` 给不出），所以把"BS=1 全量 64 条"换成：
+
+- **P1 首步锚点（全量）**：每条单独跑 `max_tokens=1`，与 BS=N 的第 0 步比 logprob。T 差异最大，最容易撞分叉阈值，成本秒级。
+- **P2 全长锚点（K=2~4 条）**：跑满 `max_tokens`，护住 decode 累积与 `ignore_eos` 步数断言。
+- **P3 双打包互比（其余 N−K）**：`BS=N` vs `BS=max(1,N//8)` 或**逆序提交**，比公共子集。顺序维度现在完全没测。
+
+必须保留"unbatched vs batched"这条轴（否则 `batch>1` 才出现的融合 kernel 漏网），但不必全量保留。
+
+### 新增 A2：分派同构 diff（这才是"绝对性"）
+
+在两次打包的 run 里挂 `TorchDispatchMode`，记录 `(op 名, 逐行 shape 签名)`，diff 两个序列：
+
+```python
+with DispatchCensus() as c:
+    llm.generate(prompts, sp)          # BS=N
+# 再跑 BS=max(1,N//8)，diff
+assert not (c_big.multiset() - c_small.multiset())   # 例：npu_transpose_batchmatmul vs aten::bmm
+```
+
+在 A1（算子级行局部性）成立的前提下，执行图同构 ⇒ 输出逐位相同。这让 PASS 可解释，而不是碰巧。
+**盲区**：同名换实现（`aten::mm` → BI kernel）trace 里同名，A2 抓不到，必须由 A1 单测覆盖——这条要写进 skill，否则会误以为 A2 万能。
+配套 CI lint：`attention/**`、`ops/**`、`models/**` 里 `shape[0] <`、`num_tokens`、`num_seqs` 参与实现选择的，命中即要求说明"为什么与批无关"。
+
+### 分档门禁（替代"每次都跑验收矩阵"）
+
+- G0 静态扫描 + 缓存预检：<2 min
+- G1 算子级（A1 单算子 ≥200/算子按分叉阈值取 shape + A2 diff）：<20 min，**不过不许进端到端**
+- G2 功能快档（1 TP × 2 BS × 128:128、100:512）：≈1 h
+- G3 完整验收（长输入/长输出/TP 矩阵，1 轮换序）：4~6 h，多 die 并行 2~3 h
+
+### 报告口径（防止"抽样写成证明"）
+
+A1+A2+A3 全过 → 可写"BI 成立（声明域内）"；只有端到端一致 → `SAMPLED_PASS` 并写清锚点数；A2 有 diff → `FAIL_DISPATCH_NOT_INVARIANT`；无算子证据 → `BLOCKED_OPERATOR_COVERAGE`。
+K 条锚点要写"K 条全长严格 + N−K 条打包一致"，不许写"N 条全过"。

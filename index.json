@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 60,
   "file_count": 239,
-  "total_bytes": 26546811,
+  "total_bytes": 26553354,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -120,9 +120,9 @@
     {
       "name": "batch-invariance-acceptance",
       "path": "skills/batch-invariance-acceptance",
-      "description": "batch 不变性验收：减层模型能否作为证据、算子级判据、外推六条件、昇腾 BI 白名单审计。",
+      "description": "batch 不变性验收：减层证据、算子级判据、外推六条件、昇腾 BI 白名单审计、验收成本优化（三层锚点+分派同构）。",
       "files": 8,
-      "bytes": 113589
+      "bytes": 117577
     },
     {
       "name": "batch-invariant-weekly-digest",
@@ -227,7 +227,7 @@
       "path": "skills/gitcode-pr-flow",
       "description": "GitCode 仓提 PR：compile 门禁、双 CI、标签审计、OpenAPI、backport。适用于\"向 GitCode 提 PR / 冲突 rebase / 补门禁 / pre-commit 抖动\"。",
       "files": 4,
-      "bytes": 123194
+      "bytes": 125749
     },
     {
       "name": "github-org-delta-watch",

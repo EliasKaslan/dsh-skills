@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **60** 个 skill、**239** 个文件、**26546811** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **60** 个 skill、**239** 个文件、**26553354** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -48,7 +48,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 14 | [`ascend-torch-npu`](skills/ascend-torch-npu/SKILL.md) | torch + torch_npu 装/验/排障：A/B 车道、版本配对、验收 True 16 253。适用于"装 torch_npu / NPU 不可用 / pip 卡死 / GLIBCXX 缺失 / 该走哪条车道"。 | 1 |
 | 15 | [`ascend-triton-ascend`](skills/ascend-triton-ascend/SKILL.md) | triton-ascend 装/验/排障：3.2.2 走 osinfra 源、覆盖式共存。适用于"装 triton-ascend / import 版本不对 / 被 pip -U triton 覆盖后崩"。 | 1 |
 | 16 | [`ascend-vllm-serve`](skills/ascend-vllm-serve/SKILL.md) | 在昇腾上起 vllm 服务：三层自检、选空闲 die、serve/离线/sleep、运行时排障。适用于"起 vllm 服务 / OOM / 输出乱码 / reload_weights / 该占哪张卡 / 模型太大要 TP=2"。 | 1 |
-| 17 | [`batch-invariance-acceptance`](skills/batch-invariance-acceptance/SKILL.md) | batch 不变性验收：减层模型能否作为证据、算子级判据、外推六条件、昇腾 BI 白名单审计。 | 8 |
+| 17 | [`batch-invariance-acceptance`](skills/batch-invariance-acceptance/SKILL.md) | batch 不变性验收：减层证据、算子级判据、外推六条件、昇腾 BI 白名单审计、验收成本优化（三层锚点+分派同构）。 | 8 |
 | 18 | [`batch-invariant-weekly-digest`](skills/batch-invariant-weekly-digest/SKILL.md) | Batch 不变性周报：四仓已合入 PR 的概览表 + 转发形态邮件发黄区。适用于"跑 BI 周报 / 不变性有什么进展 / vLLM 这周合了哪些不变性 PR / 把周报改成列表"。 | 1 |
 | 19 | [`dingxiang-slider-captcha`](skills/dingxiang-slider-captcha/SKILL.md) | 顶象（dx）拼图缺口滑块验证码在 Android 模拟器上的实测结构与破解结论——含 DOM/几何参数、块与手指位移 1:1、块是半透明混合渲染（NCC 定位失效根因）；结论：成功率极低（实测 0/6）。适用于"过一下顶象滑块验证码 / 提... | 1 |
 | 20 | [`dsh-agent-customization`](skills/dsh-agent-customization/SKILL.md) | DSH 改造入口总纲：五层生效时机、插件 bundle、上线纪律与回滚。适用于"改 DSH 行为该改哪一层 / 插件行坏了怎么回滚 / MCP 怎么挂 / 恢复后会话打不开 / 自己写 host 插件"。 | 2 |

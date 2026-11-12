@@ -793,3 +793,36 @@ curl -s https://gitcode.com/Ascend/<repo>/merge_requests/<n>.diff
 2. **值是否自相矛盾**：不同 MR 对同一个版本常量可能有两种口径（产品口径 vs pip 包口径）。逐条把要填进命令行/构建参数的值拿去 `pip download`/`pip index` 验，别信 release notes 的表述。
    - 实证：`torch-npu==26.2.0` → `ERROR: No matching distribution found`；同期另一 MR 写的 `2.10.0.post7` 才是真包版本。
 3. `mergeable=false` 只说明目标分支已前进（本例：base 是 `master`，而 `master` 的对应文档又被 4 个 docs 提交改过），不等于 MR 内容无效 —— 报「需要 rebase」，不要报「MR 错了」。
+
+## 在已有 PR 上追加提交：收尾序列与两个待复查点
+
+场景：PR 已经开着，要在**同一个 head 分支**上继续加改动（不改 base、不新建 PR）。
+
+### 收尾序列（实测跑通）
+
+```python
+# 1) 提交信息写文件，绕开 PS 5.1 管道注入 BOM / 中文走 argv 的坑
+import io
+io.open(r"...\msg.txt", "w", encoding="utf-8", newline="\n").write("ci: 标题\n\n正文\n")
+```
+
+```bash
+git -C <repo> add <files>
+git -C <repo> commit -F <msg.txt>                      # 不要用 echo | git commit -F -
+GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never \
+  git -C <repo> push fork HEAD:refs/heads/<branch>     # 追加提交是 fast-forward，不需要 --force
+```
+
+- 推完**必须回读** `GET /pulls/<n>` 的 `head.sha` 确认等于本地新 head（别信 push 回显）。
+- 然后按 §5 标准动作补发 `compile`：`POST /repos/<o>/<r>/pulls/<n>/comments` body `{"body":"compile"}` → 201。
+- 改描述用 `PATCH /repos/<o>/<r>/pulls/<n>` body `{"body": ...}` → 200；**中文必须发 UTF-8 字节**，改完回读校验。
+- 提交身份：**先 `git config --get user.email`，与历史通过 CLA 的提交保持一致**（§6.6）。身份对了就不会掉成 `ascend-cla/no`。
+
+### 两个点（下次先复查，别照抄旧结论）
+
+1. **`web-api.gitcode.com/api/v2/projects/<owner>%2F<repo>/actions/workflow-runs/<run_id>` 本次三个 UA（curl / 浏览器 / ps）全返回 418**，取不到 stage/job 明细。§6.7 描述的匿名 200 至少不再是稳定行为 → 先当"可能不可用"，不要据此断定"流水线没跑"；退路是用 PR 标签（`ci-pipeline-running/passed/failed`）与 `AtlasAccount` 评论判读。
+2. **把 workflow 里的 `container.image` 指向一个尚不存在的镜像，不会让该 PR 自己的门禁立刻失败**（观测：改完推上去 + 发 `compile`，7 分钟内 UT 仍是 running，没有容器拉取错误）。这与"门禁按目标分支的 workflow 执行"一致，**但未等到全绿，属未验证**。实操含义：同一 PR 里改配方 + 切镜像是可行的，只要在合入前把镜像推上去；要留后路就把切换单独放一个提交，可单独 drop。
+
+### 交付纪律
+
+切镜像这类"改完不生效"的改动，PR 描述里必须写清**顺序**（先建镜像并推送 → 再合入）与**回滚方式**（drop 哪个提交 / 把 tag 改回旧值），否则合入方无从判断风险。同时把"门禁运行环境变了什么"（CANN / 包版本 / Python 版本）显式写出来，别只写"同步配方"。
