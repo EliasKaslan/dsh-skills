@@ -826,3 +826,26 @@ GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never \
 ### 交付纪律
 
 切镜像这类"改完不生效"的改动，PR 描述里必须写清**顺序**（先建镜像并推送 → 再合入）与**回滚方式**（drop 哪个提交 / 把 tag 改回旧值），否则合入方无从判断风险。同时把"门禁运行环境变了什么"（CANN / 包版本 / Python 版本）显式写出来，别只写"同步配方"。
+
+## 批量盘点：哪些 open PR 动了某子系统（按文件路径筛，不按标题）
+
+场景：回答"仓里最近哪些 PR 和镜像/CI/某子系统相关"。**按标题筛必然出错**，要按文件路径筛。
+
+### 四步
+
+1. **全量拉 open 列表**（要翻页，page 递增到返回空数组为止）：
+   `GET /repos/<o>/<r>/pulls?state=open&per_page=100&page=N`（匿名 200）
+2. **逐个取文件清单**，按路径前缀过滤，不要按标题猜：
+   `GET /repos/<o>/<r>/pulls/<n>/files` → `filename` 命中 `ci/`、`docker/`、`.gitcode/`、`docs/*/install_guide.md`、`tests/nightly_test.sh`、`tools/skills/*` 都算基础设施类
+3. **命中的再拉 diff 读实现**：`https://gitcode.com/<o>/<r>/merge_requests/<n>.diff`（匿名 200），用**文件里的一行事实**定性。例：`dockerfile="$workdir/source/docker/Dockerfile"` 直接说明该流水线建的是哪套镜像，比标题可靠。
+4. 报告口径：open 总数 → 过滤后数 → 每条给 `base / mergeable / 门禁标签` → 再给"与我这单的关系"（文件是否重叠、hunk 是否同区）。
+
+### 三个已实证的坑
+
+- **标题会骗人**：标题写 `feat(ci): add Docker image release pipeline`，实际只新增一个 workflow 文件，且 `dockerfile=` 指向 `docker/Dockerfile`（对外发布镜像），**不是** `ci/Dockerfile`（门禁镜像）。只看标题会误判成"它替我解决了门禁镜像"。
+- **标题可能是模板占位符**（`feat/fix/docs/style/refactor/adaptor/chore/test(backend): pr describe`）：这类往往是很老的僵尸 PR，只看标题会整条漏掉，而它可能正在改 `ci/build.sh` 这种关键文件。
+- **别把过滤条件收窄成 `docker/`**：`docs/*/install_guide.md`（镜像构建命令）、`tests/nightly_test.sh`（冒烟）、`tools/skills/*` 都属于同一条链，漏了盘点就不完整。
+
+### 同文件 ≠ 一定冲突
+
+两条 PR 改同一个 workflow 但 hunk 相距几十行（一个在 gitleaks 段、一个在四处 `container.image`）→ 不冲突；判断用 `@@ -a,b +c,d @@` 的区间是否重叠，别只看文件路径相同就报冲突风险。
