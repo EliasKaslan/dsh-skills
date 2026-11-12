@@ -519,3 +519,35 @@ git grep -n "init_attn_backend" -- <repo>
 5. 反面做法：只在某层包一层跳过检查，或裸声明 True 不做验收——前者重造「静默非 BI」，后者让后续 BI 报告失真。
 
 未验证：本条为 2026-11 的静态溯源结论，未在真机复现。
+
+## 声明 vs 能力：行局部性静态审计（同一 backend 在 Ascend 可真、在 CUDA 不可）
+
+## 声明 vs 能力：行局部性静态审计
+
+**触发**：同一 backend/模型在平台 A 上 BI 逐位一致、在平台 B 上被判「不支持」；或 `supports_batch_invariance()` 返回 False，但你怀疑能力其实存在。
+
+**核心判据**：BI 是「(算子, 形状域, kernel 选择)」的性质，不是 backend 类名的性质。类级布尔只能承载一份事实；子类可 override，所以**「未声明」≠「不支持」**。与上文《启动门》一节配套：那节讲门怎么拦，这节讲怎么判能力真伪。
+
+### 三步静态审计（不跑模型）
+
+1. **kernel 选择是否吃批形状**：搜 `num_tokens` / `batch_size` / `num_seqs` / `shape[0]` 参与的条件分支，以及按 M 选配置表的逻辑；吃到就大概率非行局部。
+   - 安全例（Ascend GDN）：`vllm_ascend/ops/gdn.py:790-812` 的 `use_fla_gdn_prefill` / `use_fused_chunk` 只看 dtype（bf16）、是否 CPU、`_probe_fused_chunk()`、`pcp_world_size`、硬件能力位；A3 + bf16 + PCP=1 默认走 `device_op.py:883-948` 的 fla_npu 融合算子。
+   - 危险例（CUDA GDN）：`vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py:1196` 的 `enable=num_tokens <= _BA_PROJ_OVERLAP_MAX_TOKENS` 按本步 token 数开合融合；同文件 `:158` 还有 triton/flashinfer/cutedsl/aiter/sycl 五套 prefill 实现。
+2. **chunk 边界是否按序列切**：线性/SSM 类 kernel 必须逐序列，判据是调用处传 `cu_seqlens`，且 chunk 大小是常量（Ascend GDN 全链路 64：`gdn_attn_builder.py:44`、`fla/chunk.py:49,123,207`、`device_op.py:931`；三条 prefill 路径都传 `cu_seqlens`）。若按打包后的总 token 数切 chunk，批组成会改变边界 ⇒ 非行局部。
+3. **其余批敏感算子是否被替换**：对照平台 BI 注册表（Ascend：`vllm_ascend/batch_invariant.py:135-154` 的 `mm/matmul/addmm/bmm/softmax/_softmax`、FIA、`npu_add_rms_norm`、`sum`）。清单外算子逐个定性；`grouped_matmul` / routing / swiglu 这类「逐 token 置换 + 逐行点积」通常行局部，但 tiling 是否与 M 无关**未验证**。
+
+### 结论怎么用
+
+- 三步全过 ⇒ **能力为真、只是未声明**：给子类/家族基类加 `@classmethod supports_batch_invariance(cls) -> bool: return True`（父类保持 `False`，CUDA 与插件各自成立），不要去改上游检查。
+- 任一步不过 ⇒ **能力为假**：只能补实现或明确拒绝；声明 True 会把「启动失败」换成「静默漂移」。
+- 别用端到端 PASS 反推能力：单形状 PASS 只证明该形状，且要先确认 BI 补丁真生效（日志含 `Enabling batch-invariant mode ...`、`torch.ops.batch_invariant_ops.*` 可解析），并做同形状负控。
+- 硬前提：BI 下必须关 chunked prefill / prefix caching（`docs/.../batch_invariance.md`）；否则同一 prompt 被切段 prefill，递归状态跨段累进，数值必变。
+
+### 静态审计的四个盲区（必须写进报告的"未验证"）
+
+1. 探针形状可能不覆盖真实头数比例（GDN 探针用 `nk=nv=1, seqlen=64`，真实模型常不同）。
+2. 厂商融合算子源码不在仓内时，其内部 tiling 是否随总行数变化**无法静态证明**——这是唯一不闭合的环，只能靠实测。
+3. 同一请求在「纯 decode 批」与「P+D 混合批」下送进算子的张量长度不同（conv/state gather 分支），属形状域差异。
+4. PCP/DP 等并行维 >1 时存在跨 rank 归约，行局部性默认不成立。
+
+未验证：CUDA GDN 在 H100 上 18/32 不一致的数值机制为推断（未取证到 kernel 级）；Ascend `npu_grouped_matmul` 的 tiling 与 M 无关未取直接证据。
