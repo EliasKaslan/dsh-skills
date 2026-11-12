@@ -106,3 +106,52 @@ whenToUse: 写/审 vllm-ascend 的 e2e 用例落位与 CI 登记时用（模型�
 4. 若打了 `e2e_coverage`：7 维齐备、每个值都在 `ALLOWED_VALUES`。
 5. 用例引用的模型 ID 在 ModelScope 有仓（否则离线 CI 拉不到权重）。
 6. 门禁**在 Linux 上**跑过（步骤 10 的 scratch 跑法）：`[2] E2E: N/N covered` 里 N 比基线大 1、MISSING=0、退出码 0、`[5]` unknown marker value = 0。在 Windows 上跑出的 MISSING 不作数。
+
+## 新增 four_card / BI e2e 用例的验收清单（marker / 显存 / 触发 / 分支对齐）
+
+## 新增 four_card / BI e2e 用例的验收清单（marker / 显存 / 触发）
+
+**适用**：往 `tests/e2e/pull_request/four_card/**` 加一条用例（尤其批次不变性这类要吃满显存的），从写 marker 到让 CI 真正跑起来。
+
+### 1. marker 与路径必须自洽
+
+- `graph_mode` 的合法取值见 `tests/e2e/coverage_taxonomy.py:107`：`eager / full_graph / full_decode_only / piecewise / full_and_piecewise / aclgraph / xlite_*`。写 `eager` 是合法的，但必须和 `extra_kwargs` 里的 `enforce_eager=True` 同时出现，否则覆盖率报告与实际执行模式不符。
+- `four_card/*` 一律路由到 A3 4 卡（`/e2e` 路由表：路径含 `four_card` → A3 4 卡；含 `two_card` → A3 2 卡；`one_card` → A2 单卡；`_310p` 优先）。改 marker 前先 `git grep 'hardware=' -- tests/e2e/pull_request/four_card` 看该目录是否全部一致（本仓当前 19 处全是 `A3`），别照抄旧用例的 `A2`。
+- `e2e_model("...")` 必须写字符串字面量：`tests/e2e/generate_coverage_html.py` 用 `ast` 读 marker，只接受常量，模块常量会让用例在覆盖率报告里丢掉模型。
+- 新文件必须登记 `.github/workflows/scripts/estimated_times.yaml`，CI 会查缺失；用户可见的行为改动还要补 `release_notes/fragments/<PR号>.yaml`（category: bugfix/feature…，格式见 `TEMPLATE.yaml`）。
+
+### 2. 显存预算：先算「峰值」，再定 utilization
+
+切片用例的 OOM 往往不在权重，而在**第二份 cache**：
+
+- 解码注意力按**单个 full-attention 层**的整份 KV cache 申请 FIA max workspace（`vllm_ascend/attention/attention_v1.py` 里 `_npu_fused_infer_attention_score_get_max_workspace`）。实测关系：`workspace = cache / full_attention_层数`。
+- 只有 1 个 full-attention 层时，切片要把 cache 装两遍，峰值 ≈ `weights + 2 × utilization × die`。于是 `utilization` 必须明显小于 0.5（例如 0.45 留出约 10% 余量），而 0.9/0.95 这种「cache 摊在很多 full-attn 层上」的默认值在这里必 OOM。
+- 写成 `gpu_memory_utilization=min(float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "<ceiling>")), <ceiling>)`：CI 可降不可升，忙机也能跑。
+- 图模式下 capture 会常驻 max workspace（`vllm_ascend/compilation/updatable_graph.py`），要么 `enforce_eager=True`，要么再留一份 cache。
+
+未验证：`weights` 具体占用不能靠参数量估，必须从启动日志的 `Available KV cache memory` 反推（层数很少的切片尤其容易估错）。
+
+### 3. 触发与判读
+
+- 硬件 e2e **不会**随 push 自动跑：在 PR 评论 `/e2e tests/e2e/pull_request/four_card/<...>/test_x.py`（只接受 `tests/e2e/pull_request/` 下的路径；`/nightly` 才管 nightly）。PR 作者本人即可触发，其他人需 triage+。
+- 触发后看 repository_dispatch 的 `Handle /e2e Command` run，再等它派生的 A3 job；普通 PR 的 `E2E` workflow 只跑 pre-commit + cpu-ut，别把它当硬件验证。
+- MCP 的 `update_issue` 改 PR 元数据可能报 `Permission Denied: Resource not accessible by personal access token`，但用同一 PAT 直接 `PATCH /repos/{owner}/{repo}/pulls/{n}` 返回 200；发 `/e2e` 评论用 `POST /repos/{owner}/{repo}/issues/{n}/comments`（201）。改 PR 正文时保留自动维护的 `- vLLM version:` / `- vLLM main:` 行。
+
+### 4. fork 分支落后 main 时不要硬来
+
+浅克隆（`git clone --depth N --branch <br>`）后直接 `git merge upstream/main` 会报 `fatal: refusing to merge unrelated histories`。补历史再合：
+
+```bash
+git fetch --shallow-since=<YYYY-MM-DD> upstream main
+git fetch --shallow-since=<YYYY-MM-DD> origin <branch>
+git merge-base HEAD upstream/main      # 有输出才继续
+git merge --no-ff --signoff upstream/main
+```
+
+不要 force push；merge commit 带 sign-off，DCO 能过。推 fork 分支用一次性 URL，不写进 `.git/config`：
+
+```bash
+git push "https://x-access-token:$(cat <token-file>)@github.com/<user>/<fork>.git" HEAD:refs/heads/<branch>
+```
+
+改完跑 `ruff check` / `ruff format --check`（本仓 line-length=120），再确认 `git ls-files --eol` 里 index 是 `lf`（Windows 工作区 CRLF 是 autocrlf 正常现象）。
