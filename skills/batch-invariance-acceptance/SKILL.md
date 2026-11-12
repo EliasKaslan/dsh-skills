@@ -472,3 +472,50 @@ assert not (c_big.multiset() - c_small.multiset())   # 例：npu_transpose_batch
 
 A1+A2+A3 全过 → 可写"BI 成立（声明域内）"；只有端到端一致 → `SAMPLED_PASS` 并写清锚点数；A2 有 diff → `FAIL_DISPATCH_NOT_INVARIANT`；无算子证据 → `BLOCKED_OPERATOR_COVERAGE`。
 K 条锚点要写"K 条全长严格 + N−K 条打包一致"，不许写"N 条全过"。
+
+## 启动门：supports_batch_invariance 的三道门与「自派 backend」陷阱（#60271）
+
+## 启动门：supports_batch_invariance 的三道门与「自派 backend」陷阱（#60271）
+
+**适用**：`VLLM_BATCH_INVARIANT=1` 时引擎启动即抛 `RuntimeError: VLLM batch_invariant mode is not supported for XXX.`，尤其发生在 hybrid/线性注意力（GDN/KDA）或硬件插件自接 backend 的模型上。
+
+### 三道门，只有第三道是「必经」
+
+| 门 | 位置 | 何时触发 | 谁能绕过 |
+|---|---|---|---|
+| 0 平台 block-size 探测 | `vllm/platforms/interface.py:684-702`（`:699 layer.get_attn_backend()`） | `load_model()` 后 `update_block_size_for_backend()` | 层自派 backend 时不过 selector，但**仍会调 get_attn_backend()** |
+| 1 mamba 选择器 | `vllm/v1/attention/selector.py:245`（#40193 引入） | `MambaBase.get_attn_backend()` → `get_mamba_attn_backend(mamba_type)`（`model_executor/layers/mamba/abstract.py:93-95`） | 插件 monkey-patch 掉层的 `get_attn_backend()`，直返类对象 |
+| 2 逐层 attn group | `vllm/v1/worker/gpu/attn_utils.py:233-241`（#60271 新增） | `init_attn_backend()` 遍历每个 KV cache group 的 layer | **无**（V2/MRv2 必经；MRv1 无此检查） |
+
+判据：门 1 会拒 CUDA 上的 GDN 模型（上游 issue #48613，早于 #60271 两个月）；**门 2 才是「自派 backend」的唯一出口闸**，因为 `MambaSpec`（`vllm/v1/kv_cache_interface.py:1094`）没有 override `has_layer_views`（基类 `:329` 为 True），GDN 组不会被 `attn_utils.py:221` 的 `continue` 跳过。全树只有 `HiSparse*Spec` 返回 False。
+
+### 症状与归因的三个易错点
+
+1. **「backend 没有 supports_batch_invariance 方法」通常不成立**：方法在 `vllm/v1/attention/backend.py:213-215` 基类上、默认 `False`，子类只是没 override。真缺属性会是 `AttributeError`；看到 `RuntimeError ... not supported for X.` 就应按「未声明」处理。
+2. **报错里的名字来自 `get_name()`**，通常是父类常量（GDN 家族一律 `GDN_ATTN`），不是插件类名——别据此判断「这是上游的问题」。
+3. **数值可 BI ≠ 启动门放行**：门只读声明，不读测量。反过来，「声明 True」也不等于真 BI（上游 #45819 评论：flag-only 必要但不充分，H100 上 18/32 不一致）。
+
+### 定位步骤（不用跑模型）
+
+```bash
+# 1) 该 backend 家族有没有声明？
+git grep -n "supports_batch_invariance" -- <repo>/vllm_ascend/attention <repo>/vllm_ascend/ops
+# 2) 家族基类是谁、继承链上是否有 override
+git grep -n "class .*<BackendName>" -- <repo>
+# 3) 层是自派还是走选择器？
+git grep -n "get_attn_backend" -- <repo>/<patch dir>
+# 4) 插件是否直调上游 init_attn_backend（= 门 2 生效）
+git grep -n "init_attn_backend" -- <repo>
+```
+
+坑：回归测试常按目录组织（只扫 `attention/`），而 GDN 这类 backend 放在 `ops/`，于是「10 个 backend 全绿」但缺口仍在——审清单时要按**类家族**核，不按目录。
+
+### 修复范式（先证据后声明）
+
+1. 在**家族基类**加 `@classmethod supports_batch_invariance(cls) -> bool: return True`（子类自动继承；`is_ssm()` / `get_name()` 不动）。
+2. 把家族（含插件子类）加入 backend 声明回归 UT。
+3. 声明前补数值证据：BS=1 vs BS=N 的 token + chosen-token logprob 逐位（含同形状负控）；单形状 PASS 只能算 `SAMPLED_PASS`。
+4. 硬件/版本有差异时按能力位条件返回（例如某代卡未验证就不要无条件 True）。
+5. 反面做法：只在某层包一层跳过检查，或裸声明 True 不做验收——前者重造「静默非 BI」，后者让后续 BI 报告失真。
+
+未验证：本条为 2026-11 的静态溯源结论，未在真机复现。
