@@ -632,3 +632,96 @@ bundle 的 `cordis.patch.yml`（loader overlay）是 **YAML**，注释只能用 
 
 **通用纪律**：插件"状态异常"时先读诊断字段，再动手；诊断字段里往往已经有答案，
 凭猜测去改代码或重装，成本高且容易把故障带到别处。
+
+## 升级后判定插件行是否还在：fiberPhase 与 unaddressable 的区别
+
+## 升级后判定插件行是否还在：看 fiberPhase，别看 set_plugin 成败
+
+**症状**：DSH 升级后，对自建插件行跑 `plugin_manager set_plugin` 得到：
+
+```
+{"application":"failed","error":{"code":"unaddressable"},
+ "nextStep":"This entry has no unique profile patch target; tell the user to edit the profile patch file directly."}
+```
+
+很容易据此误报"升级把插件弄坏了"。
+
+**真相**：`unaddressable` 是**寻址**分类，不是加载状态。判加载只看 `list_plugins` 里的 `enabled` + `fiberPhase`：
+
+| 结果 | 含义 |
+| --- | --- |
+| `application: applied` | 行存在、管理器能改、已生效 |
+| `error.code: unaddressable` + 表里 `fiberPhase: active` | **行正常加载**，只是管理器不能再开关它（需直接改 patch 文件） |
+| `error.code: unknown-plugin` | 行不存在；若刚改过 patch，索引可能未重建 → **等 1~2 秒重试一次** |
+
+**根因**：由 profile patch 的 `- insert:` 直接插入的行**没有 `patchId`**；bundle 带进来的行有。新版本会把无 `patchId` 的行标成 `readOnlyReason: "unaddressable"`（同表的 `dsh-*-native` 等内置插入行同样如此）。
+
+**想让管理器重新能开关它**：把包做成 bundle —— `package.json` 里声明 `dsh.bundle.patch`，profile 的 `dsh.profile.bundles` 登记包名，然后**删掉**手写的那段 `- insert:`（否则会重复注册）。代价：bundle 列表只在启动时读取，改动需要重启宿主才生效。
+
+**廉价取证：只取表的尾部。** profile patch / bundle 插入的行排在 roster 最后，用 `list_plugins(offset = total - 25)` 一屏就能看到它们，不必拉全表（大版本里常有 200+ 条）。
+
+### 另一个会骗人的取证陷阱：压缩串里的引号形式会变
+
+宿主客户端 bundle 是压缩产物，同一符号的**引号样式可能随版本改变**。实例：同一个 seam 在 A 版本是
+
+```js
+ctx.uiConversation.binding(binding).target("chat")
+```
+
+在新版本变成
+
+```js
+ctx.uiConversation.binding(binding).target(`chat`)
+```
+
+按 `"chat"` / `target("chat")` 做字面量 grep 会得到 **0 命中**，从而误判"seam 被删了"。对策：
+
+1. 搜**调用点**而不是字面量：`\.target\(`、`faceOf\(`、`nodes\.get\(` 这类结构模式；
+2. 命中后读上下文 70~140 字符，确认实参的**语义**（id 是否仍是同一个字符串）；
+3. 批量比对多个符号时，先把引号掩码掉（统一成 `'` 或去掉）再匹配。
+
+同理，`"chat",` 这种"字符串 + 逗号"的字面量也会因压缩换行/空格而失配，不要用它当证据。
+
+### 升级核对顺序（配合 `dsh-doc` 的 upgrading.md）
+
+1. 取新版本号（`app.asar` 里任一 `@deepseek-ai/dsh-*` 的 `package.json.version`）。
+2. 读官方 `docs/upgrade-guide/v<旧版本>/` 那一节，逐条对照插件**实际用到的面**（服务、事件、slot、DOM 契约、包字段、patch 方言）；报告"用到的"与"跳过的及理由"。
+3. 再按上面的办法扫契约字符串 + 看 `fiberPhase`，两者都过才算兼容。
+4. 单测只能证明插件自身逻辑不回归，**不能**证明宿主契约没变；反之契约在也不等于画面对，最终仍需浏览器里一行 `__<plugin>` 自检。
+
+## 跨版本升级兼容性核查：定版本、取指南、用冒烟定论
+
+用户说"升级了 DSH，检查某插件有没有兼容性问题"时，**先定版本、再取指南、最后用冒烟定论**——不要凭印象或只读代码。
+
+## 1 定版本与指南（只读）
+
+- 运行版本：`<DSH_INSTALL_DIR>/package.json` 的 `version`；`DSH_PROFILE=desktop` 表示桌面 profile。
+- 指南索引：`<DSH_INSTALL_DIR>/docs/upgrade-guide/README.md`，每个 `## v<T>` 一节描述"从 vT 升到下一个版本"要改什么。
+- **先只打印章节标题**（一行一条），按"用户从哪个版本升上来"选最近几段，再按需读具体 `guide.md`。整份索引很长，别整份读。
+
+## 2 在 ASAR 里读东西的正确姿势（本机必踩）
+
+- 必须用 `$env:DSH_NODE_EXECUTABLE`（Electron 本体）+ 环境变量 `ELECTRON_RUN_AS_NODE=1` 启动，普通 node 读不进 `app.asar`。
+- **PowerShell 5.1 没有 `ProcessStartInfo.ArgumentList`**（PS7 才有）：用它必然报 `不能对 Null 值表达式调用方法`。
+  做法：把探针写成 `.cjs` 文件，然后 `$start.Arguments = '"' + $probe + '"'`。
+- **判"某 API 还在不在"不要拼目录猜**：`DSH_INSTALL_DIR` 指向 `@deepseek-ai/dsh` 包内部，其 `node_modules/@deepseek-ai` 与 app 层 hoisted 的依赖**不是同一处**；
+  直接拼 `<root>/node_modules/@deepseek-ai/<pkg>` 会全部 MISSING（实测四个包全 MISSING，与事实相反）。
+  正确姿势：`require.resolve('<pkg>/package.json', { paths: [process.env.DSH_INSTALL_DIR] })` 拿真实目录再扫。
+
+## 3 用"冒烟"而不是"考古"定论
+
+读指南只用来**缩小怀疑面**；最终判据是实测：
+
+1. 对改动过的高频表面做**代码级 grep**，命中数为 0 就是"未使用"的硬证据（比"我觉得它没用到"可靠）；
+2. 重载插件看启动日志：服务是否**逐个 `service bound`**、索引是否加载成功、健康端点是否返回、中继是否 online；
+3. 升级前是否已有**成功的功能调用**记录（例如一次真实请求的响应日志）——有，说明那条链路在目标版本上已经工作过。
+
+## 4 报告纪律
+
+必须写清：用了哪些指南、跳过了哪些**及原因**、以及"无兼容问题"的依据是"命中 0 + 冒烟通过"，而不是"看起来没问题"。
+
+## 5 顺带体检
+
+第三方 bundle 若 `package.json` 里既无 `engines.dsh` 也无 `peerDependencies`，
+升级时**不会有任何兼容性预警**：未来的不兼容会以"静默失效"出现。
+发现这种情况要主动指出（是否加约束由用户决定）。
