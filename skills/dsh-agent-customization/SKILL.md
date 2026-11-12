@@ -759,3 +759,43 @@ ctx.uiConversation.binding(binding).target(`chat`)
 
 纯文档 / 清单改动（无运行产物变化）**不 bump 版本**，只移动 tag；
 版本号留给"运行时可感知的变化"，否则用户按版本号判断"要不要刷新"会失效。
+
+## unaddressable 的真正条件：同一模块被声明两次
+
+## `unaddressable` 的真正条件与修复（同一模块被声明两次）
+
+> 更正：上一节把 `unaddressable` 归因于「patch `- insert:` 的行没有 patchId」，**不准确**。同样是 patch insert 的 `ui-stats` 就带着 `patchId`。真正的判定在管理器源码里：
+
+```js
+const rows = flatten(composeEntries([readProfilePatches("dsh", this.profile)]));
+const candidates = rows.filter((row) => row.id === actual?.options.id);
+if (candidate === undefined || candidates.length > 1
+    || candidate.name !== entry.moduleName
+    || actual?.parent.tree.ctx.fiber.entry?.id !== "include")
+  return { ...entry, readOnlyReason: "unaddressable" };
+return { ...entry, patchId: candidate.id };
+```
+
+即行可寻址需同时满足：**唯一命中** `id`、`name` 与模块名一致、父 fiber 是 `include`。
+
+### 最常见死因：声明了两次
+
+一个本地插件如果**既登记进 `dsh.profile.bundles`，又在 `cordis.patch.yml` 里手写 `- insert:`**，`candidates.length > 1` → 立刻 `unaddressable`。此时插件**仍然正常 active**（角标照画），只是管理界面里开关不了、`set_plugin` 报错，很容易被误读成"升级把它弄坏了"。
+
+### 修复：只保留一份声明
+
+| 想要 | 保留 | 代价 |
+| --- | --- | --- |
+| 改动**热生效**、不用重启 | 手写 `- insert:`；从 `dsh.profile.bundles` 去掉那次登记（`dependencies` 的 `link:` 保留，解析照常） | 行没有 bundle 语义 |
+| 管理器**可开关**、把它当正式 bundle | 登记进 `dsh.profile.bundles`，删掉手写 insert（包内已有 `dsh.bundle.patch`） | bundle 列表只在启动时读，**需重启宿主** |
+
+改完的验收顺序（都不用重启，除非你选了第二种）：
+
+1. `list_plugins(offset = total - 6)` 看该行——出现 `patchId: "<rowId>"` 即成功；
+2. 再 `set_plugin include:<rowId> enabled=true`，应返回 `{"application":"applied","changed":false}`。
+
+### 顺带的发布前检查：patch 文件首行必须是 `#`
+
+`cordis.patch.yml` 若把注释写成 `//`（在 JSON/JS 里很顺手的写法），YAML 会把整行当成**标量**而不是注释，导致 bundle patch 解析失败——而插件往往因为另有一条手写 insert 仍在工作，**故障被完全掩盖**，直到别人把这包装成 bundle 才炸。
+
+发布前用一条命令自查：`Get-Content cordis.patch.yml -Encoding utf8 | Select-Object -First 3`，确认首行是 `#`、且 `- insert:` 是顶层序列项。

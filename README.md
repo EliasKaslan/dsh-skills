@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **60** 个 skill、**239** 个文件、**26503833** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **60** 个 skill、**239** 个文件、**26506180** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -57,7 +57,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 23 | [`dsh-home-guard`](skills/dsh-home-guard/SKILL.md) | 保护 ~/.dsh 不被误删：分钟快照 + 外置裸库 + 哨兵自愈。适用于"防止 agent 删 .dsh / .dsh 被清空了怎么救 / 会话日志丢了 / 想装看门狗 / 恢复后会话变少"。 | 1 |
 | 24 | [`dsh-isolated-web-host`](skills/dsh-isolated-web-host/SKILL.md) | 起隔离 DSH host（重定向 DSH_HOME）：401 判就绪、落盘 pid 收尾、端口枚举恒空。适用于"起个隔离 host 试试 / 不污染真实环境验插件 / 真实 host 占着端口不能重启"。 | 1 |
 | 25 | [`dsh-longhaul-mode`](skills/dsh-longhaul-mode/SKILL.md) | DSH 的 Longhaul 长线工程模式——longhaul 插件 7 个工具把「完成」改成密封命令与独立审计者双签，靠 .longhaul 账本哈希链与五道闸挡住改测试、改标尺、绿基线和自评放行。适用于"长线任务用哪个模式 / long... | 1 |
-| 26 | [`dsh-phone-remote-relay`](skills/dsh-phone-remote-relay/SKILL.md) | 手机远程接管电脑上的 DSH：公共 broker 中继 + 端到端加密；多标签互斥、外壳/插件版本分列核对、任务分组落到未分组、偶发断连排查。 | 1 |
+| 26 | [`dsh-phone-remote-relay`](skills/dsh-phone-remote-relay/SKILL.md) | 手机接管电脑上的 DSH：中继丢包 / 唤醒断连 / 建联失败 / 多标签互斥 / 任务落到未分组 / 版本是否生效 | 1 |
 | 27 | [`dsh-repo-sync`](skills/dsh-repo-sync/SKILL.md) | 已退役——~/.dsh 私仓同步机制（DSH-Repo-Sync 任务与镜像仓均已删除）。仅留作历史记录与令牌形态参考。 | 3 |
 | 28 | [`dsh-skill-authoring`](skills/dsh-skill-authoring/SKILL.md) | skill frontmatter 写法契约：description 才是触发字段、字符预算、拒载键。适用于"skill 没被触发或加载不上 / description 超限 / 改新建 skill / 校验脚本报错"。 | 3 |
 | 29 | [`dsh-skill-self-audit`](skills/dsh-skill-self-audit/SKILL.md) | skill 集合定时自检：YAML、交叉引用、重复正文、目录预算。适用于"自检我的 skill / 有没有该合并的重复 / 哪些 skill 触发不了 / skill 目录多久没动"。 | 6 |

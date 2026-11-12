@@ -1,9 +1,6 @@
 ---
 name: dsh-phone-remote-relay
-description: 手机远程接管电脑上的 DSH：公共 broker 中继 + 端到端加密；多标签互斥、外壳/插件版本分列核对、任务分组落到未分组、偶发断连排查。
-disable-model-invocation: true
-warm-triggers: 手机跨网络接管 DSH / MQTT 中继 / 多标签互斥
-warm-reason: 低频专项，已由 pocket 插件承接
+description: 手机接管电脑上的 DSH：中继丢包 / 唤醒断连 / 建联失败 / 多标签互斥 / 任务落到未分组 / 版本是否生效
 ---
 
 # 手机跨网络接管 DSH（零公网暴露）
