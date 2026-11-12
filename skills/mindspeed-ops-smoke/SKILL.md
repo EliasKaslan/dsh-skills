@@ -44,6 +44,8 @@ cat requirements.txt
 | Triton-Ascend（TA） | 3.6.0（连带 `triton==3.6.0`、`numpy==1.26.4`） |
 
 > `pyproject.toml` 里 `triton-ascend==3.6.0` 是权威 pin；装错版本会在算子层出精度或编译问题，且错误信息不指向版本。
+>
+> **TorchNPU 有两个口径，别混**：产品口径（`docs/zh/release_notes_ops.md` 兼容表、install_guide 正文）写 `26.2.0`；**包口径/pip 版本是 `2.10.0.post7`**。PyPI 与华为镜像上 `torch-npu` 共 67 个版本、2.10 线最高 `2.10.0.post7`，**没有 `26.2.0`**（实测 `pip download torch-npu==26.2.0` → `ERROR: No matching distribution found`）。凡是要填 `--torch-npu-version` / `pip install torch-npu==` 的地方一律用 `2.10.0.post7`。
 
 ## 2. 环境搭建（一机一套，可复用）
 
