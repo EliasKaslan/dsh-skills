@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 60,
   "file_count": 239,
-  "total_bytes": 26511801,
+  "total_bytes": 26514255,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -185,7 +185,7 @@
       "path": "skills/dsh-phone-remote-relay",
       "description": "手机接管电脑上的 DSH：中继丢包 / 唤醒断连 / 建联失败 / 多标签互斥 / 任务落到未分组 / 版本是否生效",
       "files": 1,
-      "bytes": 50359
+      "bytes": 52813
     },
     {
       "name": "dsh-repo-sync",

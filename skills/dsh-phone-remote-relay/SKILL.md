@@ -733,3 +733,33 @@ python -c "import yaml,io; d=yaml.safe_load(io.open(r'<patch>',encoding='utf-8')
    那么"隧道悄悄消失"就完全不留痕——你会看到 N 次 open 只对应 1 次 close，
    然后无法判断是手机放弃、还是本地桥关闭。**关闭日志应当无条件记录**
    （code、reason、当前槽位、是否已从表中移除）。
+
+## 手机端答不了 agent 提问：缺 UI 与缺状态，附 DSH 答题契约
+
+## 手机端答不了 agent 提问：缺 UI + 缺状态（附 DSH 答题契约）
+
+**症状**：电脑端 agent 调了 `ask_user_question` 等人作答，手机端"发什么都没反应"——既看不到问题，打字也没用。
+
+**这不是传输层问题，别去查中继/闸门。** 两个判据：
+
+1. 手机外壳（`web/`）里 grep `question|提问|询问|回答` **0 命中** —— 根本没有提问卡片，用户唯一能做的就是往输入框打字；
+2. 那条发送走的是普通会话消息 `POST /tasks/:id/prompt` → `agent.followup(...)`，turn 卡在提问上时它只是**排队**，不会推进任何东西。
+
+所以先确认"前端有没有入口"，再谈网络。
+
+### DSH 侧答题契约（0.2.2 实测源码）
+
+- **进程内答题**：`ctx.userQuestions.answer(agent, callId, { answers })`
+  - `answers` 必须**每个问题恰好一条**：`{ id: string, selected: string[], custom?: string }`
+  - `selected` 是**选项标签**；单选自定义时 `selected=[]` 只给 `custom`；多选时 `custom` 补充 `selected`
+  - 数量不匹配抛 `BAD_ANSWER`；该题已有排队回复抛 `REPLY_QUEUED`
+- **问题形状**：`{ id, question, detail?, header?, options?: [{ label, description? }], multiSelect?, intent? }`
+- **待答状态**：会话投影 `userQuestions` → `{ active: [{ callId, questions }], settled: [...] }`
+- **事件兜底**：`tool/call`（`data.callId` + `data.arguments`）入 active；同 `callId` 的 `tool/result`，或 `user/message` 且 `data.source.kind === 'user-question-reply'` 出 active
+- **服务怎么进插件**：沿用 pocket 现有的 `bind('userQuestions')` 模式（`ctx.inject([name], child => …)`）；服务不存在时自然不会绑定 —— 这就是"老版本 DSH 降级返回 501 / 不显示卡片"的判据，不要抛未捕获异常。
+
+### 实现要点（本轮只定位契约，**实现与真机验证未完成**）
+
+- host：`pendingQuestions` 必须**恒为数组**（空数组而不是省略字段），客户端据此渲染；答完要立即从 active 移除，否则卡片会残留。
+- web：轮询/流式刷新**不能清掉用户已选未提交**的选择（以 `callId` 为键暂存），否则用户每次刷新都要重选。
+- 验收：改 web 后必须重建外壳再 `--check`；插件代码改动需**冷启动宿主**（ESM 缓存），配置才是热生效。
