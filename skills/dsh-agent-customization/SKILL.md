@@ -577,3 +577,33 @@ const t0 = node.kind === 'tool-call'  ? node.data.root.callTime                 
 死代码自检（一行）：用 python 统计 `function NAME(` 声明名在全文的出现次数，`==1` 即只声明未调用。注意**以函数表达式放进数组的适配器**（`ADAPTERS = [function a(){}, ...]`）只会出现一次，属合法，不要误删。
 
 验收顺序固定：`node --check` → `node test/run.mjs` → `plugin_manager set_plugin target=include:<rowId>` 看 `application: applied`。前两步过了再谈浏览器效果，别用"刷新试试"当验收。
+
+## DOM 装饰的锚点选择：块级行容器 vs flex 折叠头
+
+## DOM 装饰的锚点要按「布局角色」选，不能按「带身份属性的元素」选
+
+**症状**：同一个装饰在 A 类行出现在左上角，在 B 类行却跑到行内行首（跟标题同一行）。
+
+**原因**：装饰是「插成锚点的第一个子节点」，而锚点的 `display` 决定了你怎么排布——
+`[data-disclosure-row]`（折叠头）是一行横排 **flex**，插进去的子节点变成第一个 flex 项目，于是跟标题并排；而 `[data-chat-node-key]`（flow item）、`[data-chat-call-id]`（工具行）是普通 **block** div，插进去就独占一行、自然落在左上角。
+
+**规则**：身份属性 ≠ 锚点。
+
+1. 锚点只选**块级行容器**：节点行走 flow item，工具行走 call row。
+2. **绝不**往折叠头 / 标题行 / 任何 `display:flex` 的元素里插装饰。
+3. 拿不到块级锚点时，退到「该元素的**父容器**」，并用「祖先已有的装饰」去重：
+   ```js
+   function hasBadgeAbove(el, root) {
+     for (var cur = el; cur && cur !== root; cur = cur.parentElement) {
+       if (ownBadge(cur) !== null) return true;   // ownBadge = 只看直接子节点
+     }
+     return false;
+   }
+   ```
+   这条兜底同时挡住「有锚点的行被重复装饰」。
+4. 别为了让位置好看去给宿主元素加 `position:relative` 再绝对定位：那会改变宿主自己的定位上下文，行内浮层/菜单的锚点可能被带偏。
+
+**反推锚点的技巧**：如果旧实现「能显示出内容」，说明它取数所依赖的身份祖先**一定存在**（取数要先找到那个属性），据此就能判定该把它装饰在哪个块级容器上，而不用猜 DOM 结构。
+
+**验收方式**：给行类型各写一条断言，并且**成对写**「该有」和「不该有」——
+`Think 行角标在 flow item 上` + `折叠头里没有角标`；`兜底行角标在父容器上` + `折叠头本身干净` + `整行只有一枚`。只写「有角标」会漏掉这种位置错误。
