@@ -1,331 +1,429 @@
 {
   "schema": 1,
-  "generated_by": "publish-dsh-skills.ps1",
-  "skill_count": 46,
-  "file_count": 133,
-  "total_bytes": 2127827,
+  "generated_by": "dsh-plugin-skill-publish",
+  "skill_count": 60,
+  "file_count": 239,
+  "total_bytes": 26471399,
   "skills": [
     {
-      "name": "aidd-report-reader",
-      "path": "skills/aidd-report-reader",
-      "description": "读华为 AIDD（aidd.huawei.blue）文档质量扫描报告并导出问题清单——检查 AIDD 扫描报告、解析 AIDD 问题、导出 issue 数据：gitcode OAuth 登录（DevUI 复选框要直接注入 Vue 状态）、REST API 免爬 DOM 批量拉 issues、报告在哪个接口、issues 字段有哪些。适用于\"检查 AIDD 扫描报告 / 解析 AIDD 问题 / 导出 issue 数据 / 登录 AIDD 抓文档质量检测结果 / 某个项目的扫描分数和 fatal 问题有多少 / 报告在哪个接口 / issues 字段有哪些 / 分数怎么算出来的\"。不适用：要向 GitHub / GitCode 仓提 PR → 用 `github-pr-flow` 或 `gitcode-pr-flow`；要过顶象滑块验证码 → 用 `dingxiang-slider-captcha`。",
-      "files": 1,
-      "bytes": 15333
+      "name": "ai-musume-4k-art",
+      "path": "skills/ai-musume-4k-art",
+      "description": "",
+      "files": 51,
+      "bytes": 12310208
     },
     {
       "name": "ai-vendor-official-source-audit",
       "path": "skills/ai-vendor-official-source-audit",
-      "description": "AI 厂商官方源真伪与覆盖——这家厂商官方报告有哪些来源、这个文档链接是真的吗、抓下来是空壳还是真页：产品名≠API model id（按官方列表逐名计数）、新闻页与详情页都抓；体积极小或与假 slug 同档判空壳；HF &full=true 拿时间、401 只按状态码判（裸名要回列表按前缀核）、createdAt≠发布日；/raw/ vs /resolve/ 二进制验 magic。适用于\"这家厂商官方报告有哪些来源 / 这个文档链接是真的吗 / 抓下来是空壳还是真页 / 这个模型 id 官方有没有对外提供 / 某模型是否真发布了 / 二手稿说的超越是真的吗 / 这个 arXiv 编号算不算官方 / 某产品是否已下线查无\"。不适用：只精读论文并核查开源声称 → 用 `arxiv-paper-deep-read-and-claim-verification`；只做外部热度量级 → 用 `external-buzz-magnitude-check`；只看 GitHub 组织增量 → 用 `github-org-delta-watch`。",
+      "description": "AI 厂商官方源真伪与覆盖面判定——产品名≠API model id（按官方列表计数）；新闻页/详情页信息不同都抓；HF &full=true 拿时间、401=not found、createdAt≠发布日；判 BF16/FP8 版本只看 safetensors dtype 分项（config 的 dtype 会骗人）。适用于\"官方报告有哪些来源 / 文档链接是真的吗 / 抓下来是空壳还是真页 / 某模型 id 官方有没有提供 / 某模型是否真发布 / 官方有没有 BF16 或 FP8 权重版本 / 只有 FP8 吗 / 二手稿说超越竞品是真的吗 / 某 arXiv 编号算官方吗 / 某产品是否已下线\"。不适用：精读论文核查开源声称 → 用 `arxiv-paper-deep-read-and-claim-verification`；外部热度量级 → 用 `external-buzz-magnitude-check`；GitHub 组织增量 → 用 `github-org-delta-watch`。",
       "files": 1,
-      "bytes": 23205
+      "bytes": 22785
+    },
+    {
+      "name": "aidd-report-reader",
+      "path": "skills/aidd-report-reader",
+      "description": "读华为 AIDD（aidd.huawei.blue）文档质量扫描报告并导出问题清单——gitcode OAuth 登录（DevUI 复选框要直接注入 Vue 状态）、REST API 免爬 DOM 批量拉 issues。适用于\"检查 AIDD 扫描报告 / 解析 AIDD 问题 / 导出 issue 数据 / 登录 AIDD 抓文档质量检测结果 / 某个项目的扫描分数和 fatal 问题有多少\"。不适用：不是 PR（提 PR 见对应 PR skill）、不是浏览器滑块验证码 → 用 `dingxiang-slider-captcha`。",
+      "files": 1,
+      "bytes": 15352
+    },
+    {
+      "name": "anima-ai-musume-lora",
+      "path": "skills/anima-ai-musume-lora",
+      "description": "用 Anima 底模 + AI 娘 LoRA 在昇腾 192.168.13.190 出图（ComfyUI on torch_npu，单 die 约 10 GB）——Aesthetic 1024×1536/32 步约 21 秒，Turbo 10 步约 4.5 秒；含模型与 LoRA 放置、gen_anima.py 调用、Danbooru 标签写法与半身构图铁律、Civitai 下载需登录、GLIBCXX 与 cast_weight 两个补丁。适用于「用 Anima 出 AI 娘」「跑 LoRA 生图」「Anima 在昇腾上怎么部署」「Anima 和 MiniMax H3 怎么选」「Civitai LoRA 下不下来」。不适用：MiniMax-H3 正片广播画风 → 用 minimax-ai-musume-4k-art。",
+      "files": 6,
+      "bytes": 23785
     },
     {
       "name": "anime-art",
       "path": "skills/anime-art",
-      "description": "本地离线画二次元图（SDXL Animagine XL 4.0 Opt 本地自建管线，不调在线 API）——约 8 秒出 832×1216：角色预设（鲸鱼娘／DeepSeek 拟人、Q 版、通用少女、子午）、中文场景直出（200+ 词表，含夜间游戏房道具，超 77 token 自动裁剪并报告）、画风与场景打光包（赛璐璐／柔光／电影感／单色线稿／贴纸／夜间电竞房）、景别与画幅、批量抽卡与拼图、hires 精修（最高 1248×1824）、可复现种子与 PNG 内嵌提示词。含 16 项自检与 4 篇参考文档。适用于「画一张二次元图／画鲸鱼娘／画夜晚打游戏／生成动漫头像立绘／出表情包／给文档配二次元插图／这张图用的什么提示词／批量出同一角色多张图／要单色线稿」。不适用：只是把现成图片排进 Word／PPT／PDF → 用 `office-render`；要改 skill 的 frontmatter 写法 → 用 `dsh-skill-authoring`；要把 skill 发布到公开仓 → 用 `dsh-skills-publish`。",
+      "description": "已停用（2026-11-11）——本 skill 的 SDXL 本地生图链路已被 minimax-ai-musume-4k-art（昇腾 192.168.13.190 上的 MiniMax-H3-Image）整体取代，任何新需求请改用 minimax-ai-musume-4k-art。保留仅为历史留档，不应再被触发。",
       "files": 16,
-      "bytes": 135746
+      "bytes": 135227
     },
     {
       "name": "arxiv-paper-deep-read-and-claim-verification",
       "path": "skills/arxiv-paper-deep-read-and-claim-verification",
-      "description": "arXiv 论文精读 + 开源声称独立核查——精读这篇论文、论文说的开源仓真实存在吗、论文数字能复现吗：web_fetch 抓 /html 会在正文中段被 (Content truncated.) 截断，改用 pwsh Invoke-WebRequest -UseBasicParsing 抓全文落盘再分块 read；abs 页判存在性、GitHub REST API 判仓（不抓网页，JS 渲染只剩导航栏）、HF models API 的 safetensors.total 判参数量；论文数字必须在 README/模型卡逐字找到，否则判未复现。适用于\"精读这篇 arXiv 论文 / 给我这篇论文的中文技术总结 / 论文说的开源仓库真实存在吗 / 论文声称的数字能复现吗 / 核查论文说的模型有没有发布 / 论文的 star 数参数量帮我核一遍\"。不适用：审上游仓库 docs 与内部需求缺口 → 用 `upstream-docs-refresh-audit`；向 GitHub 仓提 PR → 用 `github-pr-flow`。",
+      "description": "arXiv 论文精读 + 开源声称独立核查（实测 2606.13392v2）——web_fetch 抓 /html 会在正文中段被 (Content truncated.) 截断，改用 pwsh Invoke-WebRequest -UseBasicParsing 抓全文落盘再分块 read；核查用 abs 页判存在性、GitHub REST API 判仓（不抓网页，JS 渲染只剩导航栏）、HF models API 的 safetensors.total 判参数量；论文数字必须在 README/模型卡逐字找到，否则判未复现。适用于\"精读这篇 arXiv 论文 / 给我这篇论文的中文技术总结 / 论文说的开源仓库真实存在吗 / 论文声称的数字能复现吗 / 核查论文说的模型有没有发布 / 论文的 star 数参数量帮我核一遍\"。不适用：审上游仓库 docs 与内部需求缺口 → 用 `upstream-docs-refresh-audit`；向 GitHub 仓提 PR → 用 `github-pr-flow`",
       "files": 1,
-      "bytes": 9769
+      "bytes": 10015
     },
     {
       "name": "ascend-cann-env",
       "path": "skills/ascend-cann-env",
-      "description": "昇腾 CANN 的检测/安装/激活/换版本/卸载（默认 a3=192.168.13.188，备用 a3b=.190）——权威定位看 /etc/Ascend/ascend_cann_install.info，toolkit+ops+nnal 三件套安装序列与耗时，合一包不覆盖驱动，公开源最新非 beta = 9.1.1，beta/T 构建桶内目录名 ≠ 版本号（如 CANN 9.2.T3）。适用于\"装/换/查 CANN / import acl 或 atc 报找不到 CANN / source set_env.sh 后 ASCEND_HOME_PATH 为空 / install.info 里还记着旧路径 / 重跑安装脚本报 Permission denied / 该用合一包还是独立 toolkit 包 / 某个 CANN 版本公开源有没有 / OBS 探版本全是 403\"。不适用：conda 与 python 版本 → 用 `ascend-conda-env`；目录与磁盘红线 → 用 `ascend-server-layout`。",
+      "description": "CANN 检测/安装/换版/卸载：install.info 定位、三件套序列。适用于\"装 CANN / import acl 报错 / ASCEND_HOME_PATH 为空 / Permission denied / 该用哪个包\"。",
       "files": 1,
-      "bytes": 31150
+      "bytes": 15770
     },
     {
       "name": "ascend-conda-env",
       "path": "skills/ascend-conda-env",
-      "description": "昇腾服务器 conda 环境的检测 / 新建 / 激活与换 python 版本（默认 a3=192.168.13.188，备用 a3b=.190）——共享 miniconda3 在 /mnt/share/x00886548/miniconda3（conda 26.7.1，base py3.14.7），新建环境默认落 /mnt/share/vllm/conda_envs、必须显式带 NJU 镜像，不激活可直接用绝对路径 python。适用于\"建 conda 环境 / 复用已有环境拷到新根 / 激活环境 / 换 python 版本 / python -V 不是共享 conda / 环境该放哪个盘 / conda create 走官方源很慢\"。不适用：CANN 装哪、版本、set_env.sh 不生效 → 用 `ascend-cann-env`；torch 或 torch_npu 装不上 → 用 `ascend-torch-npu`。",
+      "description": "昇腾 conda 环境：共享 miniconda3、环境目录、NJU 镜像、免激活调用。适用于\"建 conda 环境 / 换 python 版本 / 环境该放哪 / conda 官方源太慢 / python -V 不对\"。",
       "files": 1,
-      "bytes": 20721
+      "bytes": 11136
     },
     {
       "name": "ascend-env",
       "path": "skills/ascend-env",
-      "description": "昇腾 NPU 服务器环境搭建入口总纲（a3=192.168.13.188 默认 / a3b=.190 备用）——**先并行再串行**的 4 lane 编排（CANN 包下载 ∥ conda 建环境 ∥ torch 栈 whl 预下载 ∥ 两仓 clone，barrier 后串行安装），含子代理写盘边界、机器怎么进、三层验收、从 Windows 驱动远端（scp 优先通道，内联引号会静默零命中）的硬规则；具体步骤一律在子 skill。适用于\"在昇腾机器上装环境 / 怎么并行搭环境省时间 / 下载和编译能不能同时跑 / 什么能并行什么必须串行 / 要不要派子代理去下载 / 不知道该先做哪一步 / 从零搭一套能跑 vllm 的环境 / 机器进不去或 ssh 假死\"。不适用：目录与磁盘、模型在哪 → 用 `ascend-server-layout`；装 CANN → 用 `ascend-cann-env`；conda 与 python → 用 `ascend-conda-env`；跑推理 → 用 `ascend-vllm-serve`。",
-      "files": 2,
-      "bytes": 54478
+      "description": "昇腾环境入口总纲：进机器 → 目录/CANN/conda/torch/triton/vllm 的顺序与三层验收。适用于\"在昇腾上装环境 / 不知先做哪步 / 该用哪个子 skill / 机器进不去或 ssh 假死\"。",
+      "files": 1,
+      "bytes": 10644
     },
     {
       "name": "ascend-model-adaptation-recon",
       "path": "skills/ascend-model-adaptation-recon",
-      "description": "判定某模型在昇腾/vllm-ascend 生态里的适配程度（实测 MiniMax-H3）——一次全树 API 判「主仓有无代码」、追 import 链定位跨仓分工（vllm-ascend 基座 ↔ vllm-omni NPU 平台层）、查镜像与启动模式、硬件能力矩阵、未闭合缺口，并给「媒体通稿 ≠ 已适配」的存在性反证。适用于\"某模型在昇腾/vllm-ascend 侧适配到什么程度 / H3 在昇腾上能不能跑 / 该用哪个镜像 / vllm-ascend 主仓有没有这个模型的代码 / 适配缺口在哪 / 昇腾 Day-0 适配是真的吗\"。不适用：要装或跑 vllm-ascend → 用 `vllm-ascend-source-install` / `ascend-vllm-serve`；只做组织增量 → 用 `github-org-delta-watch`。",
+      "description": "判模型在昇腾/vllm-ascend 的适配度：全树代码、跨仓分工、镜像、缺口。适用于\"H3 在昇腾能不能跑 / 适配到什么程度 / 缺口在哪 / Day-0 是真的吗 / 该用哪个镜像\"。",
       "files": 1,
-      "bytes": 13786
+      "bytes": 13581
     },
     {
       "name": "ascend-moe-ep-capacity-planning",
       "path": "skills/ascend-moe-ep-capacity-planning",
-      "description": "昇腾 64GB 卡跑 MoE 大模型前的显存容量与并行几何规划——EP 没有独立开关（EP = TP × DP × PCP），按卡数 N 选型必须随 N 重推 TP；64GB 卡真实预算只有 56.378 GiB，用 64GB 或 64×10⁹ 都会高估；EP 只切 routed experts，其余每卡复制。适用于\"这个 MoE 大模型要几张卡才跑得起来 / EP 设多少、TP 设多少 / 专家并行怎么配 / 显存预算怎么算 / 起服务报 OOM 之前先估一遍 / 按卡数扫描怎么选型 / TP 设大了有什么区别\"。不适用：服务已经起来要排障或跑推理 → 用 `ascend-vllm-serve`；要装/重装 vllm-ascend → 用 `vllm-ascend-source-install`；只看模型适配没适配 → 用 `ascend-model-adaptation-recon`。",
+      "description": "MoE 显存与 EP/TP 几何：64GB 卡实际 56.378 GiB、EP=TP×DP×PCP。适用于\"几张卡才跑得起来 / EP 设多少 / TP 怎么配 / OOM 前先估 / 按卡数选型\"。",
       "files": 2,
-      "bytes": 68731
+      "bytes": 68158
     },
     {
       "name": "ascend-server-access",
       "path": "skills/ascend-server-access",
-      "description": "三台昇腾服务器与 UniVPN 准入的唯一清单——a3=192.168.13.188 / a3b=.190 走蓝区网关，a5=177.8.21.1 走 A5 配置（root 密码只登记在凭据文件），当前只有这三台可用；两个 UniVPN 实例可同时在线，含 .190 重装后的 openEuler 22.03 新规格、A5 8×Ascend950DT、ping/TCP/ssh 三测、切配置须真实鼠标点、APIPA 假连。适用于\"188 连不上 / 190 连不上 / 177.8.21.1 怎么连 / 现在有哪些服务器可用 / 该连哪个 VPN / 同时连 A3 和 A5 / 多开 UniVPN / VPN 连上了但 ping 不通 / 188 和 190 之间通不通 / 两台机器能不能互相通信 / 节点间带宽和 MTU 多少 / 服务器凭据在哪 / 新服务器登录后怎么配免密\"。不适用：连上后装 CANN/conda/torch → 用 `ascend-env`；本机 pwsh 编码与执行策略坑 → 用 `pwsh-on-windows`。",
+      "description": "昇腾服务器准入清单：a3/.188、a3b/.190、A5 各 IP、UniVPN、免密。适用于\"188 连不上 / 177.x 怎么连 / 该连哪个 VPN / 凭据在哪 / 新机器怎么配免密\"。",
       "files": 6,
-      "bytes": 89950
+      "bytes": 92268
     },
     {
       "name": "ascend-server-layout",
       "path": "skills/ascend-server-layout",
-      "description": "昇腾服务器目录地图与磁盘红线——找模型在哪、磁盘满了该写哪个盘（a3=.188 默认 / a3b=.190 备用）——.188 只有两块真盘：系统盘 /（/mnt/share、/mnt/weight、/tmp、/root 全压在它上面，多租户共用、长期紧张）与独立大盘 /home/vllm（大文件与大环境唯一推荐落点）；**不记剩余空间数字与空闲 die 号，动手前现场 df -h / npu-smi 取**；模型分两处（/mnt/weight + /home/vllm/weights），另有工作目录约定与现成环境；npu-smi 判空闲，Process 段是 NPU id 不是 die id（判 die 用 Bus-Id）。适用于\"找模型在哪 / 新项目和大文件该写哪个盘 / 磁盘满了 / 看哪张 NPU 空闲 / npu-smi 判哪张卡忙 / 复用现成环境 / 工作目录在哪\"。不适用：装或换 CANN 版本 → 用 `ascend-cann-env`；conda 环境与 python 版本 → 用 `ascend-conda-env`。",
-      "files": 1,
-      "bytes": 22896
+      "description": "昇腾个人根与目录红线：环境/项目/数据放哪、模型软链、npu-smi 选卡。适用于\"新项目写哪个盘 / 环境放哪 / 磁盘满了 / 哪张 NPU 空闲 / 复用现成环境\"。",
+      "files": 3,
+      "bytes": 24235
     },
     {
       "name": "ascend-torch-npu",
       "path": "skills/ascend-torch-npu",
-      "description": "昇腾 NPU 上 torch + torch_npu 的检测 / 安装 / 验证 / 排障（默认 a3=192.168.13.188，备用 a3b=.190）——先定车道：A（跑 vllm-ascend，默认）torch 2.10.0+cpu + torch_npu 2.10.0.post4；B（全新机器）torch 2.12.0+cpu + torch_npu 2.12.0；含 pip 序列、验收 True 16 253、torch_npu→torch 等值依赖、pip 卡死与 GLIBCXX_3.4.26 缺失。适用于\"装 torch_npu / 该装哪个 torch 版本 / NPU 不可用或 device_count 不对 / torch 卡死零进展 / 报 GLIBCXX_3.4.26 not found / 不确定走 A 还是 B 车道\"。不适用：triton 报错 → 用 `ascend-triton-ascend`；vllm 装不上 → 用 `vllm-ascend-source-install`。",
+      "description": "torch + torch_npu 装/验/排障：A/B 车道、版本配对、验收 True 16 253。适用于\"装 torch_npu / NPU 不可用 / pip 卡死 / GLIBCXX 缺失 / 该走哪条车道\"。",
       "files": 1,
-      "bytes": 25901
+      "bytes": 14736
     },
     {
       "name": "ascend-triton-ascend",
       "path": "skills/ascend-triton-ascend",
-      "description": "昇腾 NPU（a3=.188 / a3b=.190）上 triton-ascend 的检测 / 安装 / 验证 / 排障——商发版 3.2.2 必须从 osinfra 专用源装（PyPI 上没有）；官方覆盖式共存，import triton 报 3.2.0 而非 3.2.2 属正常；被 pip install -U triton 覆盖后 `backends/ascend` 目录仍在但 `import triton` 直接崩。适用于\"装 triton-ascend / triton 版本不对或被换掉 / import triton 报错 / No matching distribution found for triton-ascend / pip install -U triton 后 NPU kernel 挂了\"。不适用：torch 与 torch_npu 本身的问题 → 用 `ascend-torch-npu`；vllm 与 vllm-ascend 装不上 → 用 `vllm-ascend-source-install`。",
-      "files": 2,
-      "bytes": 26590
+      "description": "triton-ascend 装/验/排障：3.2.2 走 osinfra 源、覆盖式共存。适用于\"装 triton-ascend / import 版本不对 / 被 pip -U triton 覆盖后崩\"。",
+      "files": 1,
+      "bytes": 14335
     },
     {
       "name": "ascend-vllm-serve",
       "path": "skills/ascend-vllm-serve",
-      "description": "在昇腾 A3（.188/.190）上把装好的 vllm + vllm-ascend 跑起来——三层自检、按 HBM 挑空闲 die、起 OpenAI 兼容服务、离线推理冒烟、sleep/wake_up 显存释放与重载、运行时排障。适用于\"在昇腾上起 vllm 服务 / 跑离线推理冒烟 / sleep mode 释放显存 / sleep level 1 还是 2 / wake_up 后输出乱码 / reload_weights 热更新权重 / 报 MemoryError 或 dtype / import torch_npu 报 No module named 'acl' / 别设 VLLM_TARGET_DEVICE / 报 aclInit 107001 / Kimi-K3 在 A3 上 500 EZ0037 / 模型太大单卡放不下要 TP=2\"。不适用：装/重装/编译 vllm-ascend → 用 `vllm-ascend-source-install`；栈装不上（torch_npu、pip） → 用 `ascend-torch-npu`。",
-      "files": 3,
-      "bytes": 65466
+      "description": "在昇腾上起 vllm 服务：三层自检、选空闲 die、serve/离线/sleep、运行时排障。适用于\"起 vllm 服务 / OOM / 输出乱码 / reload_weights / 该占哪张卡 / 模型太大要 TP=2\"。",
+      "files": 1,
+      "bytes": 23786
     },
     {
       "name": "batch-invariance-acceptance",
       "path": "skills/batch-invariance-acceptance",
-      "description": "This skill should be used when the user asks to verify, triage or regression-test batch invariance of a model running on vLLM Ascend, including deciding whether BS=1 and BS=N produce bitwise-identical tokens and logprobs, covering TP matrices, long-input and long-output shapes, operator allowlists, and dataset-level acceptance.",
+      "description": "验证 vLLM Ascend 的 batch 不变性：BS=1 与 BS=N 逐位一致、TP 矩阵、长输入输出、数据集验收。适用于\"验证/回归 batch 不变性 / logprobs 是否一致 / 算子白名单\"。",
       "files": 8,
-      "bytes": 108635
+      "bytes": 108509
     },
     {
       "name": "batch-invariant-weekly-digest",
       "path": "skills/batch-invariant-weekly-digest",
-      "description": "Batch 不变性周报——按周汇总 vLLM、vLLM-Ascend、SGLang 三仓已合入 PR，出四节 Markdown（概览 + 三仓，各一张「PR / 合入时间 / 背景 / 做了什么 / 影响」五列表），并自动发给黄区与私人邮箱。适用于\"跑一下本周的 Batch 不变性周报 / BI 周报 / vLLM 这周合了哪些不变性 PR / SGLang 确定性推理有什么进展 / 把上周合入的 PR 汇总成表 / 生成周报并发我邮箱\"。不适用：只看组织谁在动、有没有发版 → 用 `github-org-delta-watch`；只发信或查收件箱 → 用 `qq-mail-control`；查单个 PR 状态或提 PR → 用 `github-pr-flow`。",
+      "description": "Batch 不变性周报：四仓已合入 PR 的概览表 + 转发形态邮件发黄区。适用于\"跑 BI 周报 / 不变性有什么进展 / vLLM 这周合了哪些不变性 PR / 把周报改成列表\"。",
       "files": 1,
-      "bytes": 12710
+      "bytes": 8640
     },
     {
       "name": "dingxiang-slider-captcha",
       "path": "skills/dingxiang-slider-captcha",
-      "description": "顶象（dx）拼图缺口滑块验证码在 Android 模拟器上的实测结构与破解结论——过一下顶象滑块验证码、用 adb 拖、拿 dx_captcha_basic 的 DOM 和坐标：含 DOM/几何参数、块与手指位移 1:1、块是半透明混合渲染（NCC 定位失效根因）；结论：成功率极低（实测 0/6，别再试第 7 次）。适用于\"过一下顶象滑块验证码 / 提示请拖动滑块至正确缺口 / 用 adb 拖验证码 / 拿 dx_captcha_basic 的 DOM 和坐标 / LDPlayer 上模拟器里滑块拖不过 / 缺口位置怎么算 / NCC 为什么定位不准\"。不适用：要读 AIDD 扫描报告 → 用 `aidd-report-reader`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。",
+      "description": "顶象（dx）拼图缺口滑块验证码在 Android 模拟器上的实测结构与破解结论——含 DOM/几何参数、块与手指位移 1:1、块是半透明混合渲染（NCC 定位失效根因）；结论：成功率极低（实测 0/6）。适用于\"过一下顶象滑块验证码 / 提示请拖动滑块至正确缺口 / 用 adb 拖验证码 / 拿 dx_captcha_basic 的 DOM 和坐标 / LDPlayer 上模拟器里滑块拖不过\"。不适用：不是 PR / 不是读 AIDD 报告 → 用 `aidd-report-reader`。",
       "files": 1,
-      "bytes": 12887
+      "bytes": 13043
     },
     {
       "name": "dsh-agent-customization",
       "path": "skills/dsh-agent-customization",
-      "description": "DSH 改造 agent 行为的入口总纲——改了 AGENTS.md 为何不生效、插件行坏了怎么回滚、settings.yaml 改了为何没反应、这次改动属于哪一层；含五层生效时机、热重载≠冷启动、坏 row 三形态、MCP 挂载与会话日志找回旧版本。适用于\"改 DSH 的行为该改哪一层 / 改了 AGENTS.md 为何不生效 / 插件行坏了怎么回滚 / settings.yaml 改了为何不生效 / MCP 怎么挂进来 / 实验包怎么挂 profile / 中文 UI 不是中文提示词 / 会话日志里能不能找回旧版本 / 会话日志怎么解压 / 本轮运行失败 / finish_reason 报错怎么判 / 上游还是 DSH 的 bug\"。不适用：只离线验负载挂载 → 用 `dsh-agent-preset-verification`；只要干净实验环境 → 用 `dsh-isolated-web-host`。",
-      "files": 5,
-      "bytes": 92767
+      "description": "DSH 改造入口总纲：五层生效时机、插件 bundle、上线纪律与回滚。适用于\"改 DSH 行为该改哪一层 / 插件行坏了怎么回滚 / MCP 怎么挂 / 恢复后会话打不开 / 自己写 host 插件\"。",
+      "files": 2,
+      "bytes": 72298
+    },
+    {
+      "name": "dsh-agent-preset-live-verification",
+      "path": "skills/dsh-agent-preset-live-verification",
+      "description": "DSH agent preset 的在线会话级验收——已起隔离 host 并真建会话才能做：RPC 核对 agentPreset 挂载、system prompt persona、session/page 权威工具清单，真跑一次委派核对子代理 config/persona/toolFilter 与父会话 turn/end，并多帧解压会话日志取证（单次 zstdDecompressSync 只解第一帧）。适用于\"离线校验过了但插件行为不对 / preset 在真会话里 persona 和工具对不对 / 委派为什么失败 / 想看父会话 turn/end 原文 / 某个插件行搞坏委派要对照组\"。不适用：还没起会话、只想先验能不能挂载 → 用 `dsh-agent-preset-verification`；只是要个干净实验环境（起隔离 host，不做验收） → 用 `dsh-isolated-web-host`；不知道 DSH 整体该改哪一层、改完何时生效或怎么撤 → 用 `dsh-agent-customization`（总纲）。",
+      "files": 1,
+      "bytes": 9696
     },
     {
       "name": "dsh-agent-preset-verification",
       "path": "skills/dsh-agent-preset-verification",
-      "description": "DSH agent preset 验收两阶段——preset 没生效但看不出哪错了、到底挂载对没对、改完先离线确认；离线过了但插件行为不对、persona 与工具在真会话里对不对、委派为什么失败；headless 不能验 preset 且会污染 home。阶段一离线逐行解析 plugins 与 config，阶段二干净 host 真会话 RPC 核对。适用于\"preset 到底挂载对没对 / 改完 preset 先离线确认能不能挂 / preset 没生效但看不出哪错了 / 离线过了但插件行为不对 / 委派为什么失败 / 能不能用 headless 验收 preset / maxDepth 写 0 为什么让工具全废 / 改完协议怎么知道新版更好 / 两个模式哪个好凭什么\"。不适用：只要干净实验环境 → 用 `dsh-isolated-web-host`；不知改哪层、何时生效、怎么撤 → 用 `dsh-agent-customization`。",
-      "files": 3,
-      "bytes": 65819
+      "description": "DSH agent preset 离线静态校验（$DSH_HOME/.agent-presets/<id>/agent.cordis.yml）——不起会话也能验挂载：scanRoot 权威健康检查、逐行 Config/resolveConfig 报错原文、maxDepth 语义与 toolFilter 挂载期不校验的陷阱、坏 row 静默不服务的回滚要求。适用于\"preset 到底挂载对没对 / 改完 preset 先离线确认能不能挂 / preset 没生效但看不出哪错了 / 委派工具一调用就报错是不是配置键写错 / maxDepth 写 0 为什么让工具全废 / 部署实验插件行前先看失败长什么样\"。不适用：已起会话要验运行时真相（persona、工具裁剪、委派） → 用 `dsh-agent-preset-live-verification`；只是要个干净实验环境（起隔离 host） → 用 `dsh-isolated-web-host`；不知改 DSH 哪层、何时生效、怎么撤 → 用 `dsh-agent-customization`。",
+      "files": 1,
+      "bytes": 12759
+    },
+    {
+      "name": "dsh-home-guard",
+      "path": "skills/dsh-home-guard",
+      "description": "保护 ~/.dsh 不被误删：分钟快照 + 外置裸库 + 哨兵自愈。适用于\"防止 agent 删 .dsh / .dsh 被清空了怎么救 / 会话日志丢了 / 想装看门狗 / 恢复后会话变少\"。",
+      "files": 1,
+      "bytes": 14022
     },
     {
       "name": "dsh-isolated-web-host",
       "path": "skills/dsh-isolated-web-host",
-      "description": "起个隔离 DSH host 做实验——想不污染真实 ~/.dsh 就验证插件行或 patch、真实 host 占着 3080 不能重启时用它：必加 --no-open、启动先落盘 pid 与端口、不带 token 的 401 判就绪、taskkill /PID 收尾；本机端口枚举是盲的（netstat / Get-NetTCPConnection 恒空），判就绪与判清理只认 HTTP 探针与落盘 pid。适用于\"起个隔离 host 试试 / 想不污染真实环境就验证插件行或 patch / 真实 host 占着 3080 不能重启 / 端口枚举查不到监听 / netstat 找不到 3080 / 改了 preset 想找干净环境挂载看看\"。不适用：只想验能不能挂载 → 用 `dsh-agent-preset-verification`；改哪层/何时生效/怎么撤 → 用 `dsh-agent-customization`。",
+      "description": "起隔离 DSH host（重定向 DSH_HOME）：401 判就绪、落盘 pid 收尾、端口枚举恒空。适用于\"起个隔离 host 试试 / 不污染真实环境验插件 / 真实 host 占着端口不能重启\"。",
       "files": 1,
-      "bytes": 19461
+      "bytes": 15190
     },
     {
       "name": "dsh-longhaul-mode",
       "path": "skills/dsh-longhaul-mode",
-      "description": "长线工程模式 Longhaul（dsh-longhaul）——跨小时/跨天、需要交接的工程任务该用哪个模式、怎么开、完成了凭什么算完成：三角色（计划 / 执行 / 只读审计）、`.longhaul` 状态与哈希链账本、密封验收命令、契约审计 → feature 审计 → run 审计 → close 四道闸、审计 REVISE 怎么改、没给 adversarial probe 为什么降级；含 v2 闸门（can-fail 红绿证明 / 改动范围 / 标尺封印 / 探针）、安装位置、重启与回滚。适用于\"长线任务用哪个模式 / 怎么开 Longhaul / 这个功能做完了吗凭什么 / 审计说 REVISE 怎么办 / .longhaul 是什么 / Longhaul 装哪了 / 怎么关掉这个模式\"。不适用：改 preset 挂载与生效时机 → 用 `dsh-agent-customization`；起隔离 host 实测 → 用 `dsh-isolated-web-host`；写或改 skill → 用 `dsh-skill-authoring`。",
+      "description": "DSH 的 Longhaul 长线工程模式——longhaul 插件 7 个工具把「完成」改成密封命令与独立审计者双签，靠 .longhaul 账本哈希链与五道闸挡住改测试、改标尺、绿基线和自评放行。适用于\"长线任务用哪个模式 / longhaul_init 怎么开局 / 审计 REVISE 了怎么办 / 契约里写什么 / can-fail 红基线怎么证明 / yardstick 标尺被改为什么被拒 / .longhaul 目录是什么 / --check-baseline 怎么复算基线\"，也适用于\"装没装 / 装机后为什么没有 longhaul_ 工具\"。不适用：只要个干净实验环境起隔离 host → 用 `dsh-isolated-web-host`；判断该不该沉淀成 skill → 用 `sedimenting-skills`。",
       "files": 1,
-      "bytes": 12002
+      "bytes": 9564
     },
     {
       "name": "dsh-phone-remote-relay",
       "path": "skills/dsh-phone-remote-relay",
-      "description": "手机跨网络接管电脑上的 DSH，且电脑不暴露公网——公共 broker 中继 + 端到端加密 + 静态外壳托管；含 ESM 缓存导致热重载跑旧代码、hello 自激打爆限流、大帧被公共 broker 丢弃、按请求 id 幂等重发、WS 帧合批、GitHub Pages 用 REST 上传（git push 在本机挂死）、二维码必须解码验证。适用于\"手机远程控制电脑上的 DSH / 不在同一局域网 / 不要反向代理和端口映射 / 二维码链接怎么生成 / 中继丢包超时 / 热重载不生效 / 列表能刷出但一直正在连接\"；不适用：只改插件行生效时机 → `dsh-agent-customization`，本机 pwsh 编码坑 → `pwsh-on-windows`。",
+      "description": "手机远程接管电脑上的 DSH：公共 broker 中继 + 端到端加密；多标签互斥、外壳/插件版本分列核对、任务分组落到未分组、偶发断连排查。",
       "files": 1,
-      "bytes": 25809
+      "bytes": 46574
     },
     {
       "name": "dsh-repo-sync",
       "path": "skills/dsh-repo-sync",
-      "description": "我的 DSH 私仓同步——现在同步一次、昨天同步没成功、私仓内容少了或不对、ALERT.md 出现了、计划任务 DSH-Repo-Sync 报错：脚本 sync-dsh-repos.ps1 把 ~/.dsh 与编排 preset 用 robocopy 快照进私仓镜像，明文 PAT 脱敏成 redacted，退出码即结论（0 成功 / 非 0 见码表）。适用于\"私仓天天收到 workflow 失败邮件 / 手动同步我的私仓 / 现在同步一次 / 同步坏了怎么办 / ALERT.md 出现了 / 昨天同步没成功 / 私仓内容少了或不对 / 计划任务 DSH-Repo-Sync 报错 / 想改同步的排除项 / 把私仓公开\"。不适用：向 GitHub 上游仓提 PR → 用 `github-pr-flow`；向 GitCode 社区仓提 PR → 用 `gitcode-pr-flow`；计划任务注册与退役取证 → 用 `win-scheduled-task-forensics`。",
+      "description": "已退役——~/.dsh 私仓同步机制（DSH-Repo-Sync 任务与镜像仓均已删除）。仅留作历史记录与令牌形态参考。",
       "files": 3,
-      "bytes": 76491
+      "bytes": 76891
     },
     {
       "name": "dsh-skill-authoring",
       "path": "skills/dsh-skill-authoring",
-      "description": "DSH skill 文件本身的写法契约——skill 没被触发或加载不上时先看这条：模型每步只看到目录里的一行「`name` + 半角冒号 + description」（正文与 whenToUse 都不进目录），description 被折成单行、超 500 字符截断为前 497+\"...\"，旧 invocation 键（camelCase，3 个）会让整个 skill 拒载；含\"适用于…/不适用：…→用 `<兄弟skill>`\"句式模板、正文 `## 何时调用` 四要素、以及只读校验脚本 check-skill-frontmatter.ps1。适用于\"写/改/新建一个 skill 的 frontmatter / 统一 skill 的何时调用与触发词 / 目录里哪个 skill 会被想起来 / skill 没被触发或加载不上 / description 字符数超限 / 校验脚本跑不起来报 Unexpected token\"类任务。不适用：判断该不该沉淀、写到哪个根目录 → 用 `sedimenting-skills`。",
+      "description": "skill frontmatter 写法契约：description 才是触发字段、字符预算、拒载键。适用于\"skill 没被触发或加载不上 / description 超限 / 改新建 skill / 校验脚本报错\"。",
       "files": 3,
-      "bytes": 53995
+      "bytes": 42365
     },
     {
       "name": "dsh-skill-self-audit",
       "path": "skills/dsh-skill-self-audit",
-      "description": "DSH skill 集合的每日无人值守自检——静默满 1 小时且距上次自检 ≥20h 才跑；Windows 计划任务 DSH-Skill-SelfAudit 每小时轮询、headless 真跑；体检含 YAML round-trip、交叉引用 dangling/asym、正文重复、description 预算；小改自动、结构性改动只出清单；待办跨轮记在 BACKLOG.md。适用于\"自检我的 skill / 每天检查一下 skill / skill 有没有该合并的重复 / 删掉过时的 skill 经验 / 哪个 skill 触发不了 / skill 目录多久没动了 / 定时体检 skill 集合\"。不适用：判断某条经验该不该沉淀、写到哪个根 → 用 `sedimenting-skills`；只改 frontmatter 与 description 的写法契约 → 用 `dsh-skill-authoring`；要 DSH 非交互入口与 skill 发现真相 → 用 `dsh-agent-customization`。",
-      "files": 5,
-      "bytes": 85610
-    },
-    {
-      "name": "dsh-skills-publish",
-      "path": "skills/dsh-skills-publish",
-      "description": "把本机 ~/.dsh/skills 的全部 skill 每天凌晨 2 点同步发布到 GitCode 与 GitHub 两个公开仓 EliasKaslan/dsh-skills——脚本 publish-dsh-skills.ps1 先快照再扫活密钥，再对每个站点提交 main 并让当日 YYYY-MM-DD 分支与 main 指向同一 commit，每个站点只保留最近 15 个日期分支；计划任务 DSH-Skills-Publish，退出码 0/3/4/5/6/7/8，状态落 .skill-publish\\state.json 与 ALERT.md。适用于\"把 skill 发到 GitCode / 同步一份到 GitHub / 建个公开 skill 仓 / 每天自动同步 skill / 今天的日期分支建了吗 / main 和日期分支不一致 / 分支太多了怎么清理 / 发布脚本报错 / 手动跑一次 skill 发布 / 停掉每日发布任务 / 换台电脑怎么恢复这个任务\"。不适用：DSH 配置与私仓同步 → 用 `dsh-repo-sync`。",
+      "description": "skill 集合定时自检：YAML、交叉引用、重复正文、目录预算。适用于\"自检我的 skill / 有没有该合并的重复 / 哪些 skill 触发不了 / skill 目录多久没动\"。",
       "files": 6,
-      "bytes": 59043
+      "bytes": 81347
     },
     {
       "name": "external-buzz-magnitude-check",
       "path": "skills/external-buzz-magnitude-check",
       "description": "外部热度量级取证——这事在外网真的火吗（HN points/评论、HF likes/下载量、Artificial Analysis/OpenRouter 体验指标、社区情绪分级）——判某事在外网是否真热、某模型是否真难用，给可复现量级数字；与 GitHub 提交活性解耦，双榜分开列。适用于\"这事在外网真的火吗 / 给我外部热度量级证据 / 这个模型是不是真的很难用 / 社区有没有人在骂 / HN 有多少 points 和评论 / 这个模型速度慢不慢 / 内部提交多但外面没动静算不算热点\"。不适用：只看 GitHub 组织内部提交增量 → 用 `github-org-delta-watch`；核查论文声称能否复现 → 用 `arxiv-paper-deep-read-and-claim-verification`。",
       "files": 1,
-      "bytes": 17528
+      "bytes": 17255
+    },
+    {
+      "name": "git-tag-diff-audit",
+      "path": "skills/git-tag-diff-audit",
+      "description": "两个 git tag 之间做实质变更审计——两 tag 无共同祖先时 merge-base 静默返回空、git log A...B 静默给出两段历史之和，取数一律改两点 git diff A B；用 name-status 的 A/M/D/R 列判新增还是修改，用 git cat-file -e <导入根>:<path> 把变更分「有 commit / 导入边界」两类；接口下线要全树 git grep -w、平台矩阵用报错字符串集合做差集、测试假绿查构建侧闸门、文档真删除不能用 -M 判。适用于『两个 tag 之间改了什么 / 版本对比 / 发版审计 / diff 怎么取数 / 无共同祖先 / merge-base 是空的 / 这条变更有没有 commit 能归因 / 接口是不是被删了 / 支持矩阵变了没 / 测试是不是假绿 / 文档是不是真删了』。不适用：只审单个 PR 是否等价改写 → 用 pr-change-equivalence-audit；要按版本矩阵装环境跑 UT 与 ATK 精度 → 用 mindspeed-ops-smoke。",
+      "files": 1,
+      "bytes": 11535
     },
     {
       "name": "gitcode-pr-flow",
       "path": "skills/gitcode-pr-flow",
-      "description": "GitCode 上任意昇腾社区仓提 PR（MindSpeed-Ops 与 MindSpeed-Agent 均已完整验证）从个人 fork 到合入全流程——compile 评论触发门禁（任何 head 变化后须补发）、双 CI 判读与标签审计（operate_logs）、PR 冲突诊断（git merge-tree）、GitCode OpenAPI v5 创建/关闭 PR 与批量改 issue、版本分支 backport，以及 pre-commit 概率 FAILED 判平台抖动还是改代码。适用于\"向 GitCode 仓提 PR / PR 冲突了要 rebase / 补一下 ci-pipeline-passed / 查 PR 标签是谁打的 / 标签为什么被摘 / 评论 compile 门禁没跑 / 门禁快速失败且没有结果评论 / pre-commit 随机 FAILED / backport 到 26.1.0\"。不适用：目标仓在 GitHub 而不是 GitCode → 用 `github-pr-flow`。",
+      "description": "GitCode 仓提 PR：compile 门禁、双 CI、标签审计、OpenAPI、backport。适用于\"向 GitCode 提 PR / 冲突 rebase / 补门禁 / pre-commit 抖动\"。",
       "files": 4,
-      "bytes": 108118
+      "bytes": 114073
     },
     {
       "name": "github-org-delta-watch",
       "path": "skills/github-org-delta-watch",
-      "description": "GitHub 组织增量追踪——基准日之后这个组织谁在动、这仓是不是死仓、官方那个承诺兑现了没：rate_limit 的 Date 头取\"今天\"、orgs/{org}/repos?sort=pushed 覆盖全组织找活性、pushed_at 冻结即内容冻结、issues 要 created 与 updated 各拉一遍。适用于\"组织基准日后有什么新动作 / 谁在动 / 有没有发新版 / 组织调研报告要更新增量 / 这个仓是不是死仓 / 官方那个承诺兑现了吗 / GitHub 403 额度耗尽后怎么继续取证\"。不适用：向 GitHub 仓提 PR → 用 `github-pr-flow`；到厂商官网取一手来源 → 用 `ai-vendor-official-source-audit`。",
+      "description": "GitHub 组织增量 + 发行差集：pushed_at、releases、compare 取证。适用于\"基线日后谁在动 / 主线有哪些没发版 / 这仓是不是死仓\"。",
       "files": 1,
-      "bytes": 13452
+      "bytes": 11736
     },
     {
       "name": "github-pr-flow",
       "path": "skills/github-pr-flow",
-      "description": "向 GitHub 上游开源仓（如 vllm-project/vllm-ascend）从 fork 提 PR 的全 API 流程（classic PAT）——token 验证与 403/401 判因、DCO 签名提交、REST API 创建/关闭/重开 PR 与回读校验、CI 判读、反向抓既存 PR 做离线终审、rebase/amend 后判上游基线漂移与安全重推。适用于\"在 GitHub 仓提个 PR / 关掉或重开 PR / 到 fork 推分支 / token 报 403 说没权限 / DCO 签名校验不过 / commit message 带引号导致提交静默失败 / PR 标题前缀或模板不合规 / CI 挂的 step 是不是我的问题 / 不知道 run_id 怎么拿 / 上游 main 又前进了 / rebase 后重推被拒\"。不适用：目标是 GitCode 上的任意仓 → 用 `gitcode-pr-flow`；本机 PowerShell 命令本身的坑 → 用 `pwsh-on-windows`。",
+      "description": "向 GitHub 上游仓提 PR 全 API 流程：PAT、DCO、REST 创建与回读、CI 判读。适用于\"提 PR / fork 推分支 / 403 没权限 / DCO 不过 / CI 挂的是不是我 / run_id 怎么拿\"。",
       "files": 1,
-      "bytes": 31769
+      "bytes": 14417
     },
     {
       "name": "korea-official-source-research",
       "path": "skills/korea-official-source-research",
-      "description": "韩国（济州）官方一手信息源——官方页面怎么抓、没日期怎么看：web_fetch 对韩国站点多数不可用，urllib 按站点分档，pwsh 最稳；含出入境/入境申告官方源结构（e-AC 的 bbsId / flId、mofa.go.kr 详情页、无日期戳用响应头 Date 与 등록일 定锚、判废止）、假页面陷阱、公交 BIS、visitjeju、休馆日、门票 xlsx、潮汐。适用于\"韩国出入境/入境申告/法务部/关税厅/检疫 Q-CODE 官方源怎么抓 / 韩国官方页面没有日期怎么看 / 驻外使馆 mofa.go.kr 详情页怎么取 / 政策是否已废止怎么查 / 查济州公交线路和末班车 / 韩国景点开放时间与休馆日 / 抓 visitjeju 详情页字段 / 门票 xlsx 怎么解析 / 潮汐表怎么取 / 抓韩国站点全失败怎么办\"。不适用：本机 pwsh 编码坑 → 用 `pwsh-on-windows`；判厂商官网链接真假 → 用 `ai-vendor-official-source-audit`。",
-      "files": 1,
-      "bytes": 21504
+      "description": "韩国（济州）官方一手信息源抓取与端点配方——web_fetch 对韩国站点普遍不可用，python urllib 按站点分档，pwsh 直连最稳；含出入境/入境申告官方源结构（e-AC 的 bbsId=文章id / flId=附件id、列表页、使馆 mofa.go.kr 详情页、无日期戳用响应头 Date 与 등록일 定锚、判废止）、假页面与域名陷阱（HTTP 200 却是 404）、koreatourinfo 镜像、济州公交 BIS、visitjeju、열린관광、免税店协会、门票 xlsx、潮汐站。适用于\"韩国出入境/入境申告/法务部/关税厅/检疫 Q-CODE 官方源怎么抓 / 韩国官方页面没有日期怎么看 / 驻外使馆 mofa.go.kr 详情页怎么取 / 政策是否已废止怎么查 / 查济州公交线路和末班车 / 韩国景点开放时间与休馆日 / 抓 visitjeju 详情页字段 / 门票 xlsx 怎么解析 / 潮汐表怎么取 / 抓韩国站点全失败怎么办\"。不适用：本机 pwsh 自身的编码坑 → 用 `pwsh-on-windows`。",
+      "files": 3,
+      "bytes": 52906
     },
     {
       "name": "login-credential-autofill",
       "path": "skills/login-credential-autofill",
-      "description": "登录凭据自动填充的本地凭据库与防封号护栏——页面要登录时按账号取凭据填入、先复用已有登录态、每账号24小时最多1次密码提交、遇验证码/2FA/风控页立刻停手交人，附字段读取与额度记账脚本。适用于\"帮我登录一下 / 用我的账号登进去 / 要输密码了 / 这个站点要登录 / 微软和 GitHub 账号密码在哪 / 我的密码存在哪台机器上 / 填完要不要帮我点提交 / 登录失败了还能不能重试 / 会不会把号登封 / 自动填密码安全吗\"。不适用：GitHub API 或 PAT 提 PR → 用 `github-pr-flow`；读 Outlook 邮件 → 用 `outlook-mailbox-control`；过滑块验证码 → 用 `dingxiang-slider-captcha`；本机 pwsh 编码坑 → 用 `pwsh-on-windows`。",
+      "description": "登录凭据自动填充的本地凭据库与防封号护栏——页面要登录时按账号取凭据填入、先复用已有登录态、每账号24小时最多1次密码提交、遇验证码/2FA/风控页立刻停手交人；凭据库里没有该站时，先在本机浏览器密码库与邮箱里反查账号身份，附字段读取与额度记账脚本。适用于\"帮我登录一下 / 用我的账号登进去 / 要输密码了 / 这个站点要登录 / 微软和 GitHub 账号密码在哪 / 我的密码存在哪台机器上 / 不知道要登的是哪个账号 / 浏览器里存过这个站的登录吗 / 找回旧账号先从哪查 / 填完要不要帮我点提交 / 登录失败了还能不能重试 / 会不会把号登封\"。不适用：GitHub API 或 PAT 提 PR → 用 `github-pr-flow`；读 Outlook 邮件 → 用 `outlook-mailbox-control`；过滑块验证码 → 用 `dingxiang-slider-captcha`；本机 pwsh 编码坑 → 用 `pwsh-on-windows`。",
       "files": 5,
-      "bytes": 20883
+      "bytes": 24674
     },
     {
       "name": "lora-weekly-report",
       "path": "skills/lora-weekly-report",
-      "description": "LoRA 周报——汇总 vLLM、vLLM-Ascend、SGLang 三仓近 7 天「已合入」的 LoRA PR，出四节 Markdown（概览 + 三张带链接的表）并发到黄区。适用于\"跑一下这周的 LoRA 周报 / LoRA 特性跟踪 / vLLM 这周合了哪些 LoRA PR / SGLang 的 LoRA 有什么进展 / 把本周 LoRA 合入汇总成表发我\"，不适用：BI 与不变性周报 → 用 `batch-invariant-weekly-digest`；只看组织活跃度或发版 → 用 `github-org-delta-watch`；只发信或查收件箱 → 用 `qq-mail-control`。",
+      "description": "LoRA 周报：vLLM/vLLM-Ascend/SGLang 近 7 天已合入 PR，四节 Markdown 发黄区。适用于\"跑这周 LoRA 周报 / LoRA 特性跟踪 / SGLang 的 LoRA 进展\"。",
       "files": 4,
-      "bytes": 30770
+      "bytes": 30403
+    },
+    {
+      "name": "mindspeed-ops-interface-compat-audit",
+      "path": "skills/mindspeed-ops-interface-compat-audit",
+      "description": "MindSpeed-Ops 仓面核查：跨仓接口兼容（AST 盘点/周边仓实跑/缺口报告）+ 算子增量（近 N 天新增哪些算子、四件套判定）。",
+      "files": 1,
+      "bytes": 22879
+    },
+    {
+      "name": "mindspeed-ops-smoke",
+      "path": "skills/mindspeed-ops-smoke",
+      "description": "MindSpeed-Ops 冒烟：按版本矩阵建环境、UT + ATK 精度双读判绿。适用于\"跑 26.2.0 冒烟 / ATK 精度怎么判 / 冒烟全绿了吗 / CI 镜像配套对不对\"。",
+      "files": 1,
+      "bytes": 14631
     },
     {
       "name": "mindspeed-ops-whl-build",
       "path": "skills/mindspeed-ops-whl-build",
-      "description": "把 MindSpeed-Ops 源码打成可安装 whl 并逐层验收——cmake≥3.16、Python3_EXECUTABLE 注入、gcc8 必须换 clang-11、cmake 包装脚本会被 setup.py 按前 128 字节含 python 拒掉、SOC_VERSION 决定 aclnn 与 arch、CATLASS 需 MINDSPEED_BUILD_CATLASS=1；whl 非 manylinux、无 Requires-Dist。适用于\"打 MindSpeed-Ops 的 whl / pip wheel 报 cmake_minimum_required / 报 too old version of GCC / 报 No module named regex / 验证 whl 能不能用 / whl 装完 import 找不到 torch\"。不适用：装 CANN → 用 `ascend-cann-env`；torch 栈 → 用 `ascend-torch-npu`；给仓提 PR → 用 `gitcode-pr-flow`。",
+      "description": "打 MindSpeed-Ops whl 并验收：cmake/clang、SOC_VERSION、CATLASS。适用于\"打 ops 的 whl / cmake 版本报错 / GCC 太旧 / 验证 whl\"。",
       "files": 1,
-      "bytes": 7801
+      "bytes": 7301
+    },
+    {
+      "name": "minimax-ai-musume-4k-art",
+      "path": "skills/minimax-ai-musume-4k-art",
+      "description": "用 MiniMax-H3-Image 在昇腾 192.168.13.190 出 AI 娘插画（1696×2528 六步约 8 秒，4 die）——五位 AI 娘（Claude／DeepSeek／GPT／Grok／Gemini）的形象已按 B站 BV14C456WEXN 原分辨率逐项核对固化（含 DeepSeek 的鲸鱼鳍耳），画风默认正片广播 show 档，支持 12 种神态、5 档画风、参考图锁人、批量抽卡与一致性验收。适用于「用 MiniMax 生图」「画一张AI娘」「画鲸鱼娘」「画Grok娘」「出AI娘表情包或头像」「按参考图对齐画风」「要正片那种画风」。不适用：要用 Anima 底模 + AI 娘 LoRA → 用 anima-ai-musume-lora；只改 skill 的 frontmatter → 用 dsh-skill-authoring；装 CANN 或 vLLM → 用 ascend-env。",
+      "files": 51,
+      "bytes": 12326428
     },
     {
       "name": "model-endpoint-identity-audit",
       "path": "skills/model-endpoint-identity-audit",
       "description": "同一供应商多个 model id 是否同一个模型 + 能力/速度实测——支撑说\"都是某版本\"靠不靠谱、四个渠道哪个快哪个贵：用前缀缓存互通矩阵判是否同一后端（决定性证据）、tokenizer 与图像 token 指纹、短贪心输出指纹、随机 nonce 强制冷预填充、capability 矩阵逐项探测（上下文上限原文 / json_schema / logprobs / n>1 / 关思考开关）。适用于\"这几个 model id 是不是同一个模型 / 支撑说都是 1017 版靠谱吗 / 同一模型四个渠道哪个快 / 哪个便宜哪个贵 / 换个渠道质量会掉吗 / 上下文到底是多大 / 为什么 logprobs 返回 null\"。不适用：查厂商官方有没有发布这个模型 → 用 `ai-vendor-official-source-audit`；只评估外部热度与口碑量级 → 用 `external-buzz-magnitude-check`。",
       "files": 1,
-      "bytes": 11441
+      "bytes": 11593
+    },
+    {
+      "name": "node-test-false-green-audit",
+      "path": "skills/node-test-false-green-audit",
+      "description": "Node 测试与 CI 的「假绿」排查——六类会让你以为跑过其实没跑的陷阱：CI 里写死测试目录或空 glob 静默跳过、await 一个 unref 定时器让 Node 22 把整个文件判 cancelledByParent（fail 仍是 0）、fetch 设 host 头被 undici 静默丢弃导致伪造 Host 的断言恒真、断言里写死版本号每次发版必假红、改名字段后旧断言读 undefined 而空转通过、把平台相关行为当统一行为（大小写折叠只在 win32）。适用于「CI 绿了但本地没跑 / 测试数对不上 / Node 22 全 cancelled / 某个文件后面的测试全没执行 / 这条断言真的会红吗 / 变异测试怎么验 / 发版后测试突然红 / 改名之后测试还绿」。不适用：PowerShell 自身的编码与执行策略坑 → 用 `pwsh-on-windows`；把跑通的流程沉淀成 skill → 用 `sedimenting-skills`。",
+      "files": 1,
+      "bytes": 5711
     },
     {
       "name": "orchestrating-subagents",
       "path": "skills/orchestrating-subagents",
-      "description": "编排手册——两通道模型：生产动作（读文件、跨模块检索、跑命令、联网、试错、写代码/文档、改配置）一律下发子代理，主 Agent 保留全套工具、只做交付前独立复核（真跑验收命令、核\"文件:行号\"、读本体与 exit code）；判据权威出处是宪法 §2/§3，本 skill 只写操作配方。适用于\"任务很大一次读不完 / 该不该派子代理 / 帮我并行跑几件事 / 上下文快满了 / 子代理说没有 web_fetch 或说工具受限 / explore 和 subagent 怎么选 / 子代理说的对不对 / 它答错了要不要重派 / 怎么关掉自己起的进程 / 运行台账该怎么记 / 子代理写域重叠怎么办 / 长时间编译怎么等 / 子代理说完成了我怎么验 / 复核旧结论行号一致算不算没过时\"。不适用：任务收尾判定\"值得沉淀\"、要动手写 skill → 用 `sedimenting-skills`。",
-      "files": 2,
-      "bytes": 73163
+      "description": "子代理编排手册：拆解、并行下发、校验结论、上下文预算。适用于\"任务太大一次读不完 / 该不该派子代理 / 帮我并行跑几件事 / 子代理答错了要不要重派 / 上下文快满了\"。",
+      "files": 1,
+      "bytes": 8527
     },
     {
       "name": "outlook-mailbox-control",
       "path": "skills/outlook-mailbox-control",
-      "description": "Outlook.com（个人 MSA）邮箱接管——接管我的 outlook 邮箱、查收件箱、按关键词搜邮件、读正文和附件、以我的名义回信、存草稿：MS365 MCP discovery 直调的能力配方（工具名＋最小 parameters JSON）、三条个人账户硬规则（authority 必须 consumers／只支持 delegated／app password 已硬禁用）、设备码登录与令牌核验、🤖 前缀护栏、逐字错误原文。适用于\"接管我的 outlook 邮箱 / 查一下收件箱 / 按关键词搜邮件 / 读某封邮件的正文和附件 / 以我的名义回一封信 / 帮我存个草稿 / outlook 邮件工具报错 / authority 该填什么 / app password 为什么用不了\"。不适用：QQ 邮箱 IMAP → 用 `qq-mail-control`；改 DSH 插件行与 MCP 接入层 → 用 `dsh-agent-customization`；PowerShell 的坑 → 用 `pwsh-on-windows`。",
+      "description": "Outlook.com 邮箱接管（MS365 MCP）：登录、搜读、回信、草稿。适用于\"接管 outlook 邮箱 / 查收件箱 / 读附件 / 以我的名义回信 / outlook 工具报错\"。",
       "files": 1,
-      "bytes": 27466
+      "bytes": 26640
+    },
+    {
+      "name": "pr-change-equivalence-audit",
+      "path": "skills/pr-change-equivalence-audit",
+      "description": "审计「这个 PR 是否只是等价改写、功能/精度/性能是否不变」——先锁 diff 与 dtype 链，再按 IEEE 穷举 ±0/NaN/FTZ，证明有效区逐位等价与掩码区差异，最后给出「代码可证 / PR 自述 / 未验证」三级证据表。适用于\"这个PR改前后功能一样吗 / 精度和性能有没有变化 / 是不是纯重构 / 掩码改成乘法安全吗 / 这个bugfix有没有副作用 / PR描述说的无影响能信吗\"。不适用：审第三方漏洞扫描报告 → 用 `vuln-scan-report-verification`；向 GitCode 提 PR 或判门禁 → 用 `gitcode-pr-flow`。",
+      "files": 1,
+      "bytes": 7520
+    },
+    {
+      "name": "prior-agent-artifact-audit",
+      "path": "skills/prior-agent-artifact-audit",
+      "description": "前代 agent 产物目录（「上一轮交付」）的真实完成度取证——证据分四层标注【自测/落盘/文档/复核】，部署/工作区现实分开判（线上入口与本地候选逐字节比对、判装没装看运行时清单与包目录而非源码），档案行号自证矛盾即降为线索，产品化完成度按清单逐项要证据。适用于\"上一轮 agent 的产物，看看做到什么程度 / 这个目录真做完了还是只写在文档里 / 文档说验收全绿能信吗 / 线上跑的到底是哪一版 / 这个报告里的行号对不对 / 上个 agent 说已完成，帮我验一遍\"。不适用：拆解派活与校验子代理 → 用 `orchestrating-subagents`；论文/开源复现核查 → 用 `arxiv-paper-deep-read-and-claim-verification`；第三方漏洞扫描报告结论核实 → 用 `vuln-scan-report-verification`；改 SKILL.md frontmatter → 用 `dsh-skill-authoring`；本机 pwsh 编码与计数坑 → 用 `pwsh-on-windows`。",
+      "files": 1,
+      "bytes": 11691
     },
     {
       "name": "pwsh-on-windows",
       "path": "skills/pwsh-on-windows",
-      "description": "本机命令行一整套静默坏结果（pwsh 实为 Windows PowerShell 5.1，非 PS7）——中文乱码、行数或 CR 数对不上、计数总是 0、目录看着空其实不空、执行策略拦住脚本、传 JSON 报 Expecting value：默认按 GBK 解码、写 BOM，Out-String / Measure-Object -Line / Set-Content 各有一坑。适用于\"中文乱码 / 行数或 CR 数对不上 / 计数为什么总是 0 / 目录看着空其实不空 / .ps1 或 npx 被执行策略拦 / PS7 语法报错 / python 传 JSON 报 Expecting value / icacls 后报 WinError 5 / 重定向输出被判 binary / ssh 内联命令里引号内管道被吃掉 / node -e 引号被剥掉 / diff 整文件全异\"。不适用：远端 Linux → 用 `ascend-env`；skill frontmatter 契约 → 用 `dsh-skill-authoring`。",
+      "description": "本机 pwsh 实为 Windows PowerShell 5.1：GBK 解码、BOM、PS7 语法静默坑。适用于\"中文乱码 / 行数或 CR 数不对 / 计数总是 0 / 执行策略拦 / PS7 语法报错\"。",
       "files": 1,
-      "bytes": 51103
+      "bytes": 26075
     },
     {
       "name": "qq-mail-control",
       "path": "skills/qq-mail-control",
-      "description": "QQ 邮箱接管（IMAP/SMTP，`mcp__qqmail__*`）——发 QQ 邮件、查收件箱、搜读信、建夹归档；含收件人别名：「黄区」= `xumingzhe4@huawei.com`、「我私人邮箱」= `3248569436@qq.com`。坑：文件夹名传中文原文（别传 UTF-7）、FETCH 只读铁律、中文搜索只覆盖本地窗口、发信必须带【AI 代发】前缀、发往黄区一律转发格式、MCP 无建夹工具、凭据与 `--read-only` 陷阱。适用于\"给黄区发邮件 / 发邮件给我私人邮箱 / 发一封 QQ 邮件 / 查一下 QQ 邮箱收件箱 / 搜一下 QQ 邮箱里的邮件 / 帮我读某封 QQ 邮件 / 把一类邮件都归到一个文件夹 / QQ 邮箱只能读不能发\"。不适用：Outlook / MSA 邮箱 → 用 `outlook-mailbox-control`；改 patch 与 MCP 接入层生效时机 → 用 `dsh-agent-customization`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。",
+      "description": "QQ 邮箱接管（IMAP/SMTP）：发信、搜读、归档、黄区/私人别名。适用于\"发 QQ 邮件 / 查收件箱 / 搜邮件 / 读某封 / 建夹归档 / 只能读不能发\"。",
       "files": 1,
-      "bytes": 26838
+      "bytes": 26118
     },
     {
       "name": "sedimenting-skills",
       "path": "skills/sedimenting-skills",
-      "description": "Skill 沉淀协议——任务收尾先过目录税预算（目录字符总量 ≤ 20,000），每次非平凡运行都自动复盘并全库匹配找归属（三段决策 ①融合已有 skill ②建/更新总纲 ③都没有才新建）；默认首选融合：追加一节或修正已被证伪的断言，并顺手删掉该 skill 里的死指针、过期数字与重复正文。含全库检索配方、防过度沉淀、单一归属、description 决定\"何时调用\"（≤480）、允许空手而归、写完自验证。适用于\"这套流程以后还会用 / 把刚才那套步骤写成 skill / 这条经验该并进哪个已有 skill / 要不要新建 skill / 这个坑值得记下来 / 每次任务收尾自动复盘 / 怎么在全部 skill 里找这条经验的归属 / 删掉 skill 里的过时信息 / 这条旧结论还成立吗\"。不适用：还在执行任务、要先拆解派活 → 用 `orchestrating-subagents`；只改 frontmatter 与 description 的写法契约 → 用 `dsh-skill-authoring`。",
-      "files": 2,
-      "bytes": 37611
+      "description": "skill 沉淀协议：三段决策（融合/总纲/新建）、单一归属、目录成本预算。适用于\"这条经验要不要写成 skill / 该并进哪个已有 skill / 怎么防重复 / 什么该做成总纲 / 目录预算怎么算\"。",
+      "files": 1,
+      "bytes": 12777
+    },
+    {
+      "name": "skill-archive",
+      "path": "skills/skill-archive",
+      "description": "冷备 skill 索引：读 skills-archive/INDEX.json 找不在目录里的能力。适用于\"目录里没有对应的专门流程 / 生图 / 长尾调研 / PR 审计 / 想找旧 skill\"。",
+      "files": 1,
+      "bytes": 2639
+    },
+    {
+      "name": "subagent-toolset-precheck",
+      "path": "skills/subagent-toolset-precheck",
+      "description": "子代理工具集预检——子代理说没有 web_fetch、工具受限怎么办：派活前先让它如实回报函数清单，避免把联网调研或要求落盘的任务派给工具受限的 `explore` 子代理（实测只拿到 glob/grep/list_subagent_models/read/subagent 5 个，无 web_search/web_fetch/pwsh/write），否则产出一堆\"未验证\"且交付文件落不了盘。适用于\"子代理说没有 web_fetch / 子代理说工具受限 / 子代理回了一堆未验证条目 / 没生成交付文件 / 联网调研派给谁 / explore 和 subagent 怎么选 / 子代理到底有哪些工具\"。不适用：拆解、派发、校验与上下文预算的通用编排规则 → 用 `orchestrating-subagents`；把跑通的流程写成 skill → 用 `sedimenting-skills`。",
+      "files": 1,
+      "bytes": 6815
     },
     {
       "name": "tilelang-op-generator",
       "path": "skills/tilelang-op-generator",
-      "description": ">-",
+      "description": "写/迁移 TileLang 算子到昇腾：kernel + 分层 golden + Triton-Ascend 同卡对比。适用于\"用 TileLang 写算子 / 生成 softmax kernel / 把算子迁到 NPU / 修精度\"。",
       "files": 16,
-      "bytes": 197284
+      "bytes": 196985
     },
     {
       "name": "upstream-docs-refresh-audit",
       "path": "skills/upstream-docs-refresh-audit",
-      "description": "上游仓库 docs 刷新审计——这批需求在 docs 里都能检索到吗、这版主线资料要不要刷新：输入一批中文内部需求或中文转测文档，判 docs/source 是否需要刷新，产出六节结论清单 + 逐条刷新方案：三件前置产物先行、只读 worktree 隔离、代号靠 git log --grep 破解、页名看 nav_titles.py、判存在性搜全仓、findings 落盘 fan-out、分次写盘、`.po` 翻译归责与脚本存在性判据。适用于\"这批需求在 docs 里都能检索到吗 / 转测文档声明的能力主线能查到吗 / 这版主线资料要不要刷新 / 出一份资料刷新清单 / 内部代号在仓库里到底叫什么 / 转测文档写的环境变量和启动参数主线到底有没有 / 要不要顺手改 .po 翻译 / 那个脚本到底存不存在\"。不适用：要装 vllm 或 vllm-ascend → 用 `vllm-ascend-source-install`；要起服务跑推理 → 用 `ascend-vllm-serve`。",
+      "description": "上游 docs 刷新审计：需求/转测文档 → 存在性普查 → 六节清单。适用于\"这批需求 docs 里能查到吗 / 要刷新吗 / 内部代号叫什么 / 启动参数主线有没有\"。",
       "files": 5,
-      "bytes": 48347
+      "bytes": 44170
     },
     {
       "name": "vllm-ascend-e2e-ci-wiring",
       "path": "skills/vllm-ascend-e2e-ci-wiring",
-      "description": "vllm-ascend e2e 用例进 CI 的落位与登记——tests/e2e/pull_request 下新增 test 必须登记 estimated_times.yaml，否则 coverage.py 打印 ✗ MISSING 后 sys.exit(1)；该门禁在 Windows 上必然全报 MISSING；e2e_model 只喂报告，e2e_coverage 值错即硬失败；模型 ID 须在 ModelScope 有仓。适用于\"新增 e2e 用例怎么进 CI / 为什么 CI 报 MISSING estimated_times / 本地跑 coverage.py 全是 MISSING / 测试该放 one_card 还是 four_card / e2e_coverage 标记怎么写 / 用例怎么脱钩共享 conftest / 要不要登记 model_dataset_list\"。不适用：装或跑 vllm-ascend → 用 `vllm-ascend-source-install`。",
-      "files": 2,
-      "bytes": 27156
+      "description": "vllm-ascend e2e 进 CI：estimated_times 登记、coverage 门禁、目录归属。适用于\"新增 e2e / CI 报 MISSING / 本地全 MISSING\"。",
+      "files": 1,
+      "bytes": 17115
     },
     {
       "name": "vllm-ascend-source-install",
       "path": "skills/vllm-ascend-source-install",
-      "description": "从源码装 vllm + vllm-ascend 配对流程——main 按 `.github/vllm-main-verified.commit` 配 vllm（VLLM_TARGET_DEVICE=empty）；release tag 配同名 tag；VLLM_VERSION 在 v0.23.0 失效，改用 VLLM_VERSION_OVERRIDE；torch 家族 pin 先注释；VLLM_BATCH_INVARIANT 默认不导出。适用于\"装或重装 vllm-ascend / 报 vllm_version_is 为 False / 报 ResolutionImpossible 或 numpy 冲突 / pip 卡在 llguidance / 复用已有 torch_npu / 报 build 依赖不满足（torch pin/nanobind）/ 报 metadata-generation-failed\"。不适用：起服务排障 → 用 `ascend-vllm-serve`；torch 栈装不上 → 用 `ascend-torch-npu`。",
-      "files": 3,
-      "bytes": 96427
+      "description": "源码装 vllm + vllm-ascend 配对版本：读 verified commit、注释 pin 复用 torch。适用于\"重装 vllm-ascend / 按 commit 配 vllm / build deps 不满足\"。",
+      "files": 2,
+      "bytes": 36997
+    },
+    {
+      "name": "vuln-scan-report-verification",
+      "path": "skills/vuln-scan-report-verification",
+      "description": "核实第三方漏洞扫描报告：锁 commit、回溯可达性、张冠李戴、定级。适用于\"这个高危是真的吗 / 行号对不对 / 注入能不能用 / 定级高不高 / 有没有漏报\"。",
+      "files": 1,
+      "bytes": 11240
+    },
+    {
+      "name": "web-ui-contrast-audit",
+      "path": "skills/web-ui-contrast-audit",
+      "description": "网页字看不清/浅色主题对比度：真浏览器逐节点算 WCAG 比值，避开渐变与半透明误报，先修继承根。",
+      "files": 1,
+      "bytes": 3150
     },
     {
       "name": "win-scheduled-task-forensics",
       "path": "skills/win-scheduled-task-forensics",
       "description": "Windows 计划任务/持久化项取证与安全退役——谁给我装了每日定时程序、把每日签到任务停掉、这个定时任务是谁加的：五处侦察面（计划任务全量、schtasks 旁证、Run 键、两个启动文件夹、WMI 事件订阅）缺一处就漏；退役顺序固定为 Export-ScheduledTask 留档 → Disable-ScheduledTask（保留定义优于 unregister）→ 复核 State=Disabled 且 Actions 原文未变 → 清进程 → 复核其它任务未被误碰。适用于\"找出某个 agent 建的每日定时程序 / 谁给我装了计划任务 / 把每日签到任务停掉 / 这个定时任务是谁加的 / 停用以后怎么恢复 / 雷电签到任务怎么退役\"。不适用：本机 pwsh 命令本身的坑 → 用 `pwsh-on-windows`；要拆多路并行子任务 → 用 `orchestrating-subagents`。",
       "files": 1,
-      "bytes": 8900
+      "bytes": 9048
     },
     {
       "name": "yb-blue",
       "path": "skills/yb-blue",
       "description": "蓝区主控端（YB-Bridge）——把活拆成黄区弱模型能照做的任务包，经私有 GitHub 仓下发，轮询取回报告并按四要素验收；黄→蓝单次≤100KB 自动分块，蓝→黄不限。适用于\"给黄区派活 / 收黄区报告 / 黄蓝协同 / 跨区接力 / 黄区任务到哪了 / 黄区卡住了 / yb.py poll 没结果 / 怎么把黄区结果拿回来\"。不适用：同机子代理编排 → 用 `orchestrating-subagents`；写或改 skill → 用 `dsh-skill-authoring`。",
       "files": 3,
-      "bytes": 41315
+      "bytes": 41431
     }
   ]
 }

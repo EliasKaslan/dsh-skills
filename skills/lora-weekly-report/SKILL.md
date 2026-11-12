@@ -1,6 +1,6 @@
 ---
 name: lora-weekly-report
-description: LoRA 周报——汇总 vLLM、vLLM-Ascend、SGLang 三仓近 7 天「已合入」的 LoRA PR，出四节 Markdown（概览 + 三张带链接的表）并发到黄区。适用于"跑一下这周的 LoRA 周报 / LoRA 特性跟踪 / vLLM 这周合了哪些 LoRA PR / SGLang 的 LoRA 有什么进展 / 把本周 LoRA 合入汇总成表发我"，不适用：BI 与不变性周报 → 用 `batch-invariant-weekly-digest`；只看组织活跃度或发版 → 用 `github-org-delta-watch`；只发信或查收件箱 → 用 `qq-mail-control`。
+description: LoRA 周报：vLLM/vLLM-Ascend/SGLang 近 7 天已合入 PR，四节 Markdown 发黄区。适用于"跑这周 LoRA 周报 / LoRA 特性跟踪 / SGLang 的 LoRA 进展"。
 whenToUse: 每周跑一次的 LoRA 合入汇总，出四节 Markdown 并自动发黄区。
 ---
 

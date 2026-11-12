@@ -2,6 +2,9 @@
 name: model-endpoint-identity-audit
 description: 同一供应商多个 model id 是否同一个模型 + 能力/速度实测——支撑说"都是某版本"靠不靠谱、四个渠道哪个快哪个贵：用前缀缓存互通矩阵判是否同一后端（决定性证据）、tokenizer 与图像 token 指纹、短贪心输出指纹、随机 nonce 强制冷预填充、capability 矩阵逐项探测（上下文上限原文 / json_schema / logprobs / n>1 / 关思考开关）。适用于"这几个 model id 是不是同一个模型 / 支撑说都是 1017 版靠谱吗 / 同一模型四个渠道哪个快 / 哪个便宜哪个贵 / 换个渠道质量会掉吗 / 上下文到底是多大 / 为什么 logprobs 返回 null"。不适用：查厂商官方有没有发布这个模型 → 用 `ai-vendor-official-source-audit`；只评估外部热度与口碑量级 → 用 `external-buzz-magnitude-check`。
 whenToUse: 多 endpoint / 多 model id 的身份核验与同口径能力速度对比（不含官方源真伪与外部热度）。
+disable-model-invocation: true
+warm-triggers: 多个 model id 是否同一模型 / 渠道速度与价格
+warm-reason: 一次性调研方法论，低频
 ---
 
 # 多端点模型身份核验与能力对比

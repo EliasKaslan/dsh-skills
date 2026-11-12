@@ -1,13 +1,6 @@
 ---
 name: tilelang-op-generator
-description: >-
-  This skill should be used when the user asks to write, generate, port,
-  optimize, or fix the precision of a TileLang operator for Ascend NPU, from a
-  natural-language description or an existing PyTorch/NumPy/Triton operator.
-  Triggers include "write a softmax operator in TileLang", "generate a TileLang
-  kernel for a [B, N] float16 input", and "migrate this op to Ascend with
-  TileLang". Delivers the kernel, a layered golden test, and a Triton-Ascend
-  same-NPU comparison.
+description: 写/迁移 TileLang 算子到昇腾：kernel + 分层 golden + Triton-Ascend 同卡对比。适用于"用 TileLang 写算子 / 生成 softmax kernel / 把算子迁到 NPU / 修精度"。
 version: 1.2.0
 domain: ops
 function: tilelang

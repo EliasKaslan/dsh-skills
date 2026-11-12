@@ -1,7 +1,7 @@
 ---
 name: github-org-delta-watch
-description: GitHub 组织增量追踪——基准日之后这个组织谁在动、这仓是不是死仓、官方那个承诺兑现了没：rate_limit 的 Date 头取"今天"、orgs/{org}/repos?sort=pushed 覆盖全组织找活性、pushed_at 冻结即内容冻结、issues 要 created 与 updated 各拉一遍。适用于"组织基准日后有什么新动作 / 谁在动 / 有没有发新版 / 组织调研报告要更新增量 / 这个仓是不是死仓 / 官方那个承诺兑现了吗 / GitHub 403 额度耗尽后怎么继续取证"。不适用：向 GitHub 仓提 PR → 用 `github-pr-flow`；到厂商官网取一手来源 → 用 `ai-vendor-official-source-audit`。
-whenToUse: 已有一份带基准日的 GitHub 组织/仓库调研报告，要产出基准日之后的增量热点与观察点变化清单时使用；也用于判某仓是否死仓、某个官方承诺是否已兑现。模型看不到本节。
+description: GitHub 组织增量 + 发行差集：pushed_at、releases、compare 取证。适用于"基线日后谁在动 / 主线有哪些没发版 / 这仓是不是死仓"。
+whenToUse: 已有一份带基准日的 GitHub 组织/仓库调研报告，要产出基准日之后的增量热点与观察点变化清单时使用；也用于判某仓是否死仓、某个官方承诺是否已兑现。
 ---
 
 # GitHub 组织增量热点追踪（基线 → 今天）
@@ -15,7 +15,6 @@ whenToUse: 已有一份带基准日的 GitHub 组织/仓库调研报告，要产
 - AI 厂商官方信息源真伪与覆盖面判定 → 用 `ai-vendor-official-source-audit`。
 - 外部热度量级（HN points / HF likes） → 用 `external-buzz-magnitude-check`。
 - 判某模型在昇腾生态里的适配程度与缺口 → 用 `ascend-model-adaptation-recon`。
-- **按主题出「每周已合入 PR」周报并发邮件**（不是组织活跃度） → 用 `batch-invariant-weekly-digest`。
 - **前置**：能跑 pwsh + 联网；先拿到**基线日**（本地报告 frontmatter/首行，如 `> 调研基准日：2026-09-20`）与**基线结论清单**（哪些观察点要复核）。 ／ **后继**：产出"活跃仓表 + 观察点变/未变表 + 增量热点清单"三节，并逐条给证据 URL。
 
 ## 前置检查
@@ -67,41 +66,15 @@ Get-Date -Format 'yyyy-MM-dd HH:mmzzz'
    - `issues?state=all&sort=created&direction=desc&per_page=30` → 才看到真新增的 9/23 #82、9/25 #83。
    - 提醒：`/issues` 同时返回 issue 和 PR，按 `pull_request` 字段分流后再计数。
 
-## 步骤 8：core 耗尽后的免额度取证通道
-
-2026-10-05 对 `vllm-project/vllm` 与 `vllm-project/vllm-ascend` 做 RL×LoRA 侦察时全程实测（共享出口 IP）。下面 1 条讲额度、2~6 条是 0 额度通道。
-
-8.1 **额度是共享的、比预期更紧**：`rate_limit` 的 `Date` 头同时给出"今天"与额度；本轮共享 IP **16/60 起步，3 次 core 调用即归零**（`git/trees` + `releases` 之后 `commits?path=` 立刻 403 `API rate limit exceeded for <ip>`）⇒ core 只留给"定全局"的两次聚合调用：`git/trees?recursive=1` 定全树、`releases` 定版本列表。
-8.2 **路径提交时间线（主力，0 额度）**：`https://github.com/<O>/<R>/commits/<branch>/<path>.atom` 给该路径完整提交时间线（日期 + commit SHA + 标题）。可抄写法：
-   ```powershell
-   $x=[xml](Invoke-WebRequest 'https://github.com/<O>/<R>/commits/main/<path>.atom' -UseBasicParsing -Headers @{'User-Agent'='x'}).Content
-   $x.feed.entry | ForEach-Object { $_.updated.Substring(0,10) + ' | ' + $_.title }
-   ```
-   （`link[@rel=alternate]` 即 commit URL。）
-8.3 **tag / release 列表（0 额度）**：`https://github.com/<O>/<R>/releases.atom`、`https://github.com/<O>/<R>/tags.atom`。
-8.4 **发布日期 / 预发布 / "最新"三件事的 oracle（0 额度）**：单条 release 页 HTML 里 `<relative-time … datetime="…">` 是**发布时间**，页面另有 `Pre-release` / `Latest` 字样；`https://github.com/<O>/<R>/releases/latest` 会 **302** 到"最新**非**预发布"的 tag（PS 5.1 取最终 URL：`$r.BaseResponse.ResponseUri.AbsoluteUri`）。⚠️ 两种页头措辞都要兼容：`released this` 与 `tagged this`（否则会把正常 release 页误判成 404）。
-8.5 **单条 issue / PR 的正文与元数据（0 额度）**：抓 `/issues/<n>`、`/pull/<n>` 的 HTML，从**页面嵌入 JSON** 里取 `"state"`、`ClosedEvent.createdAt`、`linkedPullRequests`、`bodyHTML`（分块）；react 后的页面**没有** `comment-body` 类名、**没有** Status 徽章、**没有** `mergedAt` 字段，别按旧 DOM 找。
-8.6 **全树快照（0 额度）**：`https://codeload.github.com/<O>/<R>/tar.gz/refs/heads/main` 直接下 tarball（本轮实测 17.5 MB → 4425 文件 + 845 目录 = 5270 节点），本地做"某字符串在全仓出现几次"的内容级检索。
-
 ## 坑与修法
 
 - **第三方包 ≠ 官方兑现**：`https://pypi.org/pypi/h3-sparse-attn/json` 搜到的是第三方 `Occipital-Labs`（0★、8/20 上传后停更）→ 原因：包名极像官方 → 修法：判"官方是否兑现"只认官方仓的 `pushed_at` / `contents`，第三方包仅记作"生态补位"。
 - **旧闻 ≠ 增量**：InfoQ" H3 团队 Reddit 回应一切 / Apache-2.0 在考虑"看似最新热点 → 原因：转载 URL 日期段是 `...20260808...`，早于基准日 2026-09-20 → 修法：转载 URL 里的 `YYYYMMDD` 作低成本日期兜底，早于基准日一律归入"旧闻"，不进热点榜。
 - **`license` 为 `null` ≠ 无许可证**：MiniMax-H3 用非 SPDX 的 "MiniMax H3 Community License"，GitHub API `license=null` → 原因：自定义许可无 SPDX id → 修法：`null` 时必须回 README 看许可证正文。
 - **字段名拼错会静默返回空，不报错**：`stargazers_forks_count`（臆造）返回空 → 原因：PowerShell `Select-Object` 对不存在属性不报错 → 修法：字段名为 `stargazers_count` / `forks_count` / `open_issues_count`；关键数字先 `ConvertFrom-Json` 再显式取字段并做存在性断言。
-- **未认证限流 60 次/小时**：先看 `rate_limit` 余额（本次 19 次 / 余额 54）→ 403 时**改走下面的「步骤 8」**；"抓 `commits` 页 HTML 兜底"这条路已被实测证伪（只回导航栏 + `(Content truncated.)`，拿不到提交列表）。
+- **未认证限流 60 次/小时**：先看 `rate_limit` 余额（本次 19 次 / 余额 54）→ 403 时改用 `web_fetch` 抓 HTML 兜底。
 - **别把子代理报告当独立信源**：两个子代理读过同一份本地缓存时，其"交叉核对一致"是**循环引用**，不构成独立验证。
 - **纯联网 / 需落盘的任务不要派给只读型子代理**：实测某类子代理无联网工具也无写权限，会静默降级为读本地缓存 → 派发前要求子代理自检工具可用性。
-- **`updated` ≠ 发布日期**：实测 `vllm` v0.31.0 的 release 页发布时刻是 `2026-10-05T06:44:55Z`，而同名 atom 条目的 `<updated>` 是 `2026-10-06T06:49:35Z`；`vllm-ascend` 侧受检 3 条两者恰好相同 ⇒ **不是每次都差，必须两条都取**，只取 `updated` 会算错"最新版本 / 最新动作"。
-- **`search/issues` 不带 `is:issue`/`is:pr` 直接 422**：`{"message":"Query must include 'is:issue' or 'is:pull-request'"}`。
-- **`mcp__github__list_commits` 忽略 `path` 参数**：传不同 `path` 返回同一批 main 提交，单次 130–220 KB 且含 PGP 签名块 ⇒ 别拿它做文件时间线，改用上面第 2 条的 atom（`commits/<branch>/<path>.atom`）。
-- **`merged_at=null` + `state=closed` ≠ "没做"**：实测同标题内容可以只以 commit 落入 main ⇒ 以**文件时间线**为准，不要用 PR 元数据反推"未实现"。
-- **路径级 0 命中 ≠ 内容级 0 命中**（★本轮最大教训）：实测 `vllm-ascend` 全树 5270 个**路径**里 `mindspeed`/`grpo`/`collective_rpc`/`update_weight` 命中 **0**，但**内容**命中 `grpo`=4、`collective_rpc`=27、`update_weight`=34（如 `grpo@sleep_mode.md:5`、`collective_rpc@upstream_config.yaml:37`）⇒ 判"某能力不存在"必须**路径与内容各搜一遍**。
-- **词边界**：`-match '(?i)verl'` 会命中 `fused_sparse_attention_ov``erl``ap`（实测 27 处路径命中**全部**是词内假命中；内容级 2350 命中里 2243 是假命中）⇒ 用 `\bverl\b`，并先数假命中样例。
-- **判"某 bug 修没修"要读 `linkedPullRequests`，别只看 label**：实测 issue #39934 的 label 有 `stale`（描述 "Over 90 days of inactivity"），但它是按 `stateReason=COMPLETED` 关闭的，且链着**已合入**的修复 PR `#39935 state=MERGED`（`[Bugfix] Fix level-2 sleep/wake/reload with enable_lora=True`）⇒ "被 `stale` 关掉"不等于"没修"。
-
-> **子代理供给**：下发前在 prompt 里点名让它 `skill` 加载 `github-org-delta-watch`；要联网核外部来源时再加 `ai-vendor-official-source-audit`。加载不到（工具受限的子代理）就把 `C:\Users\admin\.dsh\skills\github-org-delta-watch\SKILL.md` 与 `C:\Users\admin\.dsh\skills\ai-vendor-official-source-audit\SKILL.md` 路径给它 `read`。机制与判据见 `orchestrating-subagents` §3.1。
-> 并发成员 ≥2 或子任务 ≥3 时，按 `orchestrating-subagents` §9.1 在本轮 cwd 落 `.dsh-run\<日期>-ledger.md` 台账，收尾清空。
 
 ## 不要做什么
 
@@ -117,3 +90,32 @@ Get-Date -Format 'yyyy-MM-dd HH:mmzzz'
 2. 观察点逐条"变 / 未变"，每条变更有可点开的 API URL 或 release tag。
 3. 增量热点清单里**没有**早于基准日的旧闻；第三方包与官方兑现分开表述。
 4. 全程 API 调用数可控（单组织一轮 ≈ 15~25 次，未认证额度内），无 403。
+
+## 仓级：发行线 vs 主线差集（主线有哪些没发版）
+
+2026-11-12 在 `deepseek-ai/deepseek-harness` 真跑通：`dsh-v0.2.2-rc.2` 与 master 差 166 commits / 300 files / +8029 −888，靠下面 7 步把"未发版但已合入"的特性、破坏性、迁移动作全还原出来。
+
+## 步骤
+
+1. **列发布，别用 `/releases/latest`**：若该仓全部发布都是 `prerelease=true`，`/releases/latest` 返回 **404**（它只返回非 prerelease）。改用 `GET /releases?per_page=8` 取 `[0]`，`tag_name` 才是差集起点。
+2. **先枚举分支，判"release 分支是不是长期存在"**：`GET /branches?per_page=100`（本仓 total=1，只有 master）。`release/<ver>` 若不在列表里，说明它是 worktree 临时分支、tag 打完即并回 —— 此时去 compare 这个分支会 404，且"主线领先"属正常发版列车，不是漏发。
+3. **取差集**：`GET /compare/<tag>...master`（**用默认分页**）。`ahead_by / behind_by / total_commits` 在 `?per_page=1` 下仍准确，但截断响应里**没有 `head_commit`**（直接取会 KeyError）。`status=ahead` + `behind_by=0` + `base_commit.sha`==tag 的 commit ⇒ tag 是 master 祖先，差集就是全部未发内容。
+4. **别指望 CHANGELOG**：本仓根目录没有 CHANGELOG（`/contents` 确认过），发布说明 = GitHub Release 正文（中英双语）+ `docs/upgrade-guide/<tag>/` 目录。
+5. **升级指南 = "下一版会带什么"的最强信号**：compare 里 `docs/upgrade-guide/**` 的 `added` 文件就是已定稿、含迁移步骤、下一版必带的特性；它们被归档在**旧 tag 目录下**也正常（按 minor 归档，不代表已发）。配套看 `.agents/notes/implemented/**` 里 `Status: implemented` 的 ADR，拿动机与默认值。
+6. **文件级结论只从 compare 原始响应取**：把 `/compare` 完整 JSON 落盘（本仓 1.8 MB / 216 个文件带 patch），再用 python 只打印 `+`/`-` 行。全文引用、不重复调 API、不吃限额。
+7. **反证"是否已到用户手里"扫安装包**：Electron 的 `app.asar` 直接二进制数标记即可，如 `open(p,'rb').read().count(b'cua-windows')`，再用正则取内嵌版本串（本机取到 `0.2.2-rc.1` ⇒ 桌面端还停在上一代，新特性确实没出去）。
+
+## 坑（发行差集专属）
+
+- **`has_issues=false` 的仓，`/issues` 和 `/pulls` 都 404**（PR 在 API 上属于 issue）→ 拿不到 review 数、合并审批数，"评审层认可度"这一维直接缺失，别在报告里许诺。
+- **"被认可"要拆成两种证据**：官方背书看四件套（新增升级指南 / `Status: implemented` ADR / 默认值翻转 / 独立打包流水线）；社区热度看 discussions 抽样的 reactions。两者可能完全背离（本仓 PTC/CUA 相关最高 3 reactions，top 全是支付方式与请求头）。
+- **`?per_page=1` 的 compare 会吞 `head_commit`**，用它只读 `ahead_by/behind_by`；要 head sha 另调 `/commits/<branch>`。
+- **别把 tag 的 publish 时间当代码时间**：本仓 rc.2 的 tag commit 02:32、并回 master 02:34、publish 11:33（隔 9 小时）。差集要按 commit 图算，不能按发布时间算。
+- **发布线并回主线时的冲突文件是最好的"分叉证据"**：本仓 `Merge release/... into master` 冲突在 `cua-bundle/package.json`、`ptc-runtime-node/package.json`，正好是未发布改动所在。
+
+## 验收标准
+
+1. 有"tag → master"的 `ahead_by / files / +−` 三件数字，并注明取数时间与 API URL。
+2. 未发版特性按"官方背书强度"排序：有升级指南的排前，只有代码的排后；每条给出 PR 号、文件数与破坏性判定。
+3. 明确回答"为什么还没发"（分支模型 + 时间线），不把正常发版列车写成漏发。
+4. 社区侧结论必须有抽样依据（条数 + 抽样方式），没有就说"拿不到"，不要用 stars 冒充功能认可度。

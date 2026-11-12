@@ -1,7 +1,10 @@
 ---
 name: arxiv-paper-deep-read-and-claim-verification
-description: arXiv 论文精读 + 开源声称独立核查——精读这篇论文、论文说的开源仓真实存在吗、论文数字能复现吗：web_fetch 抓 /html 会在正文中段被 (Content truncated.) 截断，改用 pwsh Invoke-WebRequest -UseBasicParsing 抓全文落盘再分块 read；abs 页判存在性、GitHub REST API 判仓（不抓网页，JS 渲染只剩导航栏）、HF models API 的 safetensors.total 判参数量；论文数字必须在 README/模型卡逐字找到，否则判未复现。适用于"精读这篇 arXiv 论文 / 给我这篇论文的中文技术总结 / 论文说的开源仓库真实存在吗 / 论文声称的数字能复现吗 / 核查论文说的模型有没有发布 / 论文的 star 数参数量帮我核一遍"。不适用：审上游仓库 docs 与内部需求缺口 → 用 `upstream-docs-refresh-audit`；向 GitHub 仓提 PR → 用 `github-pr-flow`。
-whenToUse: 给定 arXiv 链接要出中文精读总结，并独立核查论文声称的开源仓库/模型是否存在、数字是否一致时用。模型看不到本节。
+description: arXiv 论文精读 + 开源声称独立核查（实测 2606.13392v2）——web_fetch 抓 /html 会在正文中段被 (Content truncated.) 截断，改用 pwsh Invoke-WebRequest -UseBasicParsing 抓全文落盘再分块 read；核查用 abs 页判存在性、GitHub REST API 判仓（不抓网页，JS 渲染只剩导航栏）、HF models API 的 safetensors.total 判参数量；论文数字必须在 README/模型卡逐字找到，否则判未复现。适用于"精读这篇 arXiv 论文 / 给我这篇论文的中文技术总结 / 论文说的开源仓库真实存在吗 / 论文声称的数字能复现吗 / 核查论文说的模型有没有发布 / 论文的 star 数参数量帮我核一遍"。不适用：审上游仓库 docs 与内部需求缺口 → 用 `upstream-docs-refresh-audit`；向 GitHub 仓提 PR → 用 `github-pr-flow`
+whenToUse: 给定 arXiv 链接要出中文精读总结，并独立核查论文声称的开源仓库/模型是否存在、数字是否一致时用。
+disable-model-invocation: true
+warm-triggers: 精读 arXiv 论文 / 核查开源声称能否复现
+warm-reason: 一次性调研方法论，低频
 ---
 
 # arXiv 论文精读与开源声称核查
@@ -104,8 +107,9 @@ curl -s https://arxiv.org/abs/<id>   # 判论文真实存在、版本、作者�
 - 现象：`web_fetch` 返回正文里出现 `(Content truncated.)`，中段内容整块丢失且不报错。
   → 原因：web_fetch 有输出长度上限。
   → 修法：改走步骤 1 的落盘 + 分块 `read`，不要试图用 web_fetch 拼多次请求。
-- 现象：查 HF 某仓回 `401`，被当成"鉴权失败"就停了。
-  → 原因与修法：`401` 的具体语义、裸名 401 要回列表按前缀核 —— **单一归属在 `ai-vendor-official-source-audit`**（见其 HF 一节），本 skill 不重复；这里只需记住**查不到就写"未能确认"，不要编**。
+- 现象：`curl -s https://huggingface.co/api/models/<org>/msa` 返回 `HTTP 401 {"error":"Invalid username or password."}`
+  → 原因：HF kernels 仓不在 models API 路径下，401 是"路径不存在"的伪装，不是真的鉴权失败。
+  → 修法：改用列表普查 `https://huggingface.co/api/models?author=<org>`；查不到就写**"未能确认"**，不要编。
 - 现象：抓 GitHub 网页只拿到导航栏、"Sign in"等样板，看不到 README 正文。
   → 原因：GitHub 页面是 JS 渲染。
   → 修法：一律走 `api.github.com` + `raw.githubusercontent.com`（步骤 4）。

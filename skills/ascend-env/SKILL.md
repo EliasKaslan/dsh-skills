@@ -1,7 +1,7 @@
 ---
 name: ascend-env
-description: 昇腾 NPU 服务器环境搭建入口总纲（a3=192.168.13.188 默认 / a3b=.190 备用）——**先并行再串行**的 4 lane 编排（CANN 包下载 ∥ conda 建环境 ∥ torch 栈 whl 预下载 ∥ 两仓 clone，barrier 后串行安装），含子代理写盘边界、机器怎么进、三层验收、从 Windows 驱动远端（scp 优先通道，内联引号会静默零命中）的硬规则；具体步骤一律在子 skill。适用于"在昇腾机器上装环境 / 怎么并行搭环境省时间 / 下载和编译能不能同时跑 / 什么能并行什么必须串行 / 要不要派子代理去下载 / 不知道该先做哪一步 / 从零搭一套能跑 vllm 的环境 / 机器进不去或 ssh 假死"。不适用：目录与磁盘、模型在哪 → 用 `ascend-server-layout`；装 CANN → 用 `ascend-cann-env`；conda 与 python → 用 `ascend-conda-env`；跑推理 → 用 `ascend-vllm-serve`。
-whenToUse: 昇腾环境从零搭建的编排入口——「哪些步骤能并行 / 先并行后串行的 lane 怎么划 / 子代理边界 / 该按什么顺序调哪个子 skill」看这里；具体步骤在子 skill。模型看不到本节。
+description: 昇腾环境入口总纲：进机器 → 目录/CANN/conda/torch/triton/vllm 的顺序与三层验收。适用于"在昇腾上装环境 / 不知先做哪步 / 该用哪个子 skill / 机器进不去或 ssh 假死"。
+whenToUse: 任务涉及 192.168.13.188/.190 上的昇腾环境搭建、升级或排障，或需要决定"该用哪个子 skill"时，先加载本总纲，再由它指向具体子 skill。
 ---
 
 # 昇腾 NPU 环境总纲
@@ -11,7 +11,7 @@ whenToUse: 昇腾环境从零搭建的编排入口——「哪些步骤能并行
 ## 何时调用
 
 **加载本 skill 当：**
-- 要在 `a3`（`.188`）/ `a3b`（`.190`）/ `a5`（`177.8.21.1`）上从零搭昇腾环境，或不知道先做哪一步、该用哪个子 skill。**三台的当前状态、规格、凭据与 VPN 准入唯一出处 = `ascend-server-access` §0**（2026-11-03 复核：三台都可用；`.188` / `.190` 走蓝区网关，`.190` 是新重装的 openEuler 22.03，A5 走 A5 VPN）；动手前先看那里，别照抄旧状态。
+- 要在 `a3` / `a3b` 上从零搭昇腾环境，或不知道先做哪一步、该用哪个子 skill。
 - 要按顺序调度：服务器目录 → CANN → conda → torch_npu → triton-ascend → vllm 安装 → 起服务。
 - 需要全局三层验收（`npu-smi` / `torch.npu.is_available()` / `NPUPlatform`），或要 `ssh` 从 Windows 驱动远端（避免 PowerShell 引号、heredoc 导致的静默失败）。
 
@@ -25,46 +25,20 @@ whenToUse: 昇腾环境从零搭建的编排入口——「哪些步骤能并行
 
 ## 1. 机器与访问
 
-> ★ **状态列是时刻值，每次都现场复核**：机器会下线、会重装、负载会变。**照抄状态行去做事**是本 skill 最容易被坑的地方。
-
-| 代称 | 地址 | 角色 | 一句话状态（2026-11-03 复核） |
+| 机器 | ssh 别名 | 主机名 / 系统 | 角色 |
 |---|---|---|---|
-| `a3` | `root@192.168.13.188` | 默认（A3） | 可用，免密 + 密码都通（**OpenSSH 偶发 KEX 超时，改用 paramiko**）；多租户重载机 |
-| `a3b` | `root@192.168.13.190` | 备用（A3） | 可用；**2026-11-03 重装为 openEuler 22.03**，**免密 + 密码都通**；CANN 9.2.1 在 `/home/cann/921` |
-| `a5` | `root@177.8.21.1` | A5 | 可用；**必须先连 A5 VPN**，**免密 + 密码都通**；openEuler 24.03 aarch64 |
-
-> **详细的系统 / 核数 / 内存 / NPU / 磁盘 / CANN 版本、root 密码、该连哪个 VPN、连通性三测 → `ascend-server-access` §0（唯一出处）。** 本文件不再维护第二份状态表；连上后的环境步骤仍在本套 `ascend-*` 子 skill。
+| `root@192.168.13.188` | **`a3`** | `node-zj-110-132` / Debian 10，256 核 | **默认**（load ~20，稳定，16 die A3） |
+| `root@192.168.13.190` | `a3b` | `localhost.localdomain` / **openEuler 22.03 LTS-SP4**，64 核 | 备用（**2026-11-09 复核：机器已重装，系统由 Debian 11 换成 openEuler，root 口令改为 `Dauto1!2@`，公钥已重配，实测可达、load ~25、8 NPU / 16 die**；旧镜像上的 ssh 假死见下方注） |
 
 ```bash
-ssh -n -o BatchMode=yes root@192.168.13.188 "hostname; npu-smi info | head -12"   # 免密已配好（2026-11-03；高负载时 OpenSSH 会卡 KEX，改用 paramiko）
+ssh -n -o BatchMode=yes a3 "hostname; npu-smi info | head -12"     # 免密已配好，直接用
 ```
 
-- **本机没有 `a3` / `a3b` / `a5` ssh 别名**：2026-10-08 实测 `ssh a3` → `Could not resolve hostname a3`；2026-11-03 复核 `~/.ssh/config` **仍只有两段** `Host 192.168.13.188` / `Host 192.168.13.190`（没有 `a5`，也没有 `177.8.21.1`）。**`a3`/`a3b`/`a5` 只是文档代称，命令里一律写 IP**；子 skill 正文里若出现 `ssh a3`，按「.188 默认 / .190 备用 / 177.8.21.1 = A5」换算成 IP（同见 `ascend-vllm-serve` 的前置检查）。
-- 密码 fallback：`ascend-server-access/credentials.txt`（**唯一出处**；2026-11-03 复核：`.188` 密码仍有效、`.190` 新密码有效、A5 密码有效）。**「机器可达」≠「免密有效」，两件事分开测**：先 `ssh -o BatchMode=yes`，失败且报 `Permission denied (publickey,password)` 就用密码登进去（paramiko 5.0.0 最稳）；**三台 2026-11-03 都已配免密**：`.190` / A5 的 `ssh -o BatchMode=yes` 直接通；`.188` 的 key 用 paramiko 稳定，OpenSSH 会因 load≈470 卡在 KEX（见 §5），重试或改 paramiko。密码留作 fallback。**新机器登录成功后先按 `ascend-server-access` §0.1 配免密再干活**（用户 2026-11-03 要求）。`.188` 实测 `PermitRootLogin yes` + `PasswordAuthentication yes`，密码通道可用。
-- **`.190` 已恢复，且是 2026-11-03 重装的新机**：旧记录（load ~90 导致 sshd 饿死、Debian 11、主机名 `zj-131`）只作历史；当前是 openEuler 22.03 LTS-SP4、主机名 `localhost.localdomain`、16 个 `Ascend910` die、CANN 9.2.1 在 `/home/cann/921`。**重装后 SSH host key 也换了**：`ssh` 报 `REMOTE HOST IDENTIFICATION HAS CHANGED!` / `Host key verification failed.` 时先 `ssh-keygen -R 192.168.13.190` 再连（不是中间人）。旧的 `.190` 目录、gcc 10.2、免密记录一律作废，按 `ascend-server-access` §0 走。
-- **`.188` 另有一条与本机无关的组网**：机器上跑着 `tailscaled`（节点名 `npu-server` / `100.106.254.81`，tailnet 里另有一个 `skhalid-local` 100.85.1.19）。**本机没有 tailscale 客户端**（2026-10-22 实测 `Get-Command tailscale` 为空），所以 `100.x` 那条路走不通——`npu-smi`/`ss -ltnp` 里看到 `100.106.254.81:*` 的监听属正常，**别拿它当备用登录地址**。
-- **`.188` 每条 ssh 都会在 stderr 打一行** `/root/.bashrc: line 36: /usr/local/Ascend/ascend-toolkit/set_env.sh: No such file or directory`。这**不是偶发噪声，是真实断链**：2026-10-22 复核 `/usr/local/Ascend/ascend-toolkit` 是一个**空目录**（既没有 `set_env.sh`，也没有 `latest` 软链；2026-09-23 复查时 `readlink -f .../latest` 还返回空、旧软链曾指向不存在的 `/usr/local/Ascend/cann-9.1.0/cann`）。
-  - 影响范围**仅限「默认路径」**：`.188` 真正在用的 CANN 9.1.0 在 `/mnt/share/x00886548/cann/cann_9_1_0`（`env_batch_inv.sh` 就是 source 它，2026-10-22 复核仍能起 `True/16`），只要显式 source 就不受影响；`/usr/local/Ascend/cann-9.0.0/set_env.sh` 是另一套确实可用的旧安装。
-  - **别依赖 `/usr/local/Ascend/ascend-toolkit`**（空壳目录）。修法与判据见 `ascend-cann-env`。
-
-### 1.1 接一台没见过的机器（新机 / 长期没上的机器，照这个检查单跑）
-
-**三层分开测，结论分开写**——把这三件事混成一句「连不上」是本轮最大的时间浪费点：
-
-```powershell
-# ① 可达性（ICMP）——只说明网络层；ping 不通也可能是被墙，不代表机器死了
-Test-Connection -ComputerName 177.8.21.1 -Count 2 -Quiet
-# ② 端口（TCP）——用短超时 TcpClient，**别用 Test-NetConnection**：它对不通的地址会挂几分钟
-$c=New-Object Net.Sockets.TcpClient; $t=$c.BeginConnect('177.8.21.1',22,$null,$null); $t.AsyncWaitHandle.WaitOne(4000,$false)
-# ③ 认证（ssh）——只有这一层失败才轮到查 key / 密码 / PasswordAuthentication
-ssh -v -o ConnectTimeout=10 root@177.8.21.1 hostname
-```
-
-- **探测顺序**：`ping` → 常用端口（22/2222/2022/10022/8022，必要时再 20000+/30000+/40000+/50000+ 各取一小段）→ `traceroute`。**2026-10-22 在没连 A5 VPN 时探 A5 就是这条路走完**：ICMP 全丢、端口全闭、`traceroute` 出公网到 `177.54.235.35` 后静默 ⇒ 当时只能写「路径不通 / 机器未就绪」；**后来连上 A5 VPN 立刻可达** ⇒ 探不通先问 VPN / 跳板，别急着判机器不存在。
-- **不要扫全端口段**：公网地址整段扫既慢又像在踩点；先问用户端口 / 跳板 / VPN，问不到就按「不可达」登记，**别用扫出来的东西推断机器规格**。
-- **「连不上」≠「不存在」**：可以写进交付物的只有「何时、从哪、用什么命令、观察到什么」；`主机名 / OS / 卡数 / 磁盘 / CANN` 一律标 `未采`，**禁止从 A3/A5 这类代号反推型号**。
-- **接上后的第一件写操作就是配免密**（用户 2026-11-03 要求）：`python ..\ascend-server-access\scripts\install-pubkey.py <host>`——只追加、保留原 `authorized_keys`，配完用 `ssh -o BatchMode=yes` 复核；配好再采集/装环境。细节见 `ascend-server-access` §0.1。
-- 配完免密，**只读采集**一遍再动其它写操作：`hostname; nproc; free -g; npu-smi info; df -h; cat /etc/Ascend/ascend_cann_install.info`——采集脚本用法见 §5（`scp` + `md5sum` 闸门，别内联）。
+- 密码 fallback：本 skill 目录的 `credentials.txt`（正常情况下用不到；换机器 / 公钥被清时才用）。
+- **`.190` 的 ssh 假死（旧镜像现象，2026-11-09 重装后未复现）**：`ssh_dispatch_run_fatal: Connection to 192.168.13.190 port 22: Connection timed out`（卡在 `expecting SSH2_MSG_KEX_ECDH_REPLY`）是 load ~90 导致 sshd 排不上 CPU，**多数情况重试即可，不是宕机**（2026-09-22 实测同一分钟内先连败 6 次、随后连胜 4 次）。排查顺序：`ping` → TCP 22 → 读 sshd banner → 再 ssh。**但 2026-09-23 那次是连续 9 次全败（见上表），别把「重试就行」当成必然。**
+- **`.188` 每条 ssh 都会在 stderr 打一行** `/root/.bashrc: line 36: /usr/local/Ascend/ascend-toolkit/set_env.sh: No such file or directory`。这**不是偶发噪声，是真实断链**（2026-09-23 复验：`readlink -f /usr/local/Ascend/ascend-toolkit/latest` 返回空，`latest -> /usr/local/Ascend/cann-9.1.0/cann` 而该目录不存在）。
+  - 影响范围**仅限「默认路径」**：`.188` 真正在用的 CANN 9.1.0 在 `/home/x00886548/env/cann/cann_9_1_0`，只要显式 source 它就不受影响；`/usr/local/Ascend/cann-9.0.0/set_env.sh` 是另一套确实可用的旧安装。
+  - **别依赖 `/usr/local/Ascend/ascend-toolkit`**（它只是个兼容软链壳）。修法与判据见 `ascend-cann-env`。
 
 ## 2. 子 skill 索引（按搭建顺序；前一层不通不要做后一层）
 
@@ -79,104 +53,17 @@ ssh -v -o ConnectTimeout=10 root@177.8.21.1 hostname
 | 7 | `ascend-vllm-serve` | **起服务 / 离线推理 / 冒烟**、运行时坑、权重准备 |
 
 > 6 与 7 是「vllm / vllm-ascend」这一块的两半：6 管装得上，7 管跑得起来。
->
-> **注意：下面这张表是「职责索引」，不是执行顺序。** §3 的 4 条并行 lane 是**横切**这张表的：CANN 的下载、conda 的建环境、torch 栈的下载、两仓的 clone 都属于并行段，只有安装才按这张表的层级串行走。
 
-## 3. 执行编排：先并行、再串行（**本套件的默认执行方式**）
+## 3. 标准顺序（从零到能跑模型）
 
-**核心原则：把「下载 / 克隆 / 建环境」这类 IO 密集、彼此不写同一路径的动作全部提前并行做掉；只把有真实前后依赖的安装动作留在串行段。** 从零搭一套的墙钟 ≈ `max(各并行 lane) + 串行段`，而不是各步骤之和。**别一条一条顺着 §3.4 跑。**
+1. **进机器、看目录与磁盘** → `ascend-server-layout`（先知道模型在哪、能往哪写）
+2. **CANN 就绪**（`source <path>/cann/set_env.sh` + `nnal/atb/set_env.sh`）→ `ascend-cann-env`
+3. **conda 环境就绪** → `ascend-conda-env`
+4. **torch 栈就绪**（torch → torch_npu → triton-ascend，顺序不能换）→ `ascend-torch-npu`、`ascend-triton-ascend`
+5. **vllm + vllm-ascend 就绪** → `vllm-ascend-source-install`
+6. **起服务 / 冒烟** → `ascend-vllm-serve`
 
-### 3.1 依赖图与 4 条并行 lane
-
-> **证据边界（别把下面当结论用）**：2026-10-08 在 `.188` 实测的是**各条命令用到的原语**——三个 `curl` 并发 HEAD 都返回 200、curl 7.64 不支持 `--parallel`/`-Z`、raw.githubusercontent 上的 verified commit 可直读、`pip download` + `pip install --no-index --find-links` 往返、`.188` 现成 wheelhouse 解释器可用。**整条链的端到端往返没有跑过**：离线装只验过 `six` 这类纯 py wheel，torch 全家未试；同一 `$WH` 上的并发写、跨 python 版本下载开关、车道 A 的 pip 序列，均在各子 skill 里逐条标了「未验证」。**照做前先按各子 skill 的未验证项决定要不要加冗余。**
-
-```
-P0 现场取数（免密 / df -h / npu-smi）                ← 必做，不占并行额度
- │
- ├─ P1 CANN 三个 .run 并发下载 ───────┐
- ├─ P2 conda 建环境 ─────────────────┤
- ├─ P3 torch 栈 whl 预下载 ──────────┤  4 条 lane 同时发
- └─ P4 vllm / vllm-ascend 两仓 clone ┘
-                                     │ barrier：4 条全绿
-                                     ▼
- S1 CANN 安装：toolkit → source → nnal → ops → import acl
- S2 torch → torch_npu → triton-ascend（从本地 wheelhouse 离线装）
- S3 vllm → vllm-ascend（源码装 + 编 AscendC 算子）
- S4 三层验收（§4）→ `ascend-vllm-serve`
-```
-
-| lane | 干什么 | 落点（写白名单） | 为什么能并行 | 细节在哪 |
-|---|---|---|---|---|
-| **P1** | CANN toolkit / nnal / A3-ops 三个 `.run` 并发下载（≈4.2G，整条流程最大的墙钟项） | `<PKGS>` | 纯网络 IO，三个文件互不相干 | `ascend-cann-env` 坑 11 |
-| **P2** | `conda create -p <ENVP> python=3.12` | `<ENVP>` **+ `$ROOT/conda_pkgs`**（`conda create` 必然写包缓存，见下） | 对 CANN / 网络 / 两仓零依赖 | `ascend-conda-env` 步骤 4 |
-| **P3** | torch+torchvision+torchaudio+torch_npu（**一条命令**）/ triton-ascend 的 whl **预下载到本地 wheelhouse**（**1+1 两组，同一个 `<WH>`**） | `<WH>` | `pip download` 只是下载，**不需要目标 env 存在**——用任意**同 python 版本**的解释器即可（`.188` 现成的 `xmz_0921` 就是 py3.12.14） | `ascend-torch-npu` 步骤 3（torch 栈 + torch_npu）+ `ascend-triton-ascend` 步骤 ⓪（triton-ascend） |
-| **P4** | `vllm` 与 `vllm-ascend` 两仓 clone + 切 tag/commit | `<SRC>` | 两仓互不写同一目录；配对 commit 用 **raw.githubusercontent 免 clone 拿**（实测 200），所以是真并行 | `vllm-ascend-source-install` §1 |
-
-**落点建议（全在 `/home/vllm` 大盘；`/` 上只放小脚本，见 §6）**：
-
-```bash
-ROOT=/home/vllm/x00886548/envbuild        # ← 换成你自己的目录（**别写 `<...>` 占位符，bash 会当重定向报语法错**）
-PKGS=$ROOT/pkgs          # P1
-ENVP=$ROOT/envs/vllm312  # P2
-CPKGS=$ROOT/conda_pkgs   # P2 的包缓存：必须显式改道，否则 conda 会写共享 pkgs_dirs（系统盘）
-WH=$ROOT/wheelhouse      # P3
-SRC=$ROOT/src            # P4
-mkdir -p "$WH"
-echo 'torch==2.12.0+cpu' > "$WH/constraints.txt"   # ★ P3 的唯一写者（车道 A 写 2.10.0+cpu）
-```
-
-- **`constraints.txt` 只在这里写、两个下载组都只读**：它把 torch 的候选集钉成带 local label 的 `+cpu` 版本（PEP 440 语义已实测：`==2.12.0+cpu` 不匹配 PyPI 上的 `2.12.0`、匹配 `2.12.0+cpu`；而 torch_npu 要求的 `==2.12.0` 匹配 `2.12.0+cpu`）。若两组各自 `echo >` 写同一个文件，极端时序下 `pip` 可能读到被截断的空文件 → **约束静默失效**（详见 `ascend-torch-npu` 步骤 3）。
-
-- **P3 的下载解释器必须与目标 env 同 python 版本**，否则 wheel tag 不匹配、离线装不上（目标 py3.12 就用 `xmz_0921`）。要跨版本下载得加 `--python-version/--abi/--platform/--only-binary=:all:`（**未验证**：只用 `six` 这类纯 py wheel 验过这些开关被接受，没验过 torch 全家）。
-- **P2 必须连包缓存一起改道**：共享 `.condarc` 里 `pkgs_dirs` 指向 `/mnt/share/vllm/conda_pkgs`（在系统盘上）。`conda create -p` **只改环境落点、不改包缓存落点**，所以 lane 脚本里要显式 `export CONDA_PKGS_DIRS=$CPKGS`——否则「白名单只给自己那一格」在物理上不成立（详见 `ascend-conda-env` 步骤 4）。
-- **并行只到 lane 这一层**：共享机（2026-10-08 实测 256 核 / load ~277）上再往 lane 里 fan-out 只会互相拖慢。
-
-### 3.2 barrier 与串行段（为什么这几步不能并行）
-
-- **barrier 只有一条**：4 条 lane 全部落地后才进串行段。**判完没完看产物，不看进程**（`ps` 里有 pid ≠ 下载成功）。
-- **S1 必须串行**：nnal / ops 要求**同路径 toolkit 已装且已 `source`**（不 source 就装 nnal 直接 exit 4）→ toolkit → nnal → ops 顺序不可换。
-- **S2 必须串行**：`torch_npu` 对 torch 是**精确等值依赖**；`triton-ascend` 会**覆盖** triton 并锁 numpy → 三者顺序不可换。预下载只省"下载慢"，**不改变安装顺序**。
-- **S3 必须串行**：vllm-ascend 要求 vllm 已在环境里，且 `--no-build-isolation` 下要过 vllm-ascend 的 build 依赖校验。
-- **串行段里不要再夹下载**：S2 的安装**推荐** `--no-index --find-links <WH>`，把网络整段从串行路径上摘掉。实测 `--no-index` 下 wheelhouse 里没有的包必然 `No matching distribution found` → 能证明它真断网、不会偷偷回源；**但整条 torch 栈的"下载→离线装"往返只在 `six` 这类纯 py wheel 上验过**（见 `ascend-torch-npu` 步骤 3 的未验证项），所以轮询到缺包时按那里写的在线回退走，别硬扛。
-
-### 3.3 用子代理跑这 4 条 lane（**建议，但边界写死**）
-
-4 条 lane 各派一个子代理，**主 Agent 保留 barrier 与整个串行段的控制权**。委派 prompt 里必须写进去的边界：
-
-- **只做本 lane 的下载 / clone / 建目录**。**禁止**：`pip install`、`conda activate`、`source set_env.sh`、改 `/etc`、改 `PATH`、`rm -rf` 任何非本 lane 目录、杀进程、装系统包。
-- **写盘白名单只给自己那一格**（§3.1 表「落点」列）。要写白名单外的路径 → **停下回报，不要自己扩权**。
-- 回报只要「产物路径 + 体积 + 校验值 + 日志末 10 行」，**不要回贴整段日志**（省主 Agent 上下文）。
-- **没有子代理工具就自己后台化**（脚本名照 §3.1 的 lane 命名，**别写 `<lane>.sh` 这种占位符**——bash 会把 `<` `>` 当重定向，`bash` 转头去读一个叫 `lane` 的文件并 truncate 掉 `.sh`/`.log`）：
-  ```bash
-  setsid nohup bash $ROOT/lane_p1_cann.sh > $ROOT/lane_p1.log 2>&1 < /dev/null &
-  echo $! >> $ROOT/lane_pids        # 记下 pid 到文件，清理只认这份记录（见 `orchestrating-subagents` §7）
-  ```
-- 长任务下发方式见 §5（**base64 通道**，别用管道直推脚本正文）。
-
-> **子代理供给**：下发前在 prompt 里点名让它 `skill` 加载本任务所需的 skill——按该 lane 取：CANN 下载 → `ascend-cann-env`；conda 建环境 → `ascend-conda-env`；torch 栈 whl 预下载 → `ascend-torch-npu`；clone 无 skill；四条 lane 一律再加 `ascend-server-layout` 作写盘白名单；加载不到（工具受限的子代理）就把 `C:\Users\admin\.dsh\skills\<name>\SKILL.md` 路径给它 `read`。机制与判据见 `orchestrating-subagents` §3.1。
-> 并发成员 ≥2 或子任务 ≥3 时，按 `orchestrating-subagents` §9.1 在本轮 cwd 落 `.dsh-run\<日期>-ledger.md` 台账，收尾清空。
-
-**lane 完成判据（看产物）**：
-
-```bash
-ls -l $PKGS/*.run                                     # P1：三个 .run 体积对上，两个 md5 对已记录值
-$ENVP/bin/python -V                                   # P2：env 能跑
-ls $WH | grep -E '^(torch|torch_npu|torchvision|torchaudio|triton|triton_ascend)-'   # P3：目标 whl 名齐全
-git -C $SRC/vllm-ascend log --oneline -1; git -C $SRC/vllm log --oneline -1          # P4：HEAD 是目标 commit
-```
-
-### 3.4 串行顺序（与并行段衔接；前一层不通不要做后一层）
-
-1. **P0：进机器、看目录与磁盘** → `ascend-server-layout`（先知道模型在哪、能往哪写）
-2. **CANN** → `ascend-cann-env`（**下载属 P1，安装属 S1**）
-3. **conda 环境** → `ascend-conda-env`（**属 P2**）
-4. **torch 栈**（torch → torch_npu → triton-ascend，顺序不能换）→ `ascend-torch-npu`、`ascend-triton-ascend`（**下载属 P3，安装属 S2**）
-5. **vllm + vllm-ascend** → `vllm-ascend-source-install`（**clone 属 P4，安装属 S3**）
-6. **起服务 / 冒烟** → `ascend-vllm-serve`（**属 S4**）
-
-**已有环境优先复用，别重建**：`.188` 上 `source /mnt/share/x00886548/workspace/batch_inv_qwen35/env_batch_inv.sh` 就能拿到一套已验证的 vllm + vllm-ascend（清单见 `ascend-server-layout`）。
-
-**版本不要纠结**（用户 2026-10-08 定的纪律，细则见子 skill）：torch 栈版本**只参考 vllm-ascend 的 `requirements.txt`**（pin 被注释掉时，注释里保留着原文，直接读注释）；**vllm 的 requirements 不用参考**；装出来有依赖冲突**不用管**（`pip check` 噪音、numpy / fastapi 之类），只要 §4 三层验收过就算成。
+**已有环境优先复用，别重建**：`.188` 上 `source /home/x00886548/work/batch_inv_qwen35/env_batch_inv.sh` 就能拿到一套已验证的 vllm + vllm-ascend（清单见 `ascend-server-layout`）。
 
 ## 4. 全局三层验收（逐层来，别一上来就跑模型）
 
@@ -188,94 +75,36 @@ python3 -c "from vllm.platforms import current_platform as p; print(type(p).__na
 
 - ② 的 `253` = A3（soc version），`16` = 16 die。
 - 每层的完整判据、期望值、常见报错见对应子 skill。**②不过就别做 ③**。
-- **三层验收要在最后一步安装之前先跑一次并落盘（before 基线），否则"通过"无法与"本来就对"区分**；配套的 `env -i` 承载 shell 对照法见 `orchestrating-subagents` §9.10。
-- **完成标记不是证据**（2026-10-08 实测两起）：lane 脚本会打印 `LANE_Px_DONE` / `S4_DONE` 之类标记，**失败也照样打印**。判完成只看**产物**——文件是否存在/大小/条数、日志里有没有 `rc=` 行、验收命令是不是真被执行过。实测两次踩中：P4 的 clone **失败**却仍打印了 DONE；S3 被打断后**标记照打**。
-- **shell 退出码也不可靠时要看产物**：该机器**每次 ssh 都会因 `/root/.bashrc` 里那行失效的 `set_env.sh` 而以 exit 1 结束**（§1），所以 `exit=1` 既可能是真失败、也可能只是这行噪声。判据回到产物本身，不要只看退出码。
-  - **`.188` 上 `ssh` 的退出码一律不可作为成功判据**（2026-10-09 实测）：`ssh -n root@192.168.13.188 "echo hi"` 命令本身成功、输出 `hi`，紧接着 `echo $?` 却是 **`1`**——真因就是 `/root/.bashrc: line 36` 那行失效 `set_env.sh`；**非零退出码与命令本身是否成功无关**。判成功只能靠**产物**（落盘文件 / 目录 / 明确写出的标记行）。确实要机判时，让**远端命令自己把结果写进文件**（把 `$?` 或结果 echo 进 `$ROOT/log/...`），再从本机读那个文件——**不要从 ssh 的退出码判**。
-  - **同族注意：不要用跨机时间戳排序事件**（2026-10-09 实测）：**远端时钟比本机慢约 6 分钟**，本机的 17:33 与远端的 17:27 可能是同一瞬间；跨机对时间只认**产物内容 + 你本机读它的时刻**。
 
 ## 5. 从 Windows 驱动远端（所有子 skill 共用；违反会**静默失败**）
 
-- **内联 ssh 命令里禁用 `<`、`"`、`$()`**：PowerShell 会解析错误或吃掉内层引号（实测 `grep -E "a|b"` 的引号被剥掉，远端把 `|b` 当成了管道）。**2026-10-08 补机制（本轮复发 6 次，两次据此误判"进程已经死了"）**：本机是 Windows PowerShell 5.1，它会把**单引号内的双引号重新转义成 `\"`** 再交给原生程序，远端 bash 收到的是**字面引号** ⇒ `grep`/`pgrep`/`awk` 的模式**静默零匹配**（看着像"什么都没找到"，其实压根没匹配上），语法错误还会被 `2>$null` 一起吞掉。逐字症状：`bash: -c: line 0: syntax error near unexpected token '('`。**修法**：内联 ssh 只做**无引号的简单命令**（`cat <path>`、`bash /tmp/x.sh`）；凡需要模式匹配或含变量者，一律**落脚本文件再推**（**首选 `scp`**，见下）。**2026-10-10 追加两条逐字实测**：`pgrep -af "pip|bisheng"` → 远端报 **`bash: bisheng: command not found`**；`python -c "...sys.argv[1]..."` → 远端报 **`bash: -c: line 0: syntax error near unexpected token 'sys.argv[1]'`**。**危险点在于"零命中"看起来就像"没找到"**——它与"确实不存在"在当次输出里**无法区分**（再被 `2>$null` 一吞更看不出）⇒ 别拿它下"没有这个进程 / 没有这条记录"的结论。同理，为避引号而省略引号会让模式**静默降级**：`grep -n installed successfully <log>` 报 **`grep: successfully: No such file or directory`**，实际只按 `installed` 匹配 ⇒ **多词模式必须写进 `.sh`**。
-- 复杂命令一律**本地写 .sh/.py → 用 base64 管道送过去**（2026-10-08 实测改，**取代原来的 `tail -c +4` 直推写法**）：
+- **内联 ssh 命令里禁用 `<`、`"`、`$()`**：PowerShell 会解析错误或吃掉内层引号（实测 `grep -E "a|b"` 的引号被剥掉，远端把 `|b` 当成了管道）。
+- 复杂命令一律**本地写 .sh/.py → 管道传过去**：
 
   ```powershell
-  $f = ".\x.sh"
-  # 必须读**原始字节**：Get-Content -Raw 在 PS 5.1 会按 GBK 解码，含中文的 .sh/.py 会被静默改坏
-  $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($f))
-  ssh root@192.168.13.188 "printf '%s' '$b64' | base64 -d > /tmp/x.sh"
-  ssh -n root@192.168.13.188 "md5sum /tmp/x.sh"    # 与本机 (Get-FileHash -Algorithm MD5 $f).Hash 逐字比对
-  ssh -n root@192.168.13.188 "bash /tmp/x.sh"
+  (Get-Content -Raw .\x.sh) -replace "`r`n","`n" | ssh a3 "tr -d '\r' | tail -c +4 > /tmp/x.sh"
+  ssh -n a3 "bash /tmp/x.sh"
   ```
 
-  - **判据只有一条：`md5sum` 与本地 md5 相同才算推送成功**。md5 不一致时**不要**接着跑——远端那份已经坏了。这条能同时兜住 GBK 改坏、CRLF、截断三种坏法。
-
-- ★ **通道优先级（2026-10-10 实测改）：首选 `scp`，base64 是退路。** `scp` 是**干净通道**——它不经 PowerShell 的引号重写、逐字节搬运：本轮把一段含 **2 个单引号 + 30 个双引号、1391 B** 的 `.sh` 用 `scp` 推送后，远端 `md5sum` 与本地**逐字相符**（byte-exact），**完全绕开下面那条"内联 ssh 引号被重写"的坑** ⇒ 能 `scp` 就别内联。
-
-  ```powershell
-  scp ".\x.sh" root@192.168.13.188:/tmp/x.sh
-  ssh -n root@192.168.13.188 "md5sum /tmp/x.sh"   # 必须等于本机 (Get-FileHash -Algorithm MD5 .\x.sh).Hash
-  ```
-
-  **判据与 base64 通道同一条：`md5sum` 逐字相符才继续**。`scp` 的唯一注意点仍是**本地文件自己带 BOM 会被一起搬过去**（见本节 BOM 那条）。
-  - **`scp` 会偶发 `Connection closed`（2026-10-22 实测 1 次）**：症状是 `scp.exe: Connection closed`、`Get-FileHash` 与远端 `md5sum` 都对不上（远端根本没这个文件，或只写了半截）。**先原样重试一次**（本轮第 2 次即成功、md5 相符），不要立刻去怀疑路径/权限/防火墙；**判"推送成功"只认远端 `md5sum`**，`scp` 自己没报错也不代表到位。
-  - 采规格这类**多段只读脚本**（本轮 5 个）用同一条通道跑通，写法：本地 `[IO.File]::WriteAllText($p,$body,[Text.UTF8Encoding]::new($false))` 落盘 → `scp` → 比 md5 → `ssh -n ... "bash /tmp/x.sh 2>/dev/null"`（远端把 stderr 关掉，专门用来甩掉 `.188` 那条 bashrc 噪声，别用本机 `2>$null`）。
-  - **`Get-Content -Raw` 会让"base64 通道"也坏**（2026-10-08 实测）：`Get-Content -Raw` → **GBK 解码** → `UTF8.GetBytes` 重编码，纯 ASCII 脚本侥幸无损，**含中文的脚本会被改坏**——实测 `scripts/strip_torch_pins.py`（中文 docstring）推过去后 `python` 报 `SyntaxError: invalid non-printable character U+E15E`（`閲屽舰濡` 这类 GBK 乱码），且**字节数从 7343 变成 7819**。改用 `[IO.File]::ReadAllBytes` 后 md5 与本地完全一致、`ast.parse` 通过。**凡是 `.py`（docstring/注释多是中文）一律用 ReadAllBytes**。
-
-  - **base64 通道实测逐字无损、且不带 BOM**：含中文 + `%{http_code}` 的脚本往返后远端执行结果与本地一致（`确认 磁盘落点 并行` 原样保留、`%{size_download}` 正常展开）。
-  - **但 base64 会把体积放大 4/3、且整串要塞进 ssh 的命令行**：本机实测过"命令行走长即溢出/截断"（见 `pwsh-on-windows`）。**脚本超过约 20KB 就不要内联**——改用 `scp`（注意本机 `Set-Content -Encoding UTF8` 会带 BOM，要用 `[System.IO.File]::WriteAllText($p,$s,[Text.UTF8Encoding]::new($false))`），或把 base64 按 ~6000 字符分块 append 再校验 `md5sum`。
-  - **不要再无脑加 `tail -c +4`**：本机 `$OutputEncoding` 实测是**无 BOM 的 UTF-8**（`GetPreamble().Length` = 0），管道给 ssh **不注入 BOM** → `tail -c +4` 会**吃掉脚本前 3 个字符**（实测把 `#!/bin/bash` 削成 `bin/bash`；因为接着显式 `bash /tmp/x.sh` 才没报错，改成 `./x.sh` 直接坏）。只有当 `$OutputEncoding` 被显式设成带 BOM 的 `[Text.Encoding]::UTF8` 时才会多出 BOM，那时才需要剥 3 字节——**先探再决定**：
-  - **另一条独立的风险线：源文件自己带 BOM**（2026-10-09 实测）——base64 会把源字节**原样**带过去，**base64 之前要先剥掉 UTF-8 BOM**（首 3 字节 `EF BB BF`），否则远端解出来的脚本首行带 BOM：`bash /tmp/x.sh` 报 `bash: /tmp/x.sh: line 1: ﻿#!/bin/bash: No such file or directory`。**修法**：编码前先看首 3 字节（`[IO.File]::ReadAllBytes($f)[0..2]` 是否为 `239 187 191`），是就先剥；**通道不会替你去掉它**。
-
-    ```powershell
-    "PROBE" | ssh root@192.168.13.188 "od -An -c | head -1"   # 首字节出现 357 273 277（EF BB BF）= 有 BOM
-    ```
-  - **多行 + 中文的脚本经 PowerShell 管道直推正文会静默损坏**（2026-10-08 实测：同一份脚本直推后远端**丢行**，且 `确认` 变成私用区字符 `U+E1BF U+E17B`，bash 照跑不报错）→ **不要写 `(Get-Content -Raw …) | ssh … "… > /tmp/x.sh"`**，一律走上面的 base64。
-  - `scp` **已升级为首选通道（见上）**，**但注意本地文件的 BOM**：PS 5.1 `Set-Content -Encoding UTF8` 会写 BOM，scp 会把 BOM 一起带过去 → 远端报 `bash: /tmp/x.sh: line 1: ﻿#!/bin/bash: No such file or directory`。要么用 `[System.IO.File]::WriteAllText($p,$s,[Text.UTF8Encoding]::new($false))` 落本地文件，要么干脆 base64。
-- ★ **sshd 被饿死时，唯一稳的通道是「一条 paramiko 长连接跑完所有命令」（2026-10-22 实测，`.188` load ≈ 290）**：失败发生在**连接建立阶段**，不是命令本身——
-  ```text
-  ssh: connect to host 192.168.13.188 port 22: Connection timed out
-  banner exchange: Connection timed out
-  ```
-  同批 `scp` 报 `Connection closed`、md5 对不上。根因是 `.188` 高负载把 sshd 饿到排不上 CPU（2026-10-22 load≈290；2026-11-03 又见 load≈470），但**逐条重试的失败率高到没法干活**：本轮单命令 `ssh`/`scp` 失败十几次，而**建一条连接跑完全部命令一次没断**。
-  - 做法：本机 `python`（paramiko **5.0.0** 已装）建一条 `Transport`，之后 `put / run / bg / tail / md5` 全复用它；连接失败就整体重连（重试 12 次）。
-  - **必须显式放大 `banner_timeout` 与 `auth_timeout`**（默认 15 s 不够）；**`paramiko.Transport` 没有 `settimeout` 方法**（写了报 `AttributeError`，看着像连通性问题），超时参数给 `SSHClient.connect(..., timeout=, banner_timeout=, auth_timeout=)`。
-  - 判据不变：**推送看远端 `md5sum`**、**执行看产物**（`.188` 的 ssh 退出码恒 1，见 §4）。
-  - 固化下来的五个动作足够覆盖全部远端活：`put`（带 md5 回比）、`run`（前台等结果）、`bg`（`setsid nohup … < /dev/null &`）、`tail`（轮询日志）、`md5`。
-- **heredoc 只在「脚本先落盘、再执行」时可用**。用上面 base64 落盘 + `ssh -n ... "bash /tmp/x.sh"` 的模式下，脚本内的 heredoc（`python - <<'PY'`）**完全正常**，本套件多个 skill 的示例都这么写。
-  **禁止的是把带 heredoc 的脚本直接经 ssh stdin 送进去**（`ssh root@192.168.13.188 "bash -s" < x.sh`、`cat x.sh | ssh root@192.168.13.188 bash`）：heredoc 会与脚本本身争抢 stdin，**永久挂起且不报错**。
-- **`ssh -n` 与「脚本走 stdin」互斥**：`-n` 只用于执行**远端已存在的文件**；任何 `$body | ssh … "… bash -s"` 的写法**绝不能加 `-n`**——stdin 被 `/dev/null` 占掉后脚本空跑且**不报错**，你只会看到输出为空（实测：`ssh -n … "od -An -c"` 读到的是空）。
-- 长任务：`ssh -n root@192.168.13.188 "setsid nohup bash /path/x.sh > /path/x.log 2>&1 < /dev/null &"`，然后轮询日志；别把长任务塞进一条会超时的 ssh。
+  **PowerShell 管道给 ssh 会自己注入 UTF-8 BOM**（不是源文件带的），所以这个 `tail -c +4` 基本是必需的（否则 bash 报 shebang 错）；推**含中文**的脚本还要先 `$OutputEncoding=[Text.Encoding]::UTF8`。
+- **heredoc 只在「脚本先落盘、再执行」时可用**。上面那种 `... | ssh a3 "tr -d '\r' | tail -c +4 > /tmp/x.sh"` + `ssh -n a3 "bash /tmp/x.sh"` 的模式下，脚本内的 heredoc（`python - <<'PY'`）**完全正常**，本套件多个 skill 的示例都这么写。
+  **禁止的是把带 heredoc 的脚本直接经 ssh stdin 送进去**（`ssh a3 "bash -s" < x.sh`、`cat x.sh | ssh a3 bash`）：heredoc 会与脚本本身争抢 stdin，**永久挂起且不报错**。
+- **`ssh -n` 与「脚本走 stdin」互斥**：`-n` 只用于执行**远端已存在的文件**；`$body | ssh a3 "tr -d '\r' | bash -s"` 这种写法**绝不能加 `-n`**——stdin 被 `/dev/null` 占掉后脚本空跑且**不报错**，你只会看到输出为空。
+- 长任务：`ssh -n a3 "setsid nohup bash /path/x.sh > /path/x.log 2>&1 < /dev/null &"`，然后轮询日志；别把长任务塞进一条会超时的 ssh。
 - 读远端中文文件/脚本一律显式 UTF-8（`[System.IO.File]::ReadAllText($p,[Text.Encoding]::UTF8)`）；PowerShell 5.1 默认按 GBK 解码，会把中文读成乱码。
 - 需要密码登录时用本机 `python` 的 **paramiko**（已装 5.0.0）非交互式登录，比找 sshpass 可靠。
 - **查「谁占着卡 / 谁占着文件」时，你自己的 ssh 包装进程必然自匹配**：`grep -l <pat> /proc/[0-9]*/cmdline` 这类命令的 cmdline 里就含整条命令串，于是 `bash -c ...` 包装进程会被自己命中，得出**假阳性**。必须再用 `ps -ef | grep -v grep` 与 `ls -l /proc/<pid>/fd/` 交叉复核才能判真占用（实测踩过：一度以为 `pid 140974` 是残留安装进程，实为自己那条 ssh）。
-- **base64 推送后要核对「最终目的地」的 md5，不是 `/tmp` 的**（2026-10-08 实测）：`printf '%s' '$b64' | base64 -d > /tmp/x.sh` 只保证 **`/tmp/x.sh`** 正确。若该脚本本该落在 `$ROOT/`（env 脚本就是这种），只核 `/tmp` 的 md5 会让你**误以为推送成功**——本轮实测 `source $ROOT/env_sv0230.sh` **静默失败**，导致整条 S3 在 **CANN 环境变量未设置**的情况下运行。纪律：写完必须 `md5sum <最终路径>`，与本地 `(Get-FileHash -Algorithm MD5 $f).Hash` 逐字比对。
-- **ssh 里永远不要丢弃 stderr（不要 `2>$null`）**：那会丢掉唯一能解释"进程为什么立刻退出"的 traceback——本轮正是它把 `libhccl.so` 的真因藏了起来。改为 `> x.log 2>&1` 落盘再 `grep`。
-- **`curl -o <目标文件>` 连接失败时「什么都不写」**（2026-10-09 实测）：`curl -s -o /tmp/x.txt <url>` 因连接失败**根本不创建** `/tmp/x.txt` ⇒ 紧跟的 `grep … < /tmp/x.txt`（或 `cat`）报 **`No such file or directory`**，**看起来像"数据里没有这个东西"，实际是"文件根本不存在"**（这就是"下游报错离根因很远"的机制）。
-  - **修法**：`curl` 取文件**必须配重试循环**（`for i in 1 2 3 …` + `curl -fsS -o …`，`-f` 让 HTTP 错误码也非零），**并在消费之前做格式校验**；实测有效写法是取 40 位 commit SHA 时**校验 `^[0-9a-f]{40}$`**，不匹配即失败——**`exit 1`，绝不让下游拿空文件继续跑**。
-  - **这条的价值在错误归因**：同一个「文件不存在」报错，可能是**网络失败**、也可能是**数据问题**，必须**在取数那一步就把二者分开**（`[ -s /tmp/x.txt ] || echo CURL_EMPTY >&2; exit 1`）。
-- **重启长任务前先确认旧实例真的死了**：`pgrep -af <name>` 期望输出 `(none)`。本轮出现过**两个同名长任务实例同时写同一个日志文件**，新实例启动时截断了旧文件，据此做出了错误判断（理由：脚本里某段 kill 落在输出被截断处、**实际未生效**）——旧实例还在跑，日志却已经被清空。
-- **`github.com:443` 在 `.188` 上实测不可达，但被封的只有它的 git 端点**（2026-10-10 实测）：`curl https://github.com` 超时（rc=28）、`git ls-remote https://github.com/...` rc=124、`gnutls` 报握手失败；而 **`api.github.com` / `raw.githubusercontent.com` / `codeload.github.com` 三个都可达**（REST API 与 raw 取文件照旧能用）⇒ 别据此判"整台机器连不上 GitHub"。**`git 2.20.1 + gnutls` 那串握手报错是"域名被封"的伪装——不要去动 `sslVerify`**（关掉校验也没用，是网络层不通）。
-  - **修法（git 取对象）**：走反代 clone `git clone https://ghfast.top/https://github.com/<owner>/<repo>.git`，然后 **`git remote set-url origin <规范 URL>` 把 origin 改回规范 URL**（否则后续 `git fetch` 会白等一轮超时）；再**留一个反代 remote 备用**（`git remote add ghproxy https://ghfast.top/https://github.com/<owner>/<repo>.git`），要拉更新时显式 `git fetch ghproxy`。
-- **用 `ssh … 2>&1 | Out-String` 取 base64 会把 stderr 噪声混进通道**（2026-10-09 实测）：本地 `[Convert]::FromBase64String(...)` 抛 `The input is not a valid Base-64 string as it contains a non-base 64 character, more than two padding characters, or an illegal character among the padding characters.`；且**本地文件不存在时 `-match ""` 会假报 MATCH**（空串恒匹配）。
-  - **修法三条**：① ssh 侧加 `2>$null`（只在这一处，取 base64 通道时；其它场合仍按上面那条"不要丢弃 stderr"）；② **先正则校验 base64**（`'^[A-Za-z0-9+/=\r\n]+$'`）再解码；③ **MD5 比对前先确认本地文件真的生成了**（`Test-Path` + 非零长度），否则比的是"两个都不存在"。
-- **PS 5.1 里 `ssh -n … "echo \$VAR"` 的 `\$` 不是转义**（2026-10-10 实测）：远端收到的是 `echo \`，**输出空行**，并报 `bash: -c: line 0: unexpected EOF while looking for matching '"'`。
-  - **修法**：**传给 ssh 的参数一律用单引号**（`ssh -n root@192.168.13.188 'echo $VAR'`），别指望 `\$`。
-  - **判断纪律：「输出空」不等于「变量为空」**——先怀疑引号/转义/`2>$null` 吃掉了报错，再怀疑远端真的没设这个变量（本轮据此误判过一次）。
-- **远端 / 共享文件可能正被并发写手改**（2026-10-10 实测：目标文件在 **25 分钟内被保存 4 次**，**23500 → 24842 B**）：要审计、复跑或再推送别人**可能还在编辑**的文件时，**先等它稳定 → 取快照 → 记快照 md5 → 只审计并只运行快照**，并用 md5 闸门**拦下中间态推送**；**不要覆盖或删除与自己版本不同的并发产物**，改用**新目录**锁存（本轮用 `/tmp/fv2_lock/`，md5 闸门拦下 2 次中间态推送）。完整配方见 `orchestrating-subagents` §9.17（单一归属，本节只留指针）。
 
 ## 6. 不要做什么
 
-- **不要按 §3.4 一条一条顺序跑**——那会把 P1~P4 四条本可并行的 lane 串起来，白等 4.2G 的下载与两仓 clone。**先发 lane，再等 barrier**。
-- **不要让两条 lane 写同一个 wheelhouse 的同一组包**：triton-ascend 的 whl 只在 `ascend-triton-ascend` 步骤 ⓪ 下，torch 三件套 / torch_npu 只在 `ascend-torch-npu` 步骤 3 下。
-- **不要给子代理放权**：4 条 lane 的子代理只能下载 / clone / 建目录，**不得 `pip install`、不得 `conda activate`、不得 `source set_env.sh`、不得改 `PATH` 或 `/etc`**（§3.3）。
-- 不要往 `.188` 的 `/`、`/mnt/share`、`/mnt/weight`、`/tmp`、`/root` 写大文件——**这几个路径全都在同一块系统盘上**（`nvme0n1p2`，多租户共用、长期紧张、随时可能被写满）；**大文件与大环境只写 `/home/vllm`**（独立大容量盘）。**本套 skill 一律不记剩余空间数字，动手前自己 `df -h <目标路径>` 现场取数**。详见 `ascend-server-layout`。
+- 不要往 `.188` 的 `/`、`/mnt/share`、`/mnt/weight`、`/tmp`、`/root` 写大文件——**这几个路径全都在同一块盘上**（`nvme0n1p2` 2.9T，已 96%，仅剩 139G）；**唯一能写大文件的是 `/home/vllm`**（6.9T，剩 1.6T）。详见 `ascend-server-layout`。
 - 不要跳过 CANN 的 `source set_env.sh` 就去装 torch_npu 或编算子。
 - 不要为了排障而 `pip install -U triton`（会覆盖 triton-ascend 的文件，见 `ascend-triton-ascend`）。
 - 不要在共享机器上把 `MAX_JOBS` 打满、或占用别人正在用的卡（先 `npu-smi info`）。
-- **不要把整个 `$CONDA_PREFIX/lib` 加进 `LD_LIBRARY_PATH`**。需要 conda 环境的新版 `libstdc++` 时（`.188` 的 gcc-8 场景），只建一个**只放 `libstdc++` 的 `compat_lib` 目录**前置即可，见 `ascend-torch-npu`。（整目录前置在**重装前的** `.190` 上有过 `git` 崩的历史记录，2026-09-23 在 `.188` 实测未复现；新 `.190` 未复核——详见 `ascend-conda-env` 坑 5，别把它当通用结论。）
+- **不要把整个 `$CONDA_PREFIX/lib` 加进 `LD_LIBRARY_PATH`**。需要 conda 环境的新版 `libstdc++` 时（`.188` 的 gcc-8 场景），只建一个**只放 `libstdc++` 的 `compat_lib` 目录**前置即可，见 `ascend-torch-npu`。（整目录前置在 `.190` 上有过 `git` 崩的历史记录，2026-09-23 在 `.188` 实测未复现——详见 `ascend-conda-env` 坑 5，别把它当通用结论。）
 - 改动用户环境前先想好回滚路径；破坏性动作（删文件、改 `/etc/Ascend`、强推）先确认。
 
-## 7. 维护记录 → `references/maintenance-log.md`
+## 7. 维护记录
 
-逐轮改了什么、哪条旧结论被证伪、改的依据是什么。**用户不会问这个**——只在怀疑本文某条结论过时（或要判断某条是不是刚加的）时才读。
+- **建立（2026-09-23）**：把原 `ascend-vllm-env` 单体 skill **删除并拆为「本总纲 + 7 个子 skill」**——`ascend-server-layout` / `ascend-cann-env` / `ascend-conda-env` / `ascend-torch-npu` / `ascend-triton-ascend` / `ascend-vllm-serve` 六个新建，`vllm-ascend-source-install` 为既有（已同步交叉引用）。旧文件内容按职责重分配，无丢失。
+- 本次新增的实装验证：CANN 全新路径安装（合一包 + 独立 toolkit 包两分支）、torch / torch_npu / triton-ascend 商发版本安装。逐条证据见各子 skill 的「坑与修法」。

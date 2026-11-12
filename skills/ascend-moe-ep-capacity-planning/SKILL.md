@@ -1,6 +1,6 @@
 ---
 name: ascend-moe-ep-capacity-planning
-description: 昇腾 64GB 卡跑 MoE 大模型前的显存容量与并行几何规划——EP 没有独立开关（EP = TP × DP × PCP），按卡数 N 选型必须随 N 重推 TP；64GB 卡真实预算只有 56.378 GiB，用 64GB 或 64×10⁹ 都会高估；EP 只切 routed experts，其余每卡复制。适用于"这个 MoE 大模型要几张卡才跑得起来 / EP 设多少、TP 设多少 / 专家并行怎么配 / 显存预算怎么算 / 起服务报 OOM 之前先估一遍 / 按卡数扫描怎么选型 / TP 设大了有什么区别"。不适用：服务已经起来要排障或跑推理 → 用 `ascend-vllm-serve`；要装/重装 vllm-ascend → 用 `vllm-ascend-source-install`；只看模型适配没适配 → 用 `ascend-model-adaptation-recon`。
+description: MoE 显存与 EP/TP 几何：64GB 卡实际 56.378 GiB、EP=TP×DP×PCP。适用于"几张卡才跑得起来 / EP 设多少 / TP 怎么配 / OOM 前先估 / 按卡数选型"。
 whenToUse: 起服务【之前】决定要占几张卡、EP/TP/DP 怎么配、预算够不够时用。装环境见 vllm-ascend-source-install，运行时报错见 ascend-vllm-serve，上游有没有代码见 ascend-model-adaptation-recon。模型看不到本节。
 ---
 

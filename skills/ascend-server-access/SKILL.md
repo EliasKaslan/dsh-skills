@@ -1,7 +1,7 @@
 ---
 name: ascend-server-access
-description: 三台昇腾服务器与 UniVPN 准入的唯一清单——a3=192.168.13.188 / a3b=.190 走蓝区网关，a5=177.8.21.1 走 A5 配置（root 密码只登记在凭据文件），当前只有这三台可用；两个 UniVPN 实例可同时在线，含 .190 重装后的 openEuler 22.03 新规格、A5 8×Ascend950DT、ping/TCP/ssh 三测、切配置须真实鼠标点、APIPA 假连。适用于"188 连不上 / 190 连不上 / 177.8.21.1 怎么连 / 现在有哪些服务器可用 / 该连哪个 VPN / 同时连 A3 和 A5 / 多开 UniVPN / VPN 连上了但 ping 不通 / 188 和 190 之间通不通 / 两台机器能不能互相通信 / 节点间带宽和 MTU 多少 / 服务器凭据在哪 / 新服务器登录后怎么配免密"。不适用：连上后装 CANN/conda/torch → 用 `ascend-env`；本机 pwsh 编码与执行策略坑 → 用 `pwsh-on-windows`。
-whenToUse: 三台昇腾服务器（188/190/177.8.21.1）的清单、凭据、可达性判据与 UniVPN 准入/双开；模型看不到本节。
+description: 昇腾服务器准入清单：a3/.188、a3b/.190、A5 各 IP、UniVPN、免密。适用于"188 连不上 / 177.x 怎么连 / 该连哪个 VPN / 凭据在哪 / 新机器怎么配免密"。
+whenToUse: 昇腾服务器清单、凭据、可达性判据与 UniVPN 准入/双开（含 2026-11-09 批 177.2.x / 177.11.x）；模型看不到本节。
 ---
 
 # 昇腾服务器清单与 UniVPN 准入
@@ -21,15 +21,16 @@ whenToUse: 三台昇腾服务器（188/190/177.8.21.1）的清单、凭据、可
 - 本机 Windows PowerShell 5.1 的编码、BOM、执行策略、`-File` 传参等坑 → 用 `pwsh-on-windows`。
 - 远端 Linux 上的目录与磁盘红线 → 用 `ascend-server-layout`。
 
-**前置**：服务器 root 密码与 VPN 账号都在 `credentials.txt`（本 skill 目录内）。**后继**：连上后按 §0 的连通性三测确认，再去目标机干活。
+**前置**：服务器 root 密码与 VPN 账号都在 `%USERPROFILE%\.dsh\.secrets\ascend-servers.txt`（`<host> <user> <password>`，被 `.dsh/.gitignore` 排除，**不进 git 也不进 mirror**；旧文写的「本 skill 目录内 credentials.txt」已作废——mirror 发布时 secrets 被剔除，本机也不再放）。**后继**：连上后按 §0 的连通性三测确认，再去目标机干活。
 
 ## 0. 服务器清单与准入（唯一出处，2026-11-03 实测）
 
 > 用户口径（2026-11-03）：**当前只有这三台可用**。正文或记忆里若还有别的机器，一律按不可用处理，别去试。
+> **2026-11-09 更正**：这条已不成立——当晚又发了 4 台 A5 环境（`177.2.25.1` / `177.2.26.1` / `177.11.25.1` / `177.11.26.1`，同一张 A5 隧道即可达），规格与坑见 **§11**。判「有没有机器可用」不要照抄本节，先按 §11 的清单。
 
 | 代称 | 地址 / 账号 | 角色 | 系统与规格（现场实采） | 准入 |
 |---|---|---|---|---|
-| **a3** | `192.168.13.188` / root | A3 默认 | Debian 10，256 核 / 1448 GiB；8 NPU × 2 die = 16 个 `Ascend910`（65536 MB/die）；`/` 2.9T 已用 94%、`/home/vllm` 6.9T 余 1.9T；CANN 9.1.0 在 `/mnt/share/x00886548/cann/cann_9_1_0` | **蓝区网关**；免密 + 密码都通；**本机直连 OpenSSH 会卡 KEX，因隧道 MTU≈1420 吞大包 → 用 `.190` 跳板，见 §5 ⑨**；多租户重载机（2026-11-03 load≈800） |
+| **a3** | `192.168.13.188` / root | A3 默认 | Debian 10，256 核 / 1448 GiB；8 NPU × 2 die = 16 个 `Ascend910`（65536 MB/die）；`/` 2.9T 已用 96%、`/home/vllm` 6.9T 余 1.6T；CANN 9.1.0 在 `/home/x00886548/env/cann/cann_9_1_0` | **蓝区网关**；免密 + 密码都通；**本机直连 OpenSSH 会卡 KEX，因隧道 MTU≈1420 吞大包 → 用 `.190` 跳板，见 §5 ⑨**；多租户重载机（2026-11-03 load≈800） |
 | **a3b** | `192.168.13.190` / root | A3 备用 | **2026-11-03 重装**：openEuler 22.03 LTS-SP4，64 核 / 1384 GiB；16 个 `Ascend910` die（65536 MB/die，driver 26.0.rc1）；`/` 69G（8%）、`/home` 6.9T、`/mnt/share` NFS 287T；CANN 9.2.1 在 `/home/cann/921`；gcc 10.3.1 / python 3.9.9 | **蓝区网关**；**免密 + 密码都通**（2026-11-03 配的 key）；主机名 `localhost.localdomain` |
 | **a5** | `177.8.21.1` / root | A5 | openEuler 24.03 LTS-SP3 aarch64，192 核 / 2261 GiB；8 × `Ascend950DT`（98304 MB/卡，npu-smi 25.1.rc3）；`/` 3.5T 已用 87%、`/mnt/share` NFS 350T；CANN 9.2.0 在 `/home/cann/920_b111`；gcc 12.3.1 / python 3.12.14 | **A5 配置**；**免密 + 密码都通**（2026-11-03 配的 key，原有 73 条其它 key 全部保留）；登录横幅 `Authorized users only. All activities may be monitored and reported.` |
 
@@ -382,4 +383,37 @@ sc.exe delete UVP002Service
 
 **判据模板**：第 1 条不过 = **硬件不具备，装软件无意义**；第 2/3 条不过 = 配置或版本问题，可修但必须两端同时动。别把「两台机器 ssh 能通 + 1GbE 能灌流」当成「能双机跑模型」——那是 CPU/管理网层面的事，跟 HCCL 无关（§9 的结论只覆盖前者）。
 
-**顺带记**：`.188` 的 CANN 在 `/mnt/share/x00886548/cann/cann_9_1_0/`，`set_env.sh` 在 **`ascend-toolkit/set_env.sh`**；source 目录下同名文件不会报错但 `ASCEND_HOME_PATH` 仍为空，随后 `import torch_npu` 报 `ImportError: libhccl.so: cannot open shared object file`。`.190` 的 CANN 9.2.1 在 `/home/cann/921/`。
+**顺带记**：`.188` 的 CANN 在 `/home/x00886548/env/cann/cann_9_1_0/`，`set_env.sh` 在 **`ascend-toolkit/set_env.sh`**；source 目录下同名文件不会报错但 `ASCEND_HOME_PATH` 仍为空，随后 `import torch_npu` 报 `ImportError: libhccl.so: cannot open shared object file`。`.190` 的 CANN 9.2.1 在 `/home/cann/921/`。
+
+## 11. 2026-11-09 批 4 台 A5 环境（177.2.x / 177.11.x）
+
+同一张 **A5 隧道**就能到，**蓝区网关到不了**；与 `.188/.190` 靠 §7 的双实例并存。全部 openEuler 24.03 LTS-SP3 / aarch64 / 192 核 / 2261 GiB / 9 个 `/dev/davinci*`。
+
+| 批次 | 地址 | 主机名 | `/` 占用（11-09 快照） |
+|---|---|---|---|
+| 11-09 晚 | `177.2.25.1` | localhost.localdomain | 3.5T 用 93% |
+| 11-09 晚 | `177.2.26.1` | localhost.localdomain | 3.5T 用 95% |
+| 11-10 晚 | `177.11.25.1` | 177-11-25-1.btecdns.net.br | 3.5T 用 86% |
+| 11-10 晚 | `177.11.26.1` | 177-11-26-1.btecdns.net.br | 3.5T 用 92% |
+
+**让 A5 隧道起来（本机实测，最短路径）**：实例 2 早就建好且凭据已存（`%APPDATA%\UVP002\sysconfig.ini` 里 `AutoLogin=1`），只需
+
+```powershell
+Start-Process 'C:\Program Files (x86)\UniVPN2\UVP002.exe'   # 等价：双击 UniVPN2\Open-UniVPN2.cmd
+# 等 ~20s，判据三条：本地连接 2 是 ifIndex 55 / Up；IP 非 169.254.*（实测 1.2.19.177/21）；
+# 177.0.0.0/8 经 if55 的网段级路由已下发（断开后仍留 IP，所以只认路由）
+```
+
+`UVP002Service` 是 **Manual**、不随开机自启 ⇒ **每次重启电脑都要手动起一次**。蓝区那套（原件 `UniVPN.exe` + `本地连接` ifIndex 13）照常，互不影响。
+
+**三个坑（这次全踩了）**：
+
+1. **只有 ICMP 通 ≠ 能连**。没上 A5 隧道时，这 4 台从本机公网出口（119.8.178.38）和从 `.188` 打 22/2222/80/443 全是 SYN 被静默丢弃，但 `177.2.25.1` 的 ping 通（100ms）。判可达必须做 §0 的三测，别用 ping 下结论。
+2. **刚发下来的环境 sshd 可能还没起**。`177.11.25.1` 首次测 TCP 22 超时，几分钟后同一地址自己就通了 ⇒ 先等 2~5 分钟再判死。
+3. **同 IP 旧 host key 会挡住 OpenSSH**：`Host key verification failed.`（`known_hosts` 按哈希存，`Select-String` 搜不到那行）⇒ `ssh-keygen -R 177.11.25.1` 后重连。paramiko 用 `AutoAddPolicy` 不受影响，所以「paramiko 通、ssh 不通」时先查这条。
+
+**免密**：4 台已配（2026-11-09，只追加未覆盖，原有 37~81 条他人 key 全部保留）。幂等脚本 `D:\workspace\昇腾环境\setup_passwordless.py`（改 `HOSTS` 即可复用；流程 = TCP 探活 → 密码登录 → 只追加公钥 → key-only 复核）。复核一律用
+
+```powershell
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=accept-new root@<ip> hostname
+```

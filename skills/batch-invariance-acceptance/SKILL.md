@@ -1,6 +1,6 @@
 ---
 name: batch-invariance-acceptance
-description: This skill should be used when the user asks to verify, triage or regression-test batch invariance of a model running on vLLM Ascend, including deciding whether BS=1 and BS=N produce bitwise-identical tokens and logprobs, covering TP matrices, long-input and long-output shapes, operator allowlists, and dataset-level acceptance.
+description: 验证 vLLM Ascend 的 batch 不变性：BS=1 与 BS=N 逐位一致、TP 矩阵、长输入输出、数据集验收。适用于"验证/回归 batch 不变性 / logprobs 是否一致 / 算子白名单"。
 version: 1.0.0
 domain: inference-model
 function: batch-invariance-validation

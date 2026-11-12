@@ -2,6 +2,9 @@
 name: yb-blue
 description: 蓝区主控端（YB-Bridge）——把活拆成黄区弱模型能照做的任务包，经私有 GitHub 仓下发，轮询取回报告并按四要素验收；黄→蓝单次≤100KB 自动分块，蓝→黄不限。适用于"给黄区派活 / 收黄区报告 / 黄蓝协同 / 跨区接力 / 黄区任务到哪了 / 黄区卡住了 / yb.py poll 没结果 / 怎么把黄区结果拿回来"。不适用：同机子代理编排 → 用 `orchestrating-subagents`；写或改 skill → 用 `dsh-skill-authoring`。
 whenToUse: 蓝区主控通过 yb-bridge 给黄区派任务、收报告、验收的完整流程（模型看不到本节）。
+disable-model-invocation: true
+warm-triggers: 黄蓝协同 / 给黄区派活 / yb.py poll
+warm-reason: 低频通道
 ---
 
 # 蓝区主控端（YB-Bridge）

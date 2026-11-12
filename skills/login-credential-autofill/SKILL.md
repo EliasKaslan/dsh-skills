@@ -1,12 +1,15 @@
 ---
 name: login-credential-autofill
-description: 登录凭据自动填充的本地凭据库与防封号护栏——页面要登录时按账号取凭据填入、先复用已有登录态、每账号24小时最多1次密码提交、遇验证码/2FA/风控页立刻停手交人，附字段读取与额度记账脚本。适用于"帮我登录一下 / 用我的账号登进去 / 要输密码了 / 这个站点要登录 / 微软和 GitHub 账号密码在哪 / 我的密码存在哪台机器上 / 填完要不要帮我点提交 / 登录失败了还能不能重试 / 会不会把号登封 / 自动填密码安全吗"。不适用：GitHub API 或 PAT 提 PR → 用 `github-pr-flow`；读 Outlook 邮件 → 用 `outlook-mailbox-control`；过滑块验证码 → 用 `dingxiang-slider-captcha`；本机 pwsh 编码坑 → 用 `pwsh-on-windows`。
+description: 登录凭据自动填充的本地凭据库与防封号护栏——页面要登录时按账号取凭据填入、先复用已有登录态、每账号24小时最多1次密码提交、遇验证码/2FA/风控页立刻停手交人；凭据库里没有该站时，先在本机浏览器密码库与邮箱里反查账号身份，附字段读取与额度记账脚本。适用于"帮我登录一下 / 用我的账号登进去 / 要输密码了 / 这个站点要登录 / 微软和 GitHub 账号密码在哪 / 我的密码存在哪台机器上 / 不知道要登的是哪个账号 / 浏览器里存过这个站的登录吗 / 找回旧账号先从哪查 / 填完要不要帮我点提交 / 登录失败了还能不能重试 / 会不会把号登封"。不适用：GitHub API 或 PAT 提 PR → 用 `github-pr-flow`；读 Outlook 邮件 → 用 `outlook-mailbox-control`；过滑块验证码 → 用 `dingxiang-slider-captcha`；本机 pwsh 编码坑 → 用 `pwsh-on-windows`。
 whenToUse: 页面出现登录表单或请求返回 401 时，按账号键从本机凭据库取字段填入，并受 LoginGuard 的 24h 额度约束；含读取/记账脚本与挑战页判据。模型看不到本节。
+disable-model-invocation: true
+warm-triggers: 登录凭据自动填充 / 防封号 / 浏览器密码库反查
+warm-reason: 低频，且有风险动作
 ---
 
 # 登录凭据自动填充（本地凭据库 + 防封号护栏）
 
-2026-11-02 建立。凭据只存本机 `~\.dsh\.secrets\accounts.json`（ACL 仅当前用户），skill 正文**不含任何账号或密码**——因为 `~\.dsh\skills` 每天 02:00 被 `dsh-skills-publish` 推到**公开**仓，写进正文等于公开。
+2026-11-02 建立。凭据只存本机 `~\.dsh\.secrets\accounts.json`（ACL 仅当前用户），skill 正文**不含任何账号或密码**——因为 `~\.dsh\skills` 会被 DSH 插件 `dsh-plugin-skill-publish` 在检测到变更后推到**公开**仓（GitCode + GitHub 的 `dsh-skills`），写进正文等于公开。
 
 ## 何时调用
 
@@ -129,3 +132,39 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$S\Get-LoginCredential.
 - 换密码：只改 `accounts.json` 的 `password` 字段，然后重跑一次 ACL（`icacls` 三行）。
 - 新增站点：在 `accounts.json.accounts` 加键，同时把键名加进 `Get-LoginCredential.ps1` 的 `ValidateSet`（否则 `-Account` 直接被拒，原文 `does not belong to the set`）。
 - 清额度（确认是误记时）：删 `~\.dsh\.secrets\.login-ledger.json` 里对应账号的 `attemptsUtc` 项；**不要**整文件删了来绕过 `DENY`。
+
+## 账号身份取证：凭据库里没有该站时，先在本机反查
+
+`accounts.json` 里只登记 microsoft / github 这类少数键。要登一个没登记的站点（如 Google）、或用户说"忘了注册时填的名字所以查不到账号"时，**别先去猜**，先在本机反查账号身份。
+
+核心事实：**Chromium 密码库里用户名是明文，只有密码是密文**。所以"是哪个账号"这件事几乎总能查出来。
+
+## 一、Chromium 密码库（Chrome / Edge / Brave）
+
+- 位置：`%LOCALAPPDATA%\<vendor>\User Data\<Profile>\Login Data`，每个 profile 一个 SQLite。
+- 浏览器运行时文件被独占，**必须 copy 到 temp 再 open**，否则 `database is locked`（脚本里 copy2 → connect → 用完删）。
+- 关键列：`origin_url` / `username_value`（明文）/ `date_created` / `password_value`（DPAPI 密文，**不读**）。
+- 判"存没存密码"只需 `SELECT length(password_value)`，非 0 即存了，不必解密、不必进上下文。
+- `date_created` 是 1601 纪元微秒：`秒 = v/1e6 - 11644473600`（`datetime.utcfromtimestamp` 在新 Python 会告 DeprecationWarning，不影响结果）。
+- 拿到的 `origin_url` 常是 `https://<site>/v3/signin/challenge/pwd` 这类中间页，说明用户当时走到密码页并保存过。
+
+**存了密码就别走找回流程**：`edge://settings/passwords`（或 `chrome://settings/passwords`）→ 搜域名 → 点眼睛 → 输 Windows PIN/PIN 即可看回密码。这比任何账号找回都快，且完全不依赖"注册时填的姓名"。
+
+## 二、邮箱反查（Google 类站点尤其有效）
+
+- Google 的安全提醒/验证码邮件**标题里带完整账号地址**（实测 `Security alert for <name>@gmail.com`、`Critical security alert for <name>@gmail.com`）。
+- 用已接管的邮箱按发件人搜：`qqmail_search -from google`。纯 ASCII 关键词走**服务器端搜索**，比按中文搜的本地窗口覆盖深得多。
+- 若该邮箱长期收到某账号的 Google 安全提醒，基本可判定它就是那个账号的**恢复邮箱**——恢复时选"发到恢复邮箱"通常比"发短信"更稳（号码已被风控限流时更是如此）。
+
+## 三、拿到账号后别再纠结姓名
+
+- 「用手机号反查邮箱」入口（`accounts.google.com/signin/usernamerecovery`）识别号码后可能要求**账号上的姓与名**；答错直接回退成 `找不到您的 Google 账号`。这是判"你不拥有该账号"，**不是账号不存在**——别因此判定号已注销。
+- 已知邮箱就走 `accounts.google.com/signin/recovery`：它验证的是"能不能收到验证码"，通常不问姓名。
+  未验证：该入口是否在所有地区 / 所有风控档位下都不追问姓名。
+- 姓名连错的代价是限流（`尝试次数过多`），**一次只试一个、错了就停**；账号 ID 本身常是姓名的拼写线索（如 `<a><b>@gmail.com` → 试 名 a/姓 b 与 名 b/姓 a）。
+
+## 四、边界
+
+- 只做**只读取证**：`password_value` 一律保持密文，不把密码灌进上下文（见 §0 的字段读取规则）。
+- 这台机器上查不到 ≠ 账号不存在；用户可能是在手机上注册的，此时优先让他查手机"设置 → 账号"与本机各邮箱的 Google 邮件。
+- 不在自动化浏览器里登 Google：风控页概率高，且可能把号锁掉（§1 L4/L6）。

@@ -1,6 +1,6 @@
 ---
 name: dsh-agent-customization
-description: DSH 改造 agent 行为的入口总纲——改了 AGENTS.md 为何不生效、插件行坏了怎么回滚、settings.yaml 改了为何没反应、这次改动属于哪一层；含五层生效时机、热重载≠冷启动、坏 row 三形态、MCP 挂载与会话日志找回旧版本。适用于"改 DSH 的行为该改哪一层 / 改了 AGENTS.md 为何不生效 / 插件行坏了怎么回滚 / settings.yaml 改了为何不生效 / MCP 怎么挂进来 / 实验包怎么挂 profile / 中文 UI 不是中文提示词 / 会话日志里能不能找回旧版本 / 会话日志怎么解压 / 本轮运行失败 / finish_reason 报错怎么判 / 上游还是 DSH 的 bug"。不适用：只离线验负载挂载 → 用 `dsh-agent-preset-verification`；只要干净实验环境 → 用 `dsh-isolated-web-host`。
+description: DSH 改造入口总纲：五层生效时机、插件 bundle、上线纪律与回滚。适用于"改 DSH 行为该改哪一层 / 插件行坏了怎么回滚 / MCP 怎么挂 / 恢复后会话打不开 / 自己写 host 插件"。
 whenToUse: 要改 DSH 自身行为（行为宪法 / 流程 skill / agent 组合 / 默认 preset / 插件行与 patch），或要判定改动何时生效、怎样回滚、上线前还差哪一步时，先加载本总纲。模型看不到本节。
 ---
 
@@ -12,51 +12,32 @@ whenToUse: 要改 DSH 自身行为（行为宪法 / 流程 skill / agent 组合 
 ## 何时调用
 
 - 触发信号：用户说"改 DSH 的行为 / 让它以后都这样 / 新写一个 skill / 换个 agent 组合 / 加一个插件行"，或你正要动 `~/.dsh` 下的任何一层配置。
-- 触发信号：用户说"每次任务结束后自动复盘 / 把经验沉淀到 skill / 让 DSH 自己维护 skill" → 这是**两层组合**，别新建 skill：触发层 `~/.dsh/AGENTS.md` **K3**（每轮注入；实测改完当轮即热刷新）+ 协议层 `sedimenting-skills`（三段决策、删过时、`scripts/skill_gate.py`）。
 - 触发信号：用户说"把某个 MCP server 挂给 DSH / MCP 工具用不了 / 这个 MCP 挂上去要占多少上下文"，或你正要往 patch 里写一行 MCP 插件（先读 **2.7 / 2.8 / 2.9**）。
 - 触发信号：host 起了但页面打不开、改了配置不知何时生效、改完想回滚。
-- 触发信号：要挂一个实验包 / 官方 bundle 进 profile，或要判断"手工 row / 空 patch 前提的脚本今天还管不管用" → 读 **2.11**；要看那个包的策略文本为什么是英文、README 指的文件为什么找不到 → 见「不要做什么」末两条。
-- 触发信号：文件被**覆盖 / 没备份**，要问"会话日志里能不能找回旧版本""文件被覆盖了怎么恢复""`session.v4.jsonl.zstd` 怎么解压" → 读 **2.12**。
-- 触发信号：用户说"本轮运行失败""这次 turn 挂了""某个报错在历史上出过几次""把这个错误码全库扫一遍" → 读 **2.12** 的**全库扫描配方**与 **2.17**（`Provider finish_reason: <X>` 的溯源链与"是不是 DSH 的 bug"判据）。
-- 触发信号：要改"新会话的默认 preset"，或**正在运行的 host** 上改完 preset registry 那一行后**工具面只剩 MCP 工具**、再改回去也不恢复 → 读 **2.13**（正确字段是 volatile 的 `selectedDefault`；热改这一行的 `config` 会让**已存在会话**当场崩塌且**不自愈**，只有重启进程能恢复）；报错 `Config field "default" is not volatile` 或 `... is overridden by a home patch or command-line overlay` 也是 **2.13**。
-- 触发信号：你正要跑 `dsh_base\tools\sync-to-dsh-home.ps1` / `tools\check-drift.ps1`，或要问"`config\` 里这份快照还是不是真快照""`-Apply` 会不会把 live 覆盖回去""重建 home 是不是跑一次 `-Apply`" → 读 **2.14**（池是**分发源**不是回滚库；`-Apply` 会静默回退 `AGENTS.md`，动手前先做方向裁定）。
-- 触发信号：你要**清理 / 整理 `~/.dsh/skills` 根**（移 `.bak` 之类残留、给 skill 目录瘦身），或看到 `credentials` / `.key` / `.pem` / `.token` 这类文件不知能不能移 → 读 **2.15**（被 skill 正文引用的凭据**就地保留**；移走 = 假指针 + 可能推翻用户决策）。
-- 转交边界：只验 preset 静态可挂载 → `dsh-agent-preset-verification`；已起会话验 persona / 工具 / 委派 → `dsh-agent-preset-verification` 阶段二；只搭干净环境 → `dsh-isolated-web-host`；把跑通的流程写成新 skill 的协议 → `sedimenting-skills`；skill 集合的定期体检（重复 / 失效指针 / 预算）→ `dsh-skill-self-audit`；MCP 工具的实际用法（接管 Outlook.com 邮箱、设备码登录） → `outlook-mailbox-control`。
+- 转交边界：只验 preset 静态可挂载 → `dsh-agent-preset-verification`；已起会话验 persona / 工具 / 委派 → `dsh-agent-preset-live-verification`；只搭干净环境 → `dsh-isolated-web-host`；把跑通的流程写成新 skill 的协议 → `sedimenting-skills`；skill 集合的定期体检（重复 / 失效指针 / 预算）→ `dsh-skill-self-audit`；MCP 工具的实际用法（接管 Outlook.com 邮箱、设备码登录） → `outlook-mailbox-control`。
 - 前置：知道 `DSH_HOME`（默认 `~/.dsh`）与当前 host 的端口；**改自己正跑在里面的那个 host 前，先读完第 2 节**。 ／ **后继**：按第 3 节阶梯顺序走，最后回到第 2.6 节确认回滚路径。
 
-## 1. 五个可改层 + 生效时机（实测）
+## 1. 三个可改层 + 生效时机（实测）
 
 | 改什么 | 位置 | 何时生效 |
 |---|---|---|
 | 行为宪法 | `~/.dsh/AGENTS.md` | 会话**首个请求**时加载；**文件被改动后 harness 会检测到并热刷新注入**（实测：改完当轮即收到 `Updated instructions from: ~/.dsh/AGENTS.md — This file changed after it was loaded.` 并用新正文替换旧正文）→ **无需重启**；但刷新时机由 harness 的变更检测决定，别假设"改完对所有正在跑的会话都立刻生效" |
 | 流程 skill | `~/.dsh/skills/<name>/SKILL.md` | **写入即可被发现**，无需重启（实测两次）；first-party `write`/`edit` 会让 skill provider 失效并重发目录 |
-| 层 3 · agent 组合（**载体已变，2026-10-08 证伪后更正**） | **profile 组合里的 `@deepseek-ai/dsh-agent-preset` 声明行**（loader row id 惯例 `preset-<id>`，`config.plugins` 是插件行列表）。`~/.dsh/.agent-presets/<id>/` 目录式 preset **已被弃用、全树无代码读取** | 声明行随 profile 组合**热重载**；但**只有空会话能切换 preset**，已建会话不换 |
-| 层 4 · 默认 preset / 模型路由（**载体已变，同左**） | **profile patch 层**：`<profile>/cordis.patch.yml` 里的 `- id: agent-preset-registry`（**部署**默认 `config.default` / **用户**默认 `config.selectedDefault`）与 `- id: agent-default-model`。`~/.dsh/settings.yaml` **已不是活体配置**，只是**一次性 legacy 导入源**（见下方补充） | patch 热重载；两个字段的**取值**都只影响**新建会话**——但**改正在运行的 host 的这一行**会让**已存在会话**的工具面静默崩塌，见 **2.13** |
+| agent 组合 | `~/.dsh/.agent-presets/<id>/` | roster **每次读取都重扫**（改文件 / 加目录都不用重启）；但**只有空会话能切换 preset**，已建会话不换；新建会话采用 settings 里的默认 |
+| 默认 preset / 模型路由 | `~/.dsh/settings.yaml` | 每次**新建会话**时读取（改完对已存在的会话无效） |
 | 插件行 / patch | `<profile>/cordis.patch.yml` | **热重载**——但热重载的成败判据与冷启动完全不同，见第 2.1 节 |
-
-**但有一个例外，它会让人把"惰性"误判成"装失败"（本轮实测，两条独立证据）**：**经 `link:` 挂进来的 bundle patch 文件，其内容改动不热重载**——生效时机是**冷启动**。证据：① 隔离 lab（`artifacts\orchestration-review\06-persona-candidate-verification.md`）：热改 bundle patch 内容后，**新建**会话仍拿到**旧** persona（**9,197 字符**）；**冷启动**后老会话被重挂载成 **7,177 字符**、工具面仍 **31**、turn 正常结束。② **Lead 现场第二例（本轮）**：把瘦身 persona 装成生效件后，Lead **正在跑的会话** system prompt **仍是旧版 `Hard rules`**。⇒ 三条纪律：① 生效时机 = **冷启动**、不是热刷新；② 装完**不重启不是失败，是惰性**；③ **别把它当"改完立刻能观测"的层**——对照上表第一行：`AGENTS.md` 是**热刷新**的，**两者不同层、结论别互相套用**。
 
 **这一节的反直觉结论**：上面这些层**大多是热生效的**，所以"改完立刻观察到了变化"**证明不了这个改动是安全的**。真正需要**重启**才能验证的是插件行 / patch 的**冷启动正确性**（第 2.1 节）——"现在没坏"不等于"下次还能起来"。
 
 补充：**给 DSH 挂 MCP server 就是"插件行 / patch"层**（没有独立 MCP 配置文件，唯一入口是 patch 里一行 `@deepseek-ai/dsh-mcp-client`）——落点、能力边界与**三种**失败形态见 **2.7**，接入前必须先量的"工具面注入量"见 **2.8**，`env` 传值保真的量法见 **2.9**。
 
-补充（**旧断言已被证伪**）：本节曾写"`.agent-presets` 的 roster 每次读取都重扫，改 preset 后连 host 都不用重启"。**`0.2.0-rc.2` 起不成立**——那套目录**没有任何代码读**，写进去 / 改内容 / 删掉都**不会产生任何行为变化**。"改了没生效"要先确认**本次运行的那套 dsh 用哪套机制**（安装根可能不止一套，**且版本号要读 `package.json`、不能按目录名猜**——本机两套是 `0.2.0-rc.2` 与 `0.1.0-rc.6` 两条发布线），再怀疑声明行写错。
-
-> **载体形状、逐行离线校验、`install_bundle` 安装**的正文**单一归属在 `dsh-agent-preset-verification`**，本总纲只留这一行指针、不复制。
-
-**`settings.yaml` 是一次性 legacy 导入源（在第 1 节里它不是一层），三条要点**（源码 `@deepseek-ai/dsh-settings` 的 `importLegacyDocument()`）：
-
-1. 任何 profile 的 DSH 进程 boot 完成后，只要 `$DSH_HOME/settings.yaml` 存在 → **先 `rename` 成 `settings.yaml.imported`**（**原文件消失**；且**改名先于写入**，所以部分失败也不会重试）。
-2. 再逐**顶层键**调 `update(ns, values)`，**`ns` 必须是 profile entry id**（源码注释原文 `@param ns Profile entry id.`）。
-3. 键名**不是** entry id（`agent-presets` 不是；`agent-default-model` **是**）→ 抛 `No configurable plugin entry "<ns>"`，但**只有 `logger.warn`、进程照常起来、没有任何报错**，该 section 只剩在 `.imported` 里，**哪一层都不生效**。
-
-⇒ 三条纪律：① 别把 `settings.yaml` 当可维护的活体配置（它会被 boot 吞掉）；② 想通过它改配置，**顶层键必须是 entry id**；③ 判"改完生效没有"**不能看进程起没起来**，要看**目标层**（patch / 组合）里那行在不在——**失败是静默的**。
+补充（实测）：`.agent-presets` 的 roster 重扫是**每次读取**都重扫，所以改 preset 后连 host 都不用重启；反过来"改了没生效"要先怀疑 id 不合法（`^[a-z0-9][a-z0-9-]*$`）或文件不在 `<id>/agent.cordis.yml`。
 
 ## 2. 上线纪律（本总纲最重要的一节）
 
 ### 2.1 热重载 ≠ 冷启动，失败模式完全不同（实测）
 
-同一个**坏 row**（指向不存在的包）在两种路径下表现截然不同。**"坏 row"其实有三种形态，别当成一种**（下表三行依次是形态 ① / ③ / ②，其中 ①② 是冷启动的两个分支、③ 是解析期）：
+同一个**坏 row**（指向不存在的包）在两种路径下表现截然不同。**"坏 row"其实有三种形态，别当成一种**（下表前三行，形态 ①② 是冷启动的两个分支、③ 是解析期）：
 
 | 路径 | 现象 | 致命性 |
 |---|---|---|
@@ -64,7 +45,6 @@ whenToUse: 要改 DSH 自身行为（行为宪法 / 流程 skill / agent 组合 
 | **冷启动 · 形态③**（YAML 语法错误） | 进程直接 **`EXITED code=1`**，stderr 原文 `Error: dsh: failed to parse patches …\cordis.patch.yml: YAMLException: can not read an implicit mapping pair; a colon is missed (16:20)`（`dsh-app-boot/lib/index.js:1197`，解析在 `:1149`；同一位置的读文件失败见 `:1147`） | **不致命**：硬退出 + 报错可见（依据：YAML 在插件树之前解析，promise 没人 await → 未捕获 → 退出码 1）——**这一形态不静默** |
 | **冷启动 · 形态②**（host 正常起来了、新工具却没注册上） | host 打得开（**401** 照常通过），工具面里就是没有它 → 仍**静默** | **危险**：`401` **不算**接入成功。**本次未取证**（无实跑日志）——仍必须防，判据见 2.7 |
 | **热重载**（同一个坏 row） | host **继续服务**（保留旧树），但坏 patch **留在盘上** | **非致命**，但**下一次重启才会静默挂掉**——当场看不出问题，这是最危险的形态 |
-| **热重载 · 改的是正在运行 host 的 `agent-preset-registry` 行 `config`**（取值合法也一样） | host 照常服务，但**所有已存在会话**的工具面**当场静默崩塌**（只剩 MCP 工具），**热重载不自愈**、再改回去也不恢复；**只有重启进程才恢复**（重启后旧会话自愈） | **当场致命且静默**——与上一行恰好相反（上一行是"现在没事、以后才坏"）。详见 **2.13** |
 | 合法 rows 冷启动 / 热重载 | 继续服务（实测最差连续失败次数 **0**）；冷启动形态是 stdout 打印启动 URL 一行、stderr **0 字节** | 安全 |
 
 **冷启动失败 vs 成功的判据**（实测）——要只有两条：
@@ -99,18 +79,11 @@ whenToUse: 要改 DSH 自身行为（行为宪法 / 流程 skill / agent 组合 
 - **不带 token** 请求返回 **HTTP 401 = 服务已就绪**——这是 token 围栏在生效，**不是故障**；带 token 才是 **200**。
 - 启动时会打印 `dsh web: http://127.0.0.1:<port>/?token=…`。**没有打印**这一行**不能**直接判"起不来"——按 2.1：形态①② 的 host 可能照常服务，形态③ 才是硬退出（那一形态另有 `EXITED code=1` + YAML 解析报错可见）。所以先看进程存活 + 401 探针，再排查 stderr。
 
-### 2.5 已知地雷：实验 Agent Teams 插件**顶掉**原生委派工具名（旧断言已证伪）
+### 2.5 已知地雷
 
-**已被证伪的旧断言（2026-10-08 修正）**：本节原写"`dsh-experimental-agent-team` + `-tool-agent-team` 一旦挂载，**所有普通子代理委派都会失败**（`TEAM_NOT_MEMBER`），且**没有任何配置级绕法**"。**这两句都不成立**，反证如下（均为本次实测）：
+`@deepseek-ai/dsh-experimental-agent-team` + `-tool-agent-team` 一旦挂载，**所有普通子代理委派都会失败**（`TEAM_NOT_MEMBER`），且**没有任何配置级绕法**。
 
-- **真实机制是"工具名被顶掉"，不是"委派全废"**。`-tool-agent-team` 在**每个 Team 成员的 `agent.ctx` 作用域**里重新注册 4 个名字：`send_message` / `list_agents` / `interrupt_agent`——原生 `@deepseek-ai/dsh-tool-subagent-control` 恰好用这 3 个——外加 Team 专有的 `wait_agent`。同作用域**后注册者胜出** ⇒ 拿到的是 Team 版 schema（`send_message` 的 `target,message`），原生版被**遮蔽**而非卸载。
-  - 取证：把**未打补丁**的 team 插件与原生 `dsh-tool-subagent-control` + `.../list-agents` 依次装进同一个录制作用域，3 个原生名全部归 team；把 team 插件换成**改名后**的版本，3 个原生名全部归原生、且 `team_*` 4 个名并存（差分对照，两种情形各跑一次）。
-- **有配置级绕法**：原生行还在不在，取决于**组合层**。`-agent-team-profile` bundle 把 `tool-subagent-control` / `tool-subagent-list-agents` / `tool-subagent` / `tool-subagent-fork` 四条置 `disabled: true`；而 **web profile 的 agent preset 层在它之后把同样这几条重新插入**（`--dump-config` 里同一 `id` 先出现 `disabled: true`、后面再出现一次不带 `disabled`）。所以 web/standard preset 组合下**两族并存、原生委派可用**，只是名字被抢。
-  - **注意**：profile 用户层（`$DSH_HOME/cordis.patch.yml`）写 `- id: <同名>` **不会**"覆盖"bundle 的 `disabled: true`，实测会**追加出重复行**；要让原生行回来，得看该组合里有没有一层在 team bundle **之后**重插它们。
-- **真正的伤害**（才是要防的）：① 同一个 `send_message` 按调用者身份挂两套 schema（成员见 `target`，非成员见 `agent_id`）→ 请求前缀分裂；② 把 `send_message` 指向普通子代理时报 `Error: active teammate "<id>" not found`（实测原文，Team 版的 code 是 `TEAM_MEMBER_NOT_FOUND`），而模型以为自己调的是原生工具；③ `dsh-subagent` 的可续委派标记探测被绕过（未验证：来自早前静态阅读，本次未复测）。
-- **判据（实测）**：给隔离 host **只挂** `-agent-team-profile` bundle 时，该会话工具面里**原生三条全部缺席**（29 个工具，只剩 `team_*`）；把原生行重插后**同一组合**变成 32 个工具、两族并存。⇒ **"挂上就全废"不成立，取决于挂在哪一层、有没有人把原生行插回来。**
-
-→ **纪律（取代旧的"先别挂"）**：① 只要普通委派、不要 Team 时，别让原生行被 `disabled` 掉；② 要两族并存时，把 Team 那 4 个工具改名（`team_send_message` / `team_list_agents` / `team_interrupt_agent` / `team_wait_agent`），做法见 2.10；③ 无论哪条，验收必须**去会话工具面点名核对**（看 `send_message` 的 `parameters` 里是 `agent_id` 还是 `target`），**401 / "启动成功"都不算数**。
+→ 本总纲只给一条纪律：**先别挂**；确实要挂，先看子 skill `dsh-agent-preset-live-verification`（有机制溯源、错误原文、上游修法与对照组做法）。
 
 ### 2.6 生效 / 回滚矩阵（每层都要能一句话说清"怎么撤"）
 
@@ -118,11 +91,9 @@ whenToUse: 要改 DSH 自身行为（行为宪法 / 流程 skill / agent 组合 
 |---|---|---|
 | `AGENTS.md` | 改回原段落 / 删掉新增段 | 下一次变更检测热刷新（同第 1 节） |
 | skill | 删 `<name>/SKILL.md` 或改回原文 | 下一轮目录重发即生效，无需重启 |
-| 层 3 · preset 声明行 | 删 / 还原 profile 组合里那条 `@deepseek-ai/dsh-agent-preset` 声明行（若是覆盖声明，还原成原 `config`——**`config` 是整体替换，必须整套重述**） | patch 热重载；但**已建会话不能换 preset**，要新会话才看到 |
-| 层 4 · profile patch | 删 / 还原那两个 patch 行（`agent-preset-registry` 的 `config.default` / `config.selectedDefault`、`agent-default-model`）。**注意**：`selectedDefault` 是**用户默认**，它落在 profile patch 文件里 ⇒ 改它等于改文件（**备份在前**，见 2.13） | patch 热重载；但改的是**正在运行的 host** 时，已存在会话的工具面**当场崩塌且不自愈**（2.13），**重启**才恢复；字段**取值**本身只影响**新建会话** |
-| `settings.yaml`（**已不是一层**） | **撤不了也不需要撤**：boot 第一步就把它 `rename` 成 `settings.yaml.imported`，原文件已消失；要恢复只能手工从 `.imported` 抄回去再重启 | 见第 1 节"`settings.yaml` 是一次性 legacy 导入源"；**改完生效与否是静默的**，别靠进程起没起来判 |
+| agent preset | 删 `~/.dsh/.agent-presets/<id>/`；若它是默认，同时删/改回 settings 里的 `agent-presets.default` | roster 每次重扫立即生效；但**已建会话不能换 preset**，要新会话才看到 |
+| settings | 改回原值（默认 preset、模型路由） | 新建会话生效 |
 | 插件行 / patch | 用备份还原（`[]` 或原数组） | 热重载立即恢复服务树；**还原后仍要重启一次验证冷启动**，因为热重载成功不代表干净 |
-| 插件包**本体**（直接改 `node_modules` 里已装的包） | 跑补丁脚本的 `--restore`（或从备份目录拷回），并校验 sha256 与上游包**逐字节相同** | 下一次**冷启动**加载该包时；`npx` / `npm install` 重装会**静默覆盖**补丁（2.10） |
 
 ### 2.7 MCP 接入层（本层的一个特例，实测）
 
@@ -132,22 +103,14 @@ whenToUse: 要改 DSH 自身行为（行为宪法 / 流程 skill / agent 组合 
 
 - **没有**独立的 MCP 配置文件、**没有** `mcpServers` 键、**没有** `~/.dsh/mcp/*.json` 这类声明文件（该目录可以是空的）。**唯一的声明入口 = patch 里的一行 cordis 插件**，插件固定是 `@deepseek-ai/dsh-mcp-client`。
 - patch 文件的形状是**单一顶层 `- insert:` 列表**，每个 server 一行、**4 空格缩进**，与既有插件行同级追加即可。
-- **那条"必须重启"的注释已被实测证伪（它不能被无条件当结论）**：文件顶部注释逐字写着：**Requires restarting `npx @deepseek-ai/dsh web` to take effect.** —— 但**向一个语法合法的 patch 追加一条新 MCP row，会被热重载直接拉起、无需重启**。反证（四个值都来自真实 host，不是推断）：① host 进程 `node …dsh\lib\bin.js web --port 3080`（PID 20920）启动于 **2026-10-09 15:06:02**（改动前已跑约 4 天）；② patch 在 **2026-10-13 15:10:45** 被追加该 row；③ 该 MCP 子进程（命令行 `node …\dsh-qqmail\lib\mcp-server.js --allow-write`）的启动时间**同为 2026-10-13 15:10:45**；④ **已存在的会话**函数清单**当场**新增 12 个 `mcp__qqmail__*` 工具，真调用返回真实邮箱数据。⇒ **"追加新 row 需要重启"不成立**；注释与"改完必须冷启动"的旧结论**只适用于"冷启动正确性"这件事**（见 2.1：热重载成功不代表下次能起来）。
-- **边界（别过度泛化）**：本轮验证的只是「**向一个语法合法的 patch 追加一条新 MCP row**」。**未验证**：修改一个**已存在** MCP row 的 `config` 是否也热生效——那件事**没有取证，别写成结论**（它的失败模式与 2.13 的 `agent-preset-registry` 那类"热改已存在的行会让已存在会话崩塌"是风险不同的两件事）。
+- 文件顶部注释逐字写着：**Requires restarting `npx @deepseek-ai/dsh web` to take effect.** → 与 2.1 一致（改完必须**冷启动**验证）。
 - 行定位靠 `id:`（自取唯一名）；工具对模型暴露为 **`mcp__<serverName>__<tool>`**。
 - 能力边界（决定"这条路走不通"要在第 3 节之前就判）：**只支持 `stdio` 与 `streamable-http`，没有 `sse`**；**只桥 tools，不桥 resources / prompts**。
 
-**上线纪律按 2.1 / 2.2 / 2.3 全套走**，另补 MCP 专属四条：
+**上线纪律按 2.1 / 2.2 / 2.3 全套走**，只补两条 MCP 专属的：
 
 1. **在隔离 host（重定向 `DSH_HOME`）冷启动验证"同一组合"**——实测成功那组的形态是：`stdout` 只有一行 `dsh web: http://127.0.0.1:<port>/?token=…`、`stderr` **0 字节**。判据是"**打印了 URL 那一行**"，不是"进程还活着"。
 2. **失败形态有三种，都要单独判**：① **合法 row、但 server 起不来**（host 照常服务、无 token GET 照样 **401**，工具**静默缺席**——见 2.1 形态①，唯一痕迹是子进程 stderr 一行；"无 token 401"**不算**接入成功）；② **host 正常起来了、新工具却没注册上**（**同样静默**，`401` 会照样通过；**本次未取证**，但仍必须防）；③ **YAML 语法错误**（**不是静默**：进程直接 `EXITED code=1` + 解析报错，见 2.1 形态③）。⇒ 无论走哪一条，都必须再去会话的工具面里**点名核对那个新工具是否存在**（`mcp__<serverName>__<tool>`）。
-3. **追加 MCP row 的验收三段（本轮实测跑通的顺序，别跳、别只用其中一段）**：
-   1. **静态组合**：`node <dsh bin.js> --profile web --dump-config` **退出码 0**，且输出里 `name: '@deepseek-ai/dsh-mcp-client'` 的计数**恰好 +1**（改前改后各数一次）。⚠ 它**只组合、不 mount**——`--dump-config` 通过**证不了**工具会挂上（同 2.10 第 1 条）。
-   2. **隔离 host 冷启动 + 真建会话**：另给一个 `DSH_HOME` 冷启动（`dsh-isolated-web-host`），在**该 host 的真会话**里，从 **`request/header`（服务端权威、模型自述不算）**点名核对工具名与总数（取法见 `dsh-agent-preset-verification` 阶段二（`dsh-agent-preset-verification/references/online-session.md` §2）：`data.header.tools[].name`）。
-   3. **真实会话里真调用一次只读工具**：拿到真实数据才算通（"工具名出现了"不等于"能调通"）。
-   - 三段的分工：① 管"配置层写对了"，② 管"挂载了 + 会话拿得到"，③ 管"调用真能通"。只做 ① 是**假通过**。
-4. **证明"只追加、没重写"（共享 YAML 的安全前提）**：改动前先记下**原文件字节数 N** 与原文件 `sha256`；改动后算新文件**前 N 个字节**的 `sha256`，**必须仍等于改前那个值** ⇒ 证明这次改动是纯追加、没有重写任何既有字节。本轮实测相等。任意一处被重排/重写，这个等式立刻不成立。
-   - ⚠ **数这类值别用 PS 5.1 的 `>` 重定向**：它写出来的是 **UTF-16LE**（首字节 `ff fe`），后续按 utf-8 解会报 `UnicodeDecodeError: 0xff in position 0` ⇒ **数行数 / 判 BOM 一律二进制读**（`[System.IO.File]::ReadAllBytes` / Python `open(p,'rb')`；细则与其它编码坑见 `pwsh-on-windows`）。
 
 **可选字段的语义与默认值**（`@deepseek-ai/dsh-mcp-client`，本次新增）：
 
@@ -190,147 +153,17 @@ whenToUse: 要改 DSH 自身行为（行为宪法 / 流程 skill / agent 组合 
 4. **断言口径**：比对 **codepoints 数组** + **utf8 hex**（`值.encode('utf-8').hex()`）+ **紧凑 JSON 原文**（`separators=(',',':')`、`ensure_ascii=False`）三样，**不要眼看**。
 5. 本次跑通的口径可作验收模板：返回体是 `{present, codepoints, utf8hex, json}` 四元组，**emoji 与尾随空格零损坏**判据 = `utf8hex` 与源串逐字节相等、`codepoints` 与源码点逐项相等。
 
-**边界**：探针 server 必须跑在**隔离 host**（`dsh-isolated-web-host`）；取值的会话 RPC 细节（`session/create|page|prompt` 的参数要包一层 `{"request":{…}}`、`throughSeq` 必须 ≤ 游标否则 `past cursor N`）**单一归属在 `dsh-agent-preset-verification` 阶段二**，本 skill 只留这条指针、不复制。探针那侧的具体变量名属**会话专属证据**，留报告，不进本 skill。
+**边界**：探针 server 必须跑在**隔离 host**（`dsh-isolated-web-host`）；取值的会话 RPC 细节（`session/create|page|prompt` 的参数要包一层 `{"request":{…}}`、`throughSeq` 必须 ≤ 游标否则 `past cursor N`）**单一归属在 `dsh-agent-preset-live-verification`**，本 skill 只留这条指针、不复制。探针那侧的具体变量名属**会话专属证据**，留报告，不进本 skill。
 
 > 会话专属证据（隔离 home 的实际路径、端口、URL、各 server 的字符数）留报告，不进本 skill。
 
-
-### 2.10 改"已装插件包**本体**"：断言式补丁脚本 + 三层验证（实测）
-
-当插件行层做不到、必须改插件**代码**本身时，改动落在 `node_modules/<pkg>/lib/index.js`。**不要手工改那个文件**——重装会静默覆盖，且没人能重现你改过什么。
-
-**1) 把补丁写成"可重跑的断言式脚本"**，不是一次性 hack：一张 `[old, new]` 替换表，每条**断言锚点在该文件里恰好出现一次**（匹配 0 次或 ≥2 次都**整体中止、一个字节都不写**），配 `--check`（只验锚点不落盘）、`--root <包目录>`、带时间戳备份、`--restore`。上游一升级、锚点漂移，脚本会**响**，而不是产出半个补丁。
-
-- **纯文本替换标识符时，`old` 取"不含前导空白"的唯一子串**：JS 缩进不影响语义，所以 `new` 的缩进写错只是难看；但 `old` 多一个 tab 就匹配不上。需要保留缩进时用正则捕获（`^(\t*)key: \{` … `$1`），**且替换必须用字符串 replacer**——`source.replace(re, () => rep)` 是**函数** replacer，`$1` / `$&` **不会展开**，会**原样写进源码**（本次实测踩到：靠"文本变了"看不出来，只有额外断言"没有 `$1` 泄漏"才抓得住）。
-- 每次改完立刻过**语法闸门**：补丁后的文件另存 `.mjs` 跑 `node --check`（只解析语法、不解析模块依赖），挡住"锚点对但拼坏了"。
-- 若补丁让插件**新增一个 `inject` 依赖的 service**（例如给工具加 `fs`），要意识到：该 service 在某个组合里缺席时，**整个插件行会静默不服务**（同 2.1 形态①）。
-- 补丁只改**包**不改**数据契约**：凡是写进会话日志的东西，都要按下面第 2 条过一遍回滚。
-
-**2) 回滚安全性是**设计时**决定的，不是事后补的**：
-- **不要**给 `.strict()`（`additionalProperties: false`）的**持久化 / 快照** schema 加字段：会话日志虽是 append-only 事实源，但快照类 schema 是 strict 的 ⇒ 老代码遇到新字段**直接拒绝**，于是"打完补丁写出的日志，回滚后读不了"。
-- **要**用**加法型事件**：新事件类型挂在**白名单式**分发函数后面（本次 `isTeamEvent()` 只认 4 个类型、未知类型走 `return state`），未打补丁的老代码**直接忽略**新事件 ⇒ 打完补丁写出的日志回滚后仍可解析。判据一句话：**新事件在旧代码里是"被忽略"而不是"被拒绝"**。
-- `stateVersion` 能不升就不升（一升，旧代码就会面对"更新的检查点"）。
-
-**3) DSH 没有"按 agent 归因的改动清单"，别把验收设计在它上面**（实测）：
-- `dsh-workspace-changes` 按**顶层会话、按轮**统计，且**显式跳过子代理会话**（`lib/index.js:985-986`）⇒ 某个队友的改动落在哪些文件**无法归因**。
-- `pwsh` / `bash` 走子进程，**不产生**任何 workspace 变更事件（写文件、跑格式化器、代码生成器一律不算）。
-- `FsInfo.version` 是 `dev:ino:size:mtimeNs:ctimeNs` 这类**不透明 stat 令牌**，**不是内容哈希**，不能当"文件没变"的证据；它也不能用来判"是不是同一个内容"。
-⇒ 想验"队友有没有越界写"，靠事件流做不到；**能验的是"它声称产出的文件是否存在、内容哈希是多少"**——所以把验收设计成**点名 + 宿主算哈希**（见 `orchestrating-subagents` §8）。
-
-**4) 自己打的补丁必须过三层验证**（缺一层别上生产环境）：
-1. **静态组合**：`dsh --profile <p> --dump-config` 跑通、退出码 0、补丁包按名解析到。**注意它只组合不 mount**，"能 dump"≠"能挂载"（判 mount 的场地见 `dsh-isolated-web-host`）。
-2. **确定性单元**：把补丁后的包 `import` 进一个 stub `ctx`（假 `agents.list()` 返回一个 stub Agent + 它的 `ctx.tools.register`、假 `ctx.fs`），**直接调用 `defineTool` 注册出来的工具**，断言：注册名集合、错误 `code`、返回值的形状、以及**输出 schema 是否声明了返回的每个字段**（`def.output.schema.properties`；多一个未声明字段在真机上会被 strict 拒）。这一层不花 LLM 钱、可反复跑，是性价比最高的一层。
-3. **真会话**：隔离 host 里真跑一轮，读会话日志的 `request/header`（工具清单）与 `system/message`（注入的策略正文）**点名核对**；再拿**未打补丁的包做对照**跑同一套断言（差分对照才是"我的改动确实生效"的证据，自证不算）。
-
-### 2.11 把一个实验包挂进 profile 的形状（官方自己就是这么挂的）
-
-替换式挂载只有两步，**顺序不能反**：先按 `id` 关掉要取代的旧行，再 `insert` 新行。
-
-```yaml
-- id: tool-subagent          # ① 关掉要取代的旧行（行级、按 id 匹配）
-  disabled: true
-
-- insert:                    # ② 再追加新行；每行三件套 id / name / config
-    - id: agent-team
-      name: '@deepseek-ai/dsh-experimental-agent-team'
-      config:
-        maxMembers: 8
-        maxTasks: 256
-```
-
-- **官方自己就是这么挂 Agent Teams 的**：`dsh-experimental-agent-team-profile\cordis.patch.yml`（33 行）= **4 个 `disabled: true`**（`tool-subagent-control` / `tool-subagent-list-agents` / `tool-subagent` / `tool-subagent-fork`，:4-14）+ **一个顶层 `- insert:`**（:16）下 **3 行**：`agent-team`（:17-24，config 键 `maxMembers` / `maxTasks` / `maxPendingMessagesPerMember` / `maxMessageBytes` / `disposalTimeoutMs`）、`tool-agent-team`（:26-30，config 键 `freshProvider: spawn` / `forkProvider: fork`）、`ui-agent-team`（:32，无 config）。
-- `disabled` 是**行级 + 按 `id` 匹配**；在 profile **用户层**写同名 `- id:` **不会**覆盖 bundle 的 `disabled: true`——实测会追加出重复行（机制与后果见 2.5）。判"到底谁生效"看 `--dump-config` 里同一 `id` 是否出现两次（先 `disabled: true`、后不带）；**能 dump ≠ 能挂载**，逐行离线校验的正文单一归属在 `dsh-agent-preset-verification`。
-- **挂实验包先查官方 bundle，别自己 vendoring + 手写 row**：官方已把 `@deepseek-ai/dsh-experimental-agent-team-profile` 做成 bundle（带 `cordis.patch.yml` + `dsh.bundle.patch`）并列入 `dsh-app-boot\lib\index.js:552-557` 的 `OPTIONAL_BUNDLES`（该数组的注释原文 `offered switched off by the plugin manager`，:548）⇒ 直接走官方路径。反例（实测）：手工方案那批 `*.tgz` 与 `staged\` 备料全是**过时的 0.1.5-rc.2**，比运行时装着的 0.2.0-rc.2 落后一整代。
-- **失效模式（实测）：手工 row 方案会随 patch 长出真实 row 而整体失效。** 那套 apply / watchdog 脚本以「`cordis.patch.yml` 必须恰为裸 `[]`」为硬门槛；本机 patch 现为 **1311 B / 4 条真实 row**（`llm-pi-ai` / `agent-default-model` / `ui-settings-general` / `permission`）⇒ `apply-team-live.ps1` / `team-live-watchdog.ps1` 在 guard 处 `exit 3`；更坏的是 `deploy-team.ps1` **先污染后拒绝**（第 1 步真会创建 `profiles\node_modules\@deepseek-ai` 并拷入过时的 0.1.5 包，第 3 步才 throw `profile patch is not a bare [] and has no team rows; refusing to clobber.`）。⇒ 判据：**凡以"某个文件必须是空 / 必须是某个形状"为前提的自动化，动手前先验证那个前提还成立**，并默认它**在拒绝之前可能已经改过磁盘**。
-
-### 2.12 从会话日志回收被覆盖的旧版本（DSH 自身的记录面）→ `references/session-log-forensics.md`
-
-会话日志是 DSH 唯一的"改前版本"来源。三条要点：日志按会话分目录、正文是 **zstd 帧**、`request/header` 里存着当轮的**完整工具面与 system prompt 原文**。完整配方（含 §2.12.1 全会话扫某个错误串的 **zstd 流式精确匹配**）在该文件。
-### 2.13 改"正在运行 host"的 registry 行：已存在会话的工具面**当场静默崩塌**（实测，全库最隐蔽的一种）
-
-**这是与 2.1 相反方向的坑**：2.1 的坏 row 是"**当场无感、重启才死**"；本节是"**当场就坏、重启才活**"。
-
-**现象（实测）**：在**正在运行**的 host 上改 preset registry 那一行的 `config` 取值 ⇒ **下一个提问时所有已存在会话的工具面只剩 MCP 工具**（实测：12 个 MCP + 1 个泄漏的 `subagent` = **13** 个；正常应为 **31 / 43** 量级）。**这几个数字是本次实测示例，不是常量。** 四个关键性质：
-
-- **不自愈**：继续提问不恢复；**把那条 patch 改回原样也不恢复**（热重载已经毁掉了挂载点）。
-- **只有重启进程才恢复**；重启后**旧会话自愈**——会话本身没坏，坏的是**进程内的挂载**。
-- **触发与取值无关**：`standard` → `orchestrator` / `ptc` / `minimal` **都复现**。⇒ 危险的不是"改错了值"，而是"**动了这一行的 `config`**"。
-- **新会话一切正常**（这正是它难被发现的原因）。
-
-**机制一句话**：host 面（patch / 组合层）的 `tool-*` 行**全都是 `disabled`**，会话的工具**只能来自 preset realm**；而 realm **只在 `composeAgent().setup` 里 `mount` 一次**——`composeAgent(presetId)` 返回的 `setup` 内容是 `installSelection(agent)` + `await presets.mount(agentCtx, resolvedId)`（`dsh-api-session-controller/lib/types/agent.js:388-401`），**已发布的会话不会再跑 setup**。registry 插件因 `config` 变化被 Loader 重建 ⇒ 旧注册的 disposer 跑 `unregister()` → `generation.retired = true` → `collect()` → `generation.scope.dispose()` → `mountPreset` 注册的 effect 清理函数 `tree.root.stop()`（`dsh-agent-preset-registry/lib/index.js:511-523` / `:569-573` / `:263-267`）⇒ **realm 被 stop 且不重挂**。新会话走新 setup，所以新会话没事。
-
-⇒ **正确心智模型**：这一行的 `config` **不是"改完只影响新会话"**——那句话只在**冷启动**语境下成立（第 1 节表格）；在**正在运行的 host** 上热改它，代价是**当前所有会话**。
-
-**要"让某个 preset 成为新会话默认"，字段是 volatile 的 `config.selectedDefault`，不是非 volatile 的 `default`：**
-
-- 取值逻辑：`defaultId = selectedDefault ?? default`（`dsh-agent-preset-registry/lib/index.js:494`；schema `:473`——`default` 是普通字段，`selectedDefault: z.string().volatile()`）。
-- 写入方式（**GUI「设为默认」走的就是同一个口**）：`settings.update("agent-preset-registry",{ selectedDefault: <id> })`（`dsh-client-ui-agent-preset/lib/client.js:1072` 逐字如此）。
-- 实测：写入后 `isDefault` 翻转、**不带 preset 建会话即得该 preset**、**冷启动仍生效**。而走 `settings` 通道写 `default` 会被**拒**，逐字错误原文：`Config field "default" is not volatile`（`dsh-settings/lib/index.js:507` / `:520`）。
-- ⇒ **`selectedDefault` = 用户默认；`default` = 部署默认。** 要改用户默认就别去动 `default`。
-
-**`volatile` 的语义（别猜）**：**不是"只在本进程有效"**。schema 注释原文是 "Select fields whose nearest volatile ancestor makes them editable **without remounting**"（`dsh-settings/lib/types/schema.js:39`，`lib/index.js:118` 同文）——即**免重挂载、就地改值**。**这正是它安全的原因**：写 `selectedDefault` 走"就地改值"，**不会触发 registry 插件重建**，所以**不会**引发上面那场崩塌。
-**反例口径**：**不要拿 `applies: "live"` 当安全依据**——它在类型声明里就是**写死的字面量** `applies: 'live'`（`dsh-api-settings-controller/lib/typert.host.js:489`）⇒ 对**所有** namespace 恒为 `live`，对"会不会重挂载"**零信息量**。
-
-**两条会被"拒"的写入路径**（都要在动手前先试，别等写坏了才发现）：
-
-1. **home patch / 命令行 overlay 里已配置同一行** ⇒ 拒，逐字原文（`<id>` 位实测为 `agent-preset-registry`）：`Configuration for "agent-preset-registry" is overridden by a home patch or command-line overlay`（`dsh-config-editor/lib/index.js:122`）。
-2. **非 volatile 字段** ⇒ `Config field "<path>" is not volatile`（同上）。
-
-**写 settings 会整份重写重排 profile patch**：路径是 `writeFileAtomic(path, String(document))` → `reconcileProfilePatches(...)`，整体包在 `hmr.runExclusive(run)` 里（`dsh-config-editor/lib/index.js:123` / `:125` / `:134`；reconcile 失败会回写 `before`，`:127-129`）。因为**整份文档被重新序列化**，实测副作用是**既有行"值没变、样式变"**（引号风格、缩进被改写）⇒ **动手前先备份**。
-
-**操作建议（三条，按顺序）**：
-
-1. **动手前**确认目标行的 `config` 里**非 volatile 字段取值不变**（本轮真实环境就是"现状 `default: standard`，只新增 `selectedDefault`"——**只做加法，不改既有非 volatile 值**）。
-2. **备份** profile patch（写 settings 会整份重排，见上）。
-3. **改完必须重启一次**才算彻底安全——**冷启动成功 ≠ 热重载成功**（2.1），而本节反过来说：**热重载本身就能把活着的会话弄坏**。
-
-> 本节所有行号取自本机 `node_modules/@deepseek-ai/*`（`0.2.0-rc.2` 线）；升级后行号会漂，**判据与错误原文**才是可迁移的部分。
-
-### 2.14 `config\` 快照池是「分发源」不是「回滚库」→ `references/config-pool-is-not-rollback.md`
-
-一次 `-Apply` = 一次**无声的教义回退**（把 `config\` 里的旧快照重新盖到生效件上，且不报任何错）。**动手 `-Apply` 之前必读该文件**：判据、实测反例与恢复路径都在里面。
-### 2.15 skill 根卫生：清理 `~/.dsh/skills` 时，**被正文引用的凭据文件就地保留**→ `references/skill-root-hygiene.md`
-
-删掉正文引用到的凭据 / 数据文件后，skill 仍然"存在且校验通过"，但**跑起来就断**——这是最难在事后归因的一种坏。实测反例与清理前检查清单在该文件。
-### 2.16 `toolFilter.allow` 只筛继承面、own 层注册无条件可见→ `references/toolfilter-allow-semantics.md`
-
-**结论（可当纪律用）**：`allow` 只作用于**继承来的**工具面；agent preset 自己在 **own 层**注册的工具**无条件可见**。⇒ 不许用 `allow` 反推某个 agent 的工具面（详见 `orchestrating-subagents` §3.1.1）。这条纠正的是**运行时 doc comment 的口径**，不是本 skill 的旧文；源码行号与推导在该文件。
-### 2.17 「本轮运行失败」+ `Provider finish_reason: <X>`：透传 / 可重试 / 致命三分，以及"是不是 DSH 的 bug"判据
-
-> 承接 **2.12.1**（扫出错误串之后怎么判读）。本节只写**判据与实装链路**，不写扫描配方。
-
-**先拆掉最容易被误读的一层：那句报错文字不是 DSH 的判定。** 用户可见的
-
-```
-本轮运行失败
-Provider finish_reason: content_filter
-```
-
-是 **UI 的 i18n 标题 + 上游字段透传**——`"message.turnError": "本轮运行失败"`（英文 `"This turn failed"`）在 `node_modules\@deepseek-ai\dsh-client-ui-chat\lib\client.js:5526`（英文 `:5715`）。**"本轮运行失败"是界面文案，"Provider finish_reason: …" 是上游给的** ⇒ 报告这类问题时不要把两句一起当成"DSH 崩了"的证据。
-
-**实装位置的取证方法**（**别写死路径**，本机会漂移）：从活着的 host 进程命令行取 `<install>`（配方见 `dsh-agent-preset-verification` §0）；`~\.dsh\launcher\runtime` 在本机**已不存在**，旧文拿它当「唯一权威」已失效。**`D:\workspace\agent\dsh_base` 不是 DSH 源码树**（只有 `artifacts/` 与备份）⇒ 在那里找不到实现，**别在错的地方读源码**。
-
-**链路四跳**（每一跳都给 `文件:行号` + 可搜的名字）：
-
-1. `node_modules\@earendil-works\pi-ai\dist\api\openai-completions.js:1190-1212` 的 `mapStopReason()`——**错误字符串在这里生成**：`:1202-1203` `case "content_filter"` → `{ stopReason:"error", errorMessage:"Provider finish_reason: content_filter" }`；`:1204-1205` `network_error` 同形；`:1206-1210` `default` → `Provider finish_reason: ${reason}`（**别忘 default 分支：任何没被枚举的上游 reason 都从这儿出**）；`:1197-1198` `length` → **非错误**（UI 显示的是"已达到输出 token 上限"）。⇒ 报错里那个 `<X>` 就是**上游 worker 的 `finish_reason` 原样**。
-2. `node_modules\@deepseek-ai\dsh-llm-pi-ai\lib\index.js:1380-1391` `classifyPiAiError()`——**没有 `content_filter` 分支** ⇒ 落到 `:1390` `return "PI_AI_ERROR"`。⚠️ `:1389` 会把含 `network|connection|socket|fetch|ECONN*` 的文本判成 `TRANSPORT`（**这决定下一步它可不可重试**）。
-3. `node_modules\@deepseek-ai\dsh-llm\lib\types\retry-policy.js:16-22` 默认重试码 = `EMPTY_RESPONSE / RATE_LIMIT / SERVER / TIMEOUT / TRANSPORT`。**`PI_AI_ERROR` 不在内**。
-4. `node_modules\@deepseek-ai\dsh-llm-retry\lib\index.js:160` ⇒ 不在集合内 ⇒ **不进退避、直接放行**（把错误抛给上层）。只有把策略显式配成 `mode: "always"` 才会**无条件重试**。
-
-**判据（可迁移，换任何错误串都照做）**：**报错字符串里带着上游的 `finish_reason` ⇒ 先怀疑上游、而不是 DSH**。三步判定动作：① 在 **runtime** 的 dist 里 grep 这个字符串（找到"是谁生成它"的那一跳）；② 读 `classifyPiAiError()` 有没有**为该类错误开专门分支**（没开 = 归 `PI_AI_ERROR` / 跟 `network|connection|socket|fetch|ECONN*` 沾边的会被误判成 `TRANSPORT`）；③ 查该 code **在不在 `retry-policy.js` 的重试集合里**。**三条一起看才能判"透传 / 可重试 / 致命"**——只看报错文字得不出任何一条。
-
-**已知真实形态（本机实测，属证据不属结论；别再当成"上下文超长"）**：多次事件里模型**已经产出数百到数千个输出 token** 后上游才给 `content_filter`（**输出侧过滤**）；也出现过**第 1 轮第 1 步、usage 全 0、模型只吐一句拒绝语**（**输入侧 / 网关兜底**）。⇒ **与"上下文超长"无关**（命中的 prompt 都小于该模型 `contextWindow`），也**与"会话有多长"无关**。**附带结论**：`content_filter` 归为**不可重试的致命错误** ⇒ 已生成的输出被**整个丢弃**、**无降级、不换模型**——这是**健壮性设计取舍**，不是"报错了"的 bug。
-
-**不要做什么**：① 不要在 `D:\workspace\agent\dsh_base` 里找这段实现（它只有 artifacts）；② 不要把 `length`（`mapStopReason` 的 `:1197-1198`）判成错误并写进排查清单（UI 文案完全不同）；③ 不要只 grep 第二跳就下结论——**没有专门分支**是判"不可重试"的**必要条件之一**，还得看第 3、4 跳。
-
-**验收标准**：能一句话说出这个错误串是**谁生成的**（文件:行号）+ **归到哪个 code** + **在不在重试集合里** + **会不会丢弃已生成输出**。四条都答得出才算判完。
 
 ## 3. 阶梯顺序（编排入口）
 
 ```
 设计  →  离线校验（dsh-agent-preset-verification）
       →  起隔离 host（dsh-isolated-web-host）
-      →  在线会话验收（dsh-agent-preset-verification 阶段二）
+      →  在线会话验收（dsh-agent-preset-live-verification）
       →  安全上线（本总纲第 2 节那一套）
 ```
 
@@ -347,24 +180,234 @@ Provider finish_reason: content_filter
 - 不要在**用户真实 `~/.dsh`** 上直接试实验插件行——坏 row 冷启动**分三形态**（2.1）：解析错误那一种会**硬退出并报错**（可见、可回滚），真正危险的是**形态①的静默缺席**（host 照常 401、工具没了）与**形态②**（未取证但必须防）。**风险不对称** ⇒ 没想好回滚就不要动用户环境。
 - 不要把 **401** 当成启动失败，也**不要**当成 MCP 接入成功（形态①/② 下 401 照样通过）。
 - 不要用"**端口不监听**"当冷启动失败 / 清理判据——本机端口枚举恒空，那是**恒真空断言**（正文与实测见 `dsh-isolated-web-host`）。
-- 不要把"热重载后页面还能打开"当成部署成功——换的是冷启动的账。（**唯一的精度例外**：**向语法合法的 patch 追加一条新 MCP row** 实测会被热重载拉起、无需重启，见 2.7；但那**不豁免**"冷启动正确性"这一步，也**没有**验证"热改一条**已存在**的 row 的 `config`"。）
+- 不要把"热重载后页面还能打开"当成部署成功——换的是冷启动的账。
 - 不要在没有 **host 之外**的看门狗时，改自己正跑在里面的那个 host。
 - 不要提交一个**没被真实故障触发过**的回滚/看门狗脚本，也不要让重启命令漏掉 `DSH_HOME` / `--port` / `--no-open`。
-- 不要**以为**"挂了 `dsh-experimental-agent-team` + `-tool-agent-team`，所有普通委派就全废（`TEAM_NOT_MEMBER`）、且没有配置级绕法"——**那是已被证伪的旧断言**（2.5）。真实后果是它**顶掉 `send_message` / `list_agents` / `interrupt_agent` 三个原生名**（把 `send_message` 指向普通子代理时报 `active teammate "<id>" not found` 就是这么来的），而两族能否并存取决于**有没有一层在 team bundle 之后把原生行插回来**。⇒ 别按"先别挂"办，按 2.5 的三条纪律办，并且**去会话工具面点名核对 schema**（`agent_id` vs `target`）。
-- 不要手工改 `node_modules` 里已装插件包的源码：写成**断言式补丁脚本**（`--check` / 时间戳备份 / `--restore`，锚点必须唯一）；**不要**给 `.strict()` 的持久化 schema 加字段（回滚后老代码读不了日志）；**不要**把"队友有没有越界写"设计在 workspace 变更事件上（DSH 没有按 agent 的归因，2.10）。
+- 不要把 **401** 当成启动失败。
+- 不要挂 `dsh-experimental-agent-team` + `-tool-agent-team`（除非已读过 `dsh-agent-preset-live-verification` 并用对照组确认委派仍可用）。
 - 不要把 `failOnStartupError` / `toolCallTimeoutMs` 改离默认值——`failOnStartupError: true` 只把"形态①的静默缺席"升级成"整个 host 起不来"，对形态③（YAML 解析错误）**买不到任何保护**（2.7 表）。
 - 不要**去找**"MCP 的配置文件"或写 `mcpServers` 键——DSH 没有那一层，唯一入口是 patch 里的一行 `@deepseek-ai/dsh-mcp-client`（2.7）；也不要指望 `sse`，它只支持 `stdio` / `streamable-http`，且**不桥** resources / prompts。
 - 不要在**没量过**工具面注入量之前就把 MCP server 挂上去——工具 schema 每轮重发，成本按轮线性付（2.8）；也不要先假定"`--discovery` 类开关 + 工具白名单能叠加"，**必须三组对照实测**（单开 / 单开 / 同开），否则可能白付"能力消失"的代价。
 - 不要把"隔离 host 打得开（401）"当成 MCP 接入成功——**形态①/②都**是 host 正常但工具没来，**必须点名核对工具**（2.1 / 2.7）。
-- 不要以为**中文 UI 就等于中文系统提示词**：四个团队包的中文只在 `locale\zh.json`（每包 2 行）与 `README.zh.md`（实测 108 / 72 / 47 / 50 行）里，`lib\*.js` 的 **CJK 行数为 0**（三个包实测 0；只有 UI 包的 `client-ui-agent-team\lib\client.js` 24 行是界面词条）⇒ 注入给模型的 `team:policy` 仍是**纯英文**（`tool-agent-team\lib\index.js:21` 起）。要改策略文本就改 `lib\*.js`，改 locale 不会动系统提示词。
-- 不要把 README 里交叉引用的文档当可用来源：`agent-team` / `tool-agent-team` 的 README 指向 `../../../docs/subsystems/agent-team.md`、`../../../docs/config-catalog.md`、`../../../docs/tool-catalog.md`、`../../../.agents/notes/implemented/...`，在 npx 安装根的 `node_modules` 下**逐条 `os.path.exists` 全为 False**（全树只有无关的 `undici\docs`）⇒ **只能依据 `README*`（含 `README.zh.md` / `README.i18n.yaml`）与 `lib/`**，别照 README 的路径去找文档。
 - 不要在本总纲里找具体命令——按第 3 节进对应子 skill；本总纲不复制它们的正文。
 
 ## 验收标准
 
 1. 能一句话说出本次改动**属于哪一层**、**何时生效**、**怎么撤**（第 1、2.6 节）。
-2. 若动了插件行 / patch：已在**隔离环境冷启动**验证**同一组合**（同 profile 文件 + 同 `node_modules`），并观察到启动 URL + 401。**挂了 MCP server 时再加一条**：新工具名**点名**核对过（`mcp__<serverName>__<tool>` 真的出现）——host 打得开**不算**过（2.7 的形态①/②就是"host 正常、工具没了/静默缺席"）；**追加 row 时另按 2.7 的三段验收逐段留证**（`--dump-config` 计数 +1 → 隔离会话 `request/header` 点名 → 真调用一次只读工具），并用 2.7 的"前 N 字节 sha256 相等"证明**只追加没重写**；并对该 server 量过一次**工具面注入量**、与已挂 server 做过基线对比（2.8）；有非 ASCII `env:` 时另按 2.9 用探针 server 验一次保真（判据 = codepoints + utf8 hex 逐项相等）。
+2. 若动了插件行 / patch：已在**隔离环境冷启动**验证**同一组合**（同 profile 文件 + 同 `node_modules`），并观察到启动 URL + 401。**挂了 MCP server 时再加一条**：新工具名**点名**核对过（`mcp__<serverName>__<tool>` 真的出现）——host 打得开**不算**过（2.7 的形态①/②就是"host 正常、工具没了/静默缺席"）；并对该 server 量过一次**工具面注入量**、与已挂 server 做过基线对比（2.8）；有非 ASCII `env:` 时另按 2.9 用探针 server 验一次保真（判据 = codepoints + utf8 hex 逐项相等）。
 3. 若动的是自己正跑着的 host：看门狗**已用人为杀 host 实测过**回滚与重启分支，且重启命令显式带 `DSH_HOME` / `--port` / `--no-open`，marker 文件已落盘。
 4. 按第 3 节阶梯留下证据：离线校验结论 → 隔离 host 就绪（401）→ 在线 `agentPreset`/persona/工具/`turn/end` → 上线后的冷启动证据。
 5. 子 skill 与总纲的交叉引用双向齐全（总纲 → 子 skill；子 skill description 的"不适用 → 用 `dsh-agent-customization`"）。
-6. 遇到"本轮运行失败 / `Provider finish_reason: <X>`"这类报错时，能按 **2.17** 说出**谁生成它（文件:行号）／归到哪个 code／在不在重试集合里／会不会丢弃已生成输出**——四条答不全就说明还没判完。
+
+## 恢复 DSH home 时：文件名版本段必须以文件内 header 为准
+
+> 这一节不新增层：恢复 `~/.dsh` 备份仍是“改一个正在跑的环境”，第 2.2 / 2.3 节的纪律（外围看门狗、安全网要实测）照样适用。区别只在失败形态——它不是静默，而是**整个会话列表一起挂**。
+
+### 硬约束：`session.vN.jsonl.zstd` 的 N 必须等于 header 的 `version`
+
+会话日志的落盘路径是：
+
+```
+<项目目录>/<session-id>/session.vN.jsonl.zstd
+```
+
+**文件名里的版本段必须等于该日志第一行（header）的 `version` 字段**——不是“当前 DSH 的最新版本”。从空闲簇 / 旧副本重建、或从旧版迁移时，这一步最容易整体写错。
+
+命名规则（`@deepseek-ai/dsh-session-format/lib/index.js:472`）：
+
+| header `version` | 合法文件名 | 备注 |
+|---|---|---|
+| `v0` | `session.jsonl` | **没有**版本段；`.v0.` 非法 |
+| `vN`（N ≥ 1） | `session.vN.jsonl` | 大写 `V3`、前导零 `v03` 都不被识别 |
+| 压缩存储 | 上面任一种再加 `.zstd` | 后缀按压缩方式追加 |
+
+### 写回日志必须**多帧**：第 1 帧只放 header 行；单帧写回会让会话**静默消失**
+
+压缩日志是**多个 zstd 帧拼接**：第 1 帧装 header 行，后续帧装追加的事件行。所以**读要跨帧**——`zstandard.ZstdDecompressor().stream_reader(f, read_across_frames=True)`；Node 的 `zlib.zstdDecompressSync()` 只解第一帧（实测一个 505 字节的日志只得到 244 字节 header，很容易误判“日志是空的”）。读全的完整配方**单一归属在 `dsh-agent-preset-live-verification`**（§6），本节只写**写回**约束。
+
+**写回铁律**：重压缩写回时**至少两帧，且第 1 帧只放 header 这一行**，其余全部事件行放进后续帧。若压成**单帧**写回——**内容完全正确，不报错，也没有任何损坏提示**，但 `session/list` 里那个会话**直接消失**。实测：把 10 个日志改成单帧 → 列表 **234 条掉到 224 条**；同一内容改回「第 1 帧 = header 行 + 第 2 帧 = 其余全部行」→ 该会话**立刻回到列表**。⇒ 它不是坏了，是被“自己的修复”藏起来了。（只剩 header 的日志怎么处理**未验证**。）
+
+**这条改了排查方向**：「备份恢复后某些会话不见了」**先别怀疑内容坏了**，先查帧布局。
+
+判定（三步，可复用）：
+
+1. **比数量**：`session/list` 的条数 **<** `sessions/` 下的日志文件数 ⇒ 命中了“静默不可见”。
+2. **验内容**：把疑似缺失的那条**跨帧解压**，能解出完整 JSONL（header + 事件行齐全）⇒ 内容没坏，问题在**帧布局**。
+3. **修法**：按「第 1 帧 = header 行、第 2 帧 = 其余全部行」重写成两帧，再拉一次 `session/list` 核对该会话是否回来。
+
+### 不一致 = 硬失败，会拖垮整个 listing
+
+不是“跳过这一条”，而是**抛错**——`@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js:3159`，消息形如：
+
+```
+session generation filename identifies v<文件名版本>, but its header identifies v<header 版本>
+```
+
+同文件的 `listArtifacts` **只在 `unsupported` / `corruption` 时跳过**（`:3115`），这条错不在跳过之列 → 冒泡成 `dsh-session-query` 的 **`SESSION_QUERY_PERSISTENCE_FAILED`**（`dsh-session-query/lib/index.js:290`）→ 依赖会话列表的下游全部挂：workspace controller、手机桥的 task index。用户侧体感就是“**会话列表 / 工作区打不开**”。
+
+⇒ **一条坏日志 = 整块功能不可用**。只要恢复过 `sessions/`，就必须**全量逐条校验**，不能抽查。
+
+### 根因的典型形态
+
+一批日志被**统一改名成最新版本**（例如全写成 `session.v4.jsonl.zstd`），但内容 header 还是 v3 / v0——“按当前版本批量重写文件名”的迁移 / 重建就是这样坏的。
+
+实测样本（一次恢复）：230 条里 **48 条**被写坏（42 个 header 是 v3、6 个是 v0），约两成。⇒ **“文件数对上了”不能证明恢复成功**，恰恰最容易给出假 OK。
+
+### 恢复后的自证：让**真消费者**打一行日志
+
+别用“数文件 / 看目录结构”验收，找一个**真的调 listing** 的消费者。最低成本：手机桥插件 `~/.dsh/plugins/dsh-mobile-bridge` 启动时就会 `sessionQuery.listSessions()`：
+
+- 成功 → `[info] task index loaded <N> sessions from <N> rows`
+- 失败 → `[error] task index load failed ...`（看到这条就回上面全量查）
+
+### 同场景的两个可复用手法
+
+1. **不启动 host 校验 patch 组合**：`dsh --profile <自定义名> --dump-config`。`desktop` profile 被 Electron 独占、不能这样起；**自定义 profile 名可以**。
+2. **`storages/workspace.json` 会被内存旧版覆盖**：它**启动时读进内存**（`dsh-storage-json` 无文件监听）。运行中改写文件不影响当前进程；而进程下次做**工作区级写操作**时会把内存旧版**写回磁盘、覆盖你的恢复结果**。⇒ 改完**必须重启**，且**重启前别在 GUI 里动工作区**。
+
+### 恢复流程（按此顺序）
+
+1. 只铺文件，**先不启动 host**。
+2. **全量校验**：逐条读第一行 header，断言 `文件名版本段 == header.version`；不一致的**以 header 为准改文件名**（`v0` → 去掉版本段的 `session.jsonl`；压缩的一律保留 `.zstd`；大小写 / 前导零按上表归一）。
+3. 启动，看「自证」那一行日志：`loaded <N> sessions` 且 N 与预期一致才算过。
+4. **最后**才改 `storages/workspace.json`，改完**重启一次**让索引从磁盘重读（手法 2）。
+
+### 坑
+
+| 坑 | 现象 | 修法 |
+|---|---|---|
+| 只数文件数 | 230 条都在 → 判“恢复成功”，实际 48 条坏 | 全量断言版本段；用自证日志验收 |
+| 以为坏日志会被跳过 | 期望“少几条会话”，实际整个列表 500 | 单条错即 listing 全挂，必须全量修 |
+| 把 v0 也写成带版本段 | `session.v0.jsonl.zstd` → 解析侧不认 | `v0` 永远没有版本段 |
+| 改完没重启 | 当前进程行为没变；下次工作区写回把旧版写回磁盘 | 改完必重启，重启前别动 GUI |
+
+> 会话专属证据（本次会话数、坏日志条数、具体项目目录名）留报告，不进本 skill；这里只留可复用的判据与顺序。
+
+## 第三方双半插件（host + client）——实测 2026-11-10，DSH 0.2.2-rc.1
+
+**客户端半不是独立行。** host 行 active 后，宿主读该包 manifest；`dsh.client.platform === "web"` 且 `exports["./client"]` 存在才进 boot graph。注册 id = 包名。
+
+- 包布局：`main: lib/index.js`（host ESM，`@deepseek-ai/*` 保持 external）+ `exports["./client"]: lib/client.js`（**预构建自注册 CJS factory**：`window.__ModuleLoader__.load({id, factory:(require)=>{…; return module.exports}})`；只 require 平台 seed：react / react-dom / react/jsx-runtime / cordis / dsh-client-store / dsh-client-ui-primitives / dsh-client-ui-slots / dsh-client-ui-dockkit）。非平台依赖写 `dsh.client.external`；手写 ESM 必失败（宿主原样拼接）。
+- bundle 安装：`dsh.bundle.patch: "./cordis.patch.yml"` 让插件管理器可装；patch 里 `- insert: - id: <id> name: '<包名>'`。手工安装 = profile `node_modules` 放 junction + profile patch 加同一行。
+- 生效：profile patch 改动热重载；**实测只改 profile patch 可能不唤醒 watcher → touch `~/.dsh/cordis.patch.yml` 触发一次重组合**；改插件自身 `package.json` 清单需重启。
+- 验证（不带 token）：`GET /plugins/events` 首帧 graph 里按 `id` 找行（**不要**用 pluginInventory，它只投影宿主行）；`GET /plugins/??<pkg>/client.js&rev=<rev>` 200，旧 rev 404。`/plugins/*` 免令牌，`/` 401 只是 token 围栏。
+- RPC：宿主 service 继承 `TypertRemoteService`（`super(ctx,'<svc>',{namespace:'<ns>'})`）+ 原型 marker `@deepseek-ai/dsh-typert-protocol/remote-methods`；无 strict 描述符时网关走 SRC 兜底（参数名从 `Function.prototype.toString()` 解析，**signal 必须字面量最后一位**）。client 最省事走 `ctx.connection.rpc.call('/api','<ns>/<method>',{args},signal)`，返回 `{ok,value}|{ok:false,error}`，**免 zod / 免 $mount / 免 generator**。
+- 验收：隔离 host 冷启动 + boot graph + bundle 200；真会话验 UI；只读用主会话 `session.vN.jsonl.zstd` 的 size/mtime 不变做证据。
+- 完整示例与细节：`D:\workspace\agent\dsh-sidecar`（README 的 How it works / Development）。
+
+## host-only 插件 bundle：peerDependencies 解析与 defineTool 契约（实测 0.2.2-rc.1）
+
+host-only bundle 不需要 client 半、不需要构建，三个文件就够：`package.json`（`type: module`、`exports: {".": "./index.js"}`、`dsh.bundle.patch`）+ `cordis.patch.yml`（`- insert: - id: <id> name: '<包名>'`）+ `index.js`（`export function apply(ctx, config)`，可选 `export const inject` / `export const Config`）。
+
+**三个必踩的坑（错误原文逐字）**
+
+1. `Cannot find package '@deepseek-ai/dsh-tools' imported from …\index.js`
+   → profile 插件对 dsh 自带包的解析走 app-boot 的拦截层，而拦截层只对**在该包 `package.json` 的 `peerDependencies` 里声明过的名字**生效（`routeLinked` → `readPeerNames`）。在插件清单里声明 peer（本例：`@deepseek-ai/dsh-tools` / `dsh-llm` / `schemastery`）即可，**不要**往插件目录里 vendored 副本。
+2. `JsonSchemaError: unsupported JSON schema: schema.required is not supported by the value schema DSL`
+   → `defineTool` 用自定义 DSL：`required: true` 写在**属性节点**上，不能写 JSON-Schema 的 `required: [...]` 数组；`type` 为 object 的节点要显式 `additionalProperties`；**`output` 是必填字段**（漏了 register 时抛 TypeError）。
+3. `session append cannot reenter while another append is being published`
+   → 在 `turn/end` 的 append 发布过程中直接 `agent.followup()` 必炸。改在 `agent/turn-stopping`（异步 serial 派发，此时没有 append 在发布）里排队：该消息会落在 loop 收尾的 inbox 检查之前，被当成新的一轮继续跑；非 `completed` 的轮次在 `turn/end` 里用 `agent.inbox.remove(messageId)` 撤回并回滚计数。
+
+**系统提示段只给顶层 agent**：`ctx.systemPrompt.section({ name, order, text })` 的 `text(context)` 里判 `context.agent.session.header`——`origin === 'subagent'`、`parentSession !== undefined`、`delegationDepth > 0` 任一成立就返回 `""`（子代理不该继承顶层治理规则）。
+
+**写盘类工具必须自带回读自检**：写完立刻 `fs.readFile` 回读，断言 frontmatter 可切分、`name` 与目录名一致、`description` 单行且 ≤480、路径形状 `<name>/SKILL.md`，并把结果作为 `checks[]` 回给模型；判据与 `sedimenting-skills` 的契约保持一致。
+
+**手工安装（等价于 plugin_manager）**：`<profile>/node_modules/<包名>` 放 junction → profile `package.json` 的 `dependencies` 加 `link:<绝对路径>`、`dsh.profile.bundles` 追加包名 → touch `~/.dsh/cordis.patch.yml` 触发重组合。不需要手改 profile patch：bundle 自带的 patch 会插入 row。
+
+**验收"真的加载了"**：派一个子代理让它如实回报函数清单，看新工具名是否在里面（工具是全局注册的），再让它调一次验 execute 护栏。**不要靠日志**——headless 下 `ctx.logger.info` / `logger.warn` 的输出去向不可靠（本次实测 stderr 全空，插件却已生效）。
+
+## 第三方客户端 UI 插件「装了没反应」的静默降级诊断
+
+## 症状
+
+从第三方市场装的**纯客户端**插件（`dsh.client.platform: web`，`lib/index.js` 是空 `apply(){}`）装上、启用、重启后，界面上**完全没有反应，控制台也不报错**。这类插件的作者通常写了「静默降级」：数据取不到就 `return null`，整条链被 `?.` 和 `try-catch` 吞掉。
+
+血证（dsh-plugin-node-time@0.1.2 → DSH 0.2.2-rc.1）：
+
+```js
+// 插件 client.js:54 —— 期望列表快照里有 current
+next = sessions.list?.getSnapshot?.()?.current;   // 恒为 undefined
+// 插件 client.js:255 —— 拿不到会话就直接 return，不抛错
+function resolveTiming(snapshot, element) {
+  if (snapshot === void 0 || snapshot === null) return null;
+```
+
+## 定位顺序（先证「行生效」，再证「契约」，最后才怀疑浏览器）
+
+1. **行生效没生效**：`plugin_manager` → `set_plugin` / `enabled: true`，`target` 用 `include:<rowId>`。
+   - `application: applied` + `changed: false` = 行已存在且启用（幂等，可安全重复调用）。
+   - `error.code: unknown-plugin` = 行不存在，或刚改完 patch 宿主还没重建索引 → **等 2 秒重试一次**，不要急着改配置。
+   - 这比 `list_plugins` 便宜得多：后者返回 200+ 条，前者一行 JSON。
+2. **契约还在不在**：读插件的取数代码，把它的字符串/字段/服务名当清单，到当前 `app.asar` 里逐项验。
+   - DOM 钩子（`data-*`）、客户端服务名（`sessions`、`timer`、`slots`）、时间字段（`callTime` / `stepStartTime` / `firstTokenTime` / `completedTime`）都是可全文搜的字面量。
+   - **数据结构定义**最省事：`@deepseek-ai/dsh-cordis-client-runner` 的客户端 bundle 里内嵌了 `.d.ts` 原文（`declaration: "export interface ..."`），直接 grep 就能拿到当前真实形状。
+3. 比对了才发现断的是取数路径，不是 DOM：`data-disclosure-row` / `data-chat-call-id` / `data-chat-anchor-key` / `data-sample` 在 0.2.2 全都还在。
+
+## 已证伪的断言（别再按这些写插件）
+
+| 旧写法（0.1.x） | 0.2.2 实际 |
+| --- | --- |
+| `sessions.list.getSnapshot().current` | 不存在。`SessionListState = { ids, byId, phase, projectionsBySession }` |
+| `session.getSnapshot().chat.nodes/order` | 不存在。chat 改成了 binding target |
+| 符号 `ToolChatData` / `AssistantChatData` | 全 asar 0 命中；但**形状**仍在（`data.root` / `data.subCalls` / `data.finalNode.timing`） |
+
+## 读 asar（本机固定路径 `D:\tools\dsh\resources\app.asar`）
+
+头部 16 字节是 `uint32 4 | uint32 headerLen | uint32 payloadLen | uint32 jsonLen`，**JSON 从偏移 16 开始**，数据区从 `8 + headerLen` 开始。
+
+```python
+n0, header_len, n2, json_len = struct.unpack('<IIII', f.read(16))
+f.seek(16); hdr = json.loads(f.read(json_len).decode('utf-8'))
+# 每条目: {offset, size} 或 {files:{...}}（目录）或 {link} / unpacked（无 offset，必须跳过）
+```
+
+坑：`v['offset']` 对 symlink/unpacked 条目不存在，不判断就 `KeyError`；脚本往 stderr 打状态行会被 Windows PowerShell 当错误（命令尾部加 `2>$null`）。
+
+## 官方自带的不漂替代
+
+要「每步时间」这类能力，优先用 app 自带的官方包，用 profile patch 加一行即可（`- insert:` 包一层，module 名用 `@deepseek-ai/...`）：
+
+```yaml
+- insert:
+    - id: ui-stats
+      name: '@deepseek-ai/dsh-experimental-client-ui-stats'
+```
+
+`@deepseek-ai/dsh-experimental-client-ui-stats` 贡献 `conversation.view` 的「统计」页签：展开步骤行给该步开始时间戳 `MM-DD HH:MM:SS.mmm`、模型/工具耗时、TTFT、缓存命中、输出速度，且**不受** `developerTools` 开关限制。手改 patch 后 row 立刻 live，只需刷新页面（客户端模块图每次页面加载重建），不必重启宿主。
+
+## 本机 DSH 取证入口（源码 / 会话日志）
+
+## 本机 DSH 取证入口（源码 / 会话日志）
+
+何时用：要确认「DSH 内部到底怎么做的」（上下文压缩、注入、工具表），或回看某次会话到底发生了什么。方向是**只读取证**，不改配置——要改配置回总纲的「五层」那一节。
+
+### 1) 源码不在 runtime context 给的那个路径上
+
+runtime context 里的 `D:\tools\dsh\resources\app.asar\dsh\` 是 asar **包内**虚拟路径，磁盘上没有这个目录：
+
+```
+Get-ChildItem : 找不到路径"D:\tools\dsh\resources\app.asar\dsh"
+rg: IO error for operation on D:\tools\dsh\resources\app.asar\dsh: 系统找不到指定的路径。 (os error 3)
+```
+
+真实布局：
+
+- `D:\tools\dsh\resources\app.asar` —— 打包体（本机约 213 MB）
+- `D:\tools\dsh\resources\app.asar.unpacked\dsh\node_modules\` —— 只解包了原生依赖，源码仍压在 asar 里
+- asar 头（本机实测）：offset0 `u32=4`，offset4 `u32=headerSize`（本机 `0x57b5a4`），其后是 Chrome pickle `{u32 payloadSize}{u32 jsonLen}{json}`，文件数据在头之后；JSON 的 files 树给出每个文件的 offset/size
+- 本机**没有** `@electron/asar` 模块，要 grep 源码必须先自己按上面的头解析、把目标文件 dump 出来
+
+未验证：解包成可 grep 的目录树、以及 dump 后能否命中具体实现——本次只确认了路径与头部格式，没有跑通提取。
+
+### 2) 会话日志
+
+- 位置：`%DSH_HOME%\sessions\<工作区 slug>\**\session.v3.jsonl.zstd`（部分为 `session.v4.jsonl.zstd`），按工作区目录分桶，每会话一个文件
+- 解压：node v24.18 有 `require('zlib').zstdDecompressSync`；python 有 `zstandard 0.25.0`；本机**没有** `zstd.exe`
+- 每轮 token / TTFT / 缓存命中也能从界面拿：profile 的 `cordis.patch.yml` 里声明 `ui-stats` 插件后，统计页签按轮、按步给出这些数
+
+### 3) 配置在哪、默认值从哪来
+
+- 机器级：`C:\Users\admin\.dsh\cordis.patch.yml`
+- profile 级：`C:\Users\admin\.dsh\profiles\<profile>\cordis.patch.yml`（本机 profile = `desktop`）
+- 两层都**没有**压缩 / 上下文相关条目 ⇒ 该行为走内置默认；想调必须先从包里挖出默认键名，别假设有现成开关
+- **先确认 `DSH_HOME` 环境变量再拼路径**：本机是 `C:\Users\admin\.dsh`，不是 `C:\Users\Administrator`；按用户名猜路径会扑空（`Test-Path` 返回 False，且不会报错）

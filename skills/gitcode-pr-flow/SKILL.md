@@ -1,7 +1,7 @@
 ---
 name: gitcode-pr-flow
-description: GitCode 上任意昇腾社区仓提 PR（MindSpeed-Ops 与 MindSpeed-Agent 均已完整验证）从个人 fork 到合入全流程——compile 评论触发门禁（任何 head 变化后须补发）、双 CI 判读与标签审计（operate_logs）、PR 冲突诊断（git merge-tree）、GitCode OpenAPI v5 创建/关闭 PR 与批量改 issue、版本分支 backport，以及 pre-commit 概率 FAILED 判平台抖动还是改代码。适用于"向 GitCode 仓提 PR / PR 冲突了要 rebase / 补一下 ci-pipeline-passed / 查 PR 标签是谁打的 / 标签为什么被摘 / 评论 compile 门禁没跑 / 门禁快速失败且没有结果评论 / pre-commit 随机 FAILED / backport 到 26.1.0"。不适用：目标仓在 GitHub 而不是 GitCode → 用 `github-pr-flow`。
-whenToUse: 在 GitCode 任意仓（Ascend/MindSpeed-Ops、Ascend/MindSpeed-Agent 等昇腾社区仓）提交/更新/跟进 PR、修冲突或 rebase、补门禁标签、backport 到版本分支，或判 pre-commit FAILED 该不该改代码时使用。模型看不到本节。
+description: GitCode 仓提 PR：compile 门禁、双 CI、标签审计、OpenAPI、backport。适用于"向 GitCode 提 PR / 冲突 rebase / 补门禁 / pre-commit 抖动"。
+whenToUse: 要在 GitCode 上的任意仓（Ascend/MindSpeed-Ops、Ascend/MindSpeed-Agent 及其他昇腾社区仓）提交/更新/跟进 PR、修冲突或 rebase、补门禁标签、backport 到版本分支，判 pre-commit FAILED 该不该改代码，或原生 actions 流水线挂了要定位到哪个 stage/job 并本地按同版本 hook 复现时使用。
 ---
 
 # GitCode 代码仓提交 PR 全流程
@@ -25,7 +25,7 @@ URL 规则、OpenAPI v5、评论指令、标签语义、双门禁判读、冲突
 
 下文示例里的 `Ascend/MindSpeed-Ops` 一律可替换为 `<owner>/<repo>`；**冲突/门禁诊断类结论对两个仓都成立**。
 
-**用户账号事实（已验证）**：GitCode 用户名 `EliasKaslan`（昵称 xmz），fork 在 `EliasKaslan/<repo>`；**Ascend CLA 已签署**。凭据原则：token/密码**不写入仓库文件、日志或命令历史**；**缓存位置放 skill 目录内或 `~\.dsh\.secrets\` 都合法**（2026-10-08 起鼓励 skill 直接写明凭据文件位置；统一策略见 `github-pr-flow` §0），并优先复用 Windows 凭据管理器（见下文）。
+**用户账号事实（已验证）**：GitCode 用户名 `EliasKaslan`（昵称 xmz），fork 在 `EliasKaslan/<repo>`；**Ascend CLA 已签署**。凭据原则：token/密码**不写入本 skill 目录、也不写入仓库文件**；要缓存只放 skill 目录之外（统一策略与位置见 `github-pr-flow` §0），并优先复用 Windows 凭据管理器（见下文）。
 
 ## 何时调用
 
@@ -36,6 +36,7 @@ URL 规则、OpenAPI v5、评论指令、标签语义、双门禁判读、冲突
 - 要弄清某个 PR 上**标签是谁在什么时刻打/摘的**，或判 `stat/needs-squash`、`docs-ci-pipeline-success`、`ascend-cla/yes` 这类标签的真实含义（含"标签为什么被摘了"）→ 用 §6/§7 的 `operate_logs` 权威接口与 §6.3 判读陷阱。
 - 要把 master 的改动回合并到版本分支 `26.1.0` / `26.2.0`（仅 MindSpeed-Ops 有版本分支；backport 判定 + 直推见 `references/mindspeed-ops.md`）。
 - `pre-commit` 任务随机 FAILED（message 带 `DEV-CODECI-35002`），要判是平台抖动还是要改代码。
+- 代码门禁挂在 **GitCode 原生 actions 流水线**上，要判「哪个 stage 的哪个 job 挂了」并把 hook 在本地按同版本逐条复现（message 只写「点击任务查看详情」时尤其要用）→ §6.7。
 
 **不要用本 skill（转交）：**
 - 目标仓在 **GitHub**（如 vllm-project/vllm-ascend）而不是 GitCode → 用 `github-pr-flow`。
@@ -157,14 +158,9 @@ compile
 
 **结论口径**：`ci-pipeline-failed` 但失败项是 `pre-commit` 时，**先在改代码之前**取"同一 commit 的多次运行"证据（或直接发一次 `retry`）——若同一 commit 两次结论相反，即判为**平台概率性失败**，处理方式只有 `retry` 到 `pre-commit` 变 COMPLETED，**不要为此改源码**。反例：`UT_MindSpeed_*` 失败通常是真问题。
 
-**⚠️ 别把"隐晦文案"当抖动直接 retry（2026-10-26 实测纠正）**：`pre-commit` 的真实内容性失败，message 也只有 `步骤pre-commit执行失败，错误信息：点击任务查看详情`——**与抖动同形**，`retry` 和重发 `compile` 各跑一轮都照样红。所以顺序必须是「**先本地复现**，本地复现不出来才判抖动」。真实成因的典型形态：**PR 动了某个文件，pre-commit 就按整文件校验该文件里"既有"的 lint 问题**（本次：`docs/zh/install_guide.md` 有 2 处行尾空格 + 1 处 MD049 `*X*` 强调样式），与你的改动无关却必定红。修法：同一 PR 里顺手修掉，`git commit --amend` 后强推再补 `compile`，PR 描述里说明"顺带修复文件内既有告警"。
-
-**本地复现配方（Windows 实测跑通）**：`python -m venv %TEMP%\pcvenv` + `pip install pre-commit` → 仓库根 `SKIP=gitleaks-offline-scan pre-commit run --files <改动文件...> --show-diff-on-failure`。`trailing-whitespace` / `end-of-file-fixer` 会**就地改文件**（预期行为，改完留着）；`markdownlint` 只在**改动的那个文件**有既有告警时报错，其他文件全绿不代表安全。
-
 **已实证的错误形态（逐字）**：
 - 同一 commit 上：首轮 `pre-commit` **FAILED**，message = `步骤pre-commit执行失败，错误信息：{"errorMessage":" 构建任务执行失败!","errorCode":"DEV-CODECI-35002"}`；对**同一 commit** 发 `retry` 后，在**同一 pipelineRunId** 内 `pre-commit` 变 **COMPLETED**。**同 commit、同内容，两次结论相反。**
 - 更强的对照组：另一个 PR 在**同一 commit** 上跑了多次流水线，`pre-commit` 呈 **COMPLETED / FAILED 交替** → **与代码内容无关**。
-- **`retry` 会被静默丢弃**：2026-10-26 实测，run 已 `FAILED`（`end_time` 已落）之后 6 分钟发 `retry`，`attempt` 仍为 **1**、`CodeCheck_pre_commit` 仍 `FAILED`、机器人**无任何响应评论**。别反复发 `retry` 白等——直接重发 `compile`（起**新的** `workflow_run_id`）更可靠；`compile` 还会顺带重跑文档门禁。
 
 **排除代码原因（可复用）**：
 ```bash
@@ -176,15 +172,7 @@ SKIP=gitleaks-offline-scan pre-commit run --files <改动文件> --show-diff-on-
 - `gitleaks-offline-scan` 本地**必然失败**：仓库**没有**提交 `gitleaks` 二进制，CI 是先 `wget https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta-codecheck/gitleaks` 再 `chmod +x`，故用 `SKIP=gitleaks-offline-scan` 排除这个环境性噪音。
 - 该二进制（`gitleaks 8.30.1`）在 CI 场景下其实是**空门禁**：`protect` 子命令忽略传入文件名，只对工作区未提交改动跑 `git diff -U0`，干净 checkout 上扫到 0 字节恒过。
 
-**⭐ 更省事的首选：GitCode 自己的 workflow-run 接口（2026-10-26 实测，一步拿到逐任务状态）**。上一条 openlibing 接口要凑 `pipelineRunId`，而 PR 评论只给 GitCode 的 `actions/runs/<32hex>`；直接用那个 id 打：
-
-```
-https://web-api.gitcode.com/api/v2/projects/<owner>%2F<repo>/actions/workflow-runs/<runId>
-```
-
-返回 `data.stages[].jobs[]`，每个 job 有 `name` / `status`（COMPLETED|FAILED|RUNNING|INIT）/ `message` / `steps[]`（step 也有 `status`，能看出卡在哪一步，如 `run UT rank 3`）。**要点**：① 必须**在页面上下文里 fetch**（PowerShell 直接 GET 返回 **418**，带 PRIVATE-TOKEN 也没用）；② `runId` 从 `AtlasAccount` 的"CI 流水线已启动"评论里抓 `actions/runs/([0-9a-f]{32})`；③ 浏览器是**共享**的，用户可能把标签导航走（本轮就被切到华为下载页导致 `Failed to fetch`）——判读兜底用 **PR 标签**（`ci-pipeline-passed` 出现即通过，无需浏览器），或新开标签再试。
-
-**无登录读任务级状态（openlibing 侧，备选）**：用 Playwright 打开任意 openlibing 页面（如 PR 评论里 `pipelineDetail?...` 的 URL），在**页面上下文**里 `fetch`：
+**无登录读任务级状态（实测可用；仅覆盖 openlibing 托管流水线——GitCode 原生 actions 见 §6.7）**：用 Playwright 打开任意 openlibing 页面（如 PR 评论里 `pipelineDetail?...` 的 URL），在**页面上下文**里 `fetch`：
 ```
 https://www.openlibing.com/gateway/openlibing-cicd/project/pipeline/pipeline-run/detail?projectId=300091&pipelineId=<pid>&pipelineRunId=<rid>
 ```
@@ -290,8 +278,9 @@ $w=New-Object Net.WebClient; $w.Headers.Add('User-Agent','ps')
 1. 每个写成 `<https://...>` **自动链接**的地址，都必须是**真探针可达**的合法 URI。探针口径：**HEAD 失败退化 GET、带 `User-Agent`、超时 15s、跟随重定向**。
 2. **含字面空格的 URL 必然被判失败**——裸中文路径不做百分号编码就会命中这一条。
 3. **含 `${...}` / `${{...}}` 模板占位的地址不可作为链接**（会被当字面 URI 抽取校验）。
-4. **`.git` 结尾形式不要当自动链接**：`https://<host>/<owner>/<repo>.git` 对**浏览器 UA 返回 418**、对 curl UA 返回 200（同一地址两个结论）→ 写域名即可，别写 `.git` 形式。
-5. **本地探针复现不了失败的情况是存在的**：实测对一个被判失败的裸中文 URL，用「截断 URL / HEAD+GET / 4 种 UA」**全部拿到 200**——失败发生在**门禁的 URL 抽取层，而非传输层**。→ **本地探针只能筛候选，定案必须用评论①的原文。**
+4. **`.git` 结尾形式不要当自动链接**（原判的「418」归因已被实测证伪，见下）：原判是「`https://<host>/<owner>/<repo>.git` 对浏览器 UA 返回 418、对 curl UA 返回 200」。**2026-11-09 实测证伪**：418 是 gitcode **整站 WAF 对浏览器 UA 的行为，不是 `.git` 专属**——`gitcode.com/<owner>/<repo>`、`/issues`、`/cann/catlass`、`/gh_mirrors/ba/bandit` 在浏览器 UA 下**同样 418**，curl UA 下**同样 200**。→ 别写 `.git` 形式的真正理由是「它是克隆地址，浏览器打开看不到可浏览页面」，而「检查器用哪个 UA」这个风险会**同时覆盖所有 gitcode 链接**，改 `.git` 规避不了它。两个判据（假仓对照）：假仓 `.git` 与非 `.git` 路径都返回 **404**，所以 200/404 在**仓库级路径**上是真信号。
+5. **gitcode 的 blob 页对不存在的路径也返回 200，状态码没有判别力**（同批实测）：`gitcode.com/Ascend/MindSpeed-Ops/blob/26.2.0/docker/no_such_file_zzz_9f3a.md` → **200 / 211877 字节**，真实存在的 `Dockerfile` → 200 / 217360 字节，只差 SPA 外壳内容。→ 判一个 blob 链接所指文件**是否存在**只有两条路：`contents/` 或 raw 接口直接取（404 才是真不存在），或按 OpenAPI 复核；**别用状态码**。同理，`link-validity-check` 会不会挂，本地探针给不出答案。
+6. **本地探针复现不了失败的情况是存在的**：实测对一个被判失败的裸中文 URL，用「截断 URL / HEAD+GET / 4 种 UA」**全部拿到 200**——失败发生在**门禁的 URL 抽取层，而非传输层**。→ **本地探针只能筛候选，定案必须用评论①的原文。**
 
 **④ URL 必须可回溯。** 清单 / 声明类文档里出现的**每个** URL，都必须能在**仓库源文件里逐字 `git grep` 到**；**禁止凭记忆补 URL**。
 - 典型错误形态：凭记忆写域名 / owner，`git grep` 对写错的那串**零命中**，直接导致 `link-validity-check` 失败（错的是域名或 owner 段，肉眼很难看出来）。
@@ -335,6 +324,67 @@ git push --dry-run --force-with-lease=refs/heads/<br>:<旧sha> upstream HEAD:ref
 - `git branch -D` **删不掉被 worktree 检出的分支**，报 `cannot delete branch ... checked out at ...` → 先 `git checkout --detach <新sha>` 再删。
 - 改写历史时优先用**空闲的 detached worktree**，别在有未提交改动的主工作树上切分支（worktree 复用口径见 §9）。
 
+### 6.7 GitCode 原生 actions 流水线：定位到 stage/job + 本地逐 hook 复现
+
+> **先分流**：若 job 的 `message` 里带 `DEV-CODECI-35002`（平台抖动）→ 见 §6.1，发 `retry` 即可，**别改代码**。本节讲 message **不给真因**（如「点击任务查看详情」）时怎么定位。
+> **适用范围**：本节只对 `.gitcode/workflows/*.yml` 定义的 **GitCode 原生 actions 流水线**成立。§6.1 那套 openlibing `pipeline-run/detail` 只覆盖 **openlibing 托管的文档门禁**，对原生 actions 拿不到 stage/job 结构，**别混用**。
+
+**① 任务级状态匿名可读（无需 token）**。`run_id` = PR 评论里 `https://gitcode.com/<owner>/<repo>/actions/runs/<32hex>` 的那串：
+```powershell
+$w = New-Object Net.WebClient; $w.Headers.Add('User-Agent','ps')
+$u = 'https://web-api.gitcode.com/api/v2/projects/Ascend%2FMindSpeed-Ops/actions/workflow-runs/<run_id>'
+$r = [Text.Encoding]::UTF8.GetString($w.DownloadData($u)) | ConvertFrom-Json
+"{0} #{1} head={2} by={3}" -f $r.status, $r.run_number, $r.head_sha, $r.actor_user.username
+foreach ($s in $r.stages) { foreach ($j in $s.jobs) {
+  if ($j.status -ne 'COMPLETED') {
+    "{0} | {1} | {2} | {3} | {4}" -f $s.name, $j.name, $j.status, $j.execute_cost_time, $j.message } } }
+```
+- `owner/repo` 的分隔符要写成 `%2F`。顶层有 `status` / `run_number` / `head_sha` / `actor_user.username`；`stages[]` 每项含 `name` / `status` / `start_time` / `end_time` 与 `jobs[]`；job 含 `name` / `status` / `execute_cost_time` / `message` / `steps[]`（step 名 + status + 失败 message）。**据此可精确说出「哪个 stage 的哪个 job 挂了」**。
+- 实测 stage `status` 见过 `COMPLETED` / `FAILED` / `IGNORED` / `INIT`：`IGNORED` = 被 condition 跳过（非失败），`INIT` = 排在失败任务之后没跑起来。典型失败 message 就是 `步骤pre-commit执行失败，错误信息：点击任务查看详情`——**不含任何真因**。
+
+**② step 日志拿不到，别再换 header 试**：`POST /actions/workflow-runs/<run_id>/jobs/<job_id>/logs` 匿名 = **401** `UNAUTHORIZED`；带 `Authorization: Bearer <PAT>` / `private-token` / `PRIVATE-TOKEN` 一律 **418**（WAF 拦）；同路径 `GET` = **405**；页面只写「登录后可查看日志」。
+→ **失败原因不可能从 CI 日志取**，唯一可复现路径 = ① 定位到 job/step + **本地按同一 hook 版本逐条复现**。
+
+**③「前几轮都绿、这次突然红」通常是变更集构成变了，不是抖动。** `.gitcode/workflows/pr-pipeline-mindspeed-ops.yml` 里 `Detect_file_changes` 用 `paths-changes-filter`，`non-doc` 排除 `**/*.md|rst|log|png|jpg|doc|eddx|svg`，输出 `need_ut=yes|no`；`SCA` / `Antipoison` / `CodeCheck_pre_commit` / `API_SCAN` / 4 个 UT 的 `condition` 全是 `need_ut == 'yes'`。
+- 所以**一个纯文档 PR 里混进 1 个 `.py`（哪怕只改 docstring），整套 CodeCheck + UT 就从 IGNORED 解除、真跑**。实测对照：纯文档那轮 CodeCheck 全 IGNORED、约 22 秒绿；只多一个改 docstring 的 `.py` 后 CodeCheck 真跑、pre-commit step 约 50 秒 FAILED、UT 停在 INIT。
+- 判读动作：看 `stages[].status` 哪些从 IGNORED 变 FAILED，再拿 `head_sha` 对 PR 变更文件清单，确认是不是夹带了非文档文件。
+
+**④ 本地逐 hook 复现（Windows 可行，不必装整套 pre-commit）**
+
+1. 按 `head_sha` 批量取文件（**匿名 200，二进制也行**）：`https://raw.gitcode.com/<owner>/<repo>/raw/<head_sha>/<path>`。PowerShell 用 `Invoke-WebRequest` 后取 `RawContentStream` 落盘，**别用 `.Content`**（文本会被解码坏）。
+2. 按 `.pre-commit-config.yaml` 里**同一版本**逐条跑（实测可用版本：markdownlint-cli 0.47.0 / ruff 0.14.14 / pylint 4.0.5 / bandit 1.9.4 / codespell 2.4.1）：
+
+```powershell
+npm install markdownlint-cli@0.47.0
+node node_modules/markdownlint-cli/markdownlint.js --config .markdownlint.yaml <改动 md>
+ruff check --config pre-commit/pyproject.toml <py>
+ruff format --check --config pre-commit/pyproject.toml <py>
+python -m pylint --rcfile=pre-commit/pyproject.toml <py>
+python -m bandit --configfile=pre-commit/pyproject.toml --quiet <py>
+codespell -L <抄 .pre-commit-config.yaml 里那串白名单> --skip "*.toml,*.py,*.cpp,*.hpp,*.c,*.h" <改动 md>
+```
+
+- `gitleaks-offline-scan` **必须 `SKIP`**（仓里没提交二进制，原因见 §6.1）；`typos` 拿不到同版本 Windows 二进制 → 只能标「**未验证**」，别写成"通过"。
+- `trailing-whitespace` / `end-of-file-fixer` 用 Python 自查即可，但两处 **pre-commit 语义**必须照抄：本仓 trailing-whitespace **没配** `--markdown-linebreak-ext=md` → **Markdown 行尾两个空格（硬换行）也判失败**；**整行只有空格的"空白行"同样报**。
+- markdownlint 的 `cwd` 必须是同时含 `.markdownlint.yaml` 与 `.markdownlintignore` 的**仓库根**，否则 ignore 规则不生效 → 一堆假告警。
+
+**⑤ 最大误判源：hook 收到的是整个文件，不是 diff。** master 上**既有**的违规，只要本 PR 碰到了该文件，就足以把 PR 弄红。实测某文档 PR 只在文件尾部改了两行，仍因该文件在 master 上早已存在的 MD009 / MD049 违规而失败 → **这些历史违规必须一起修，或把那几处改动拆走**。本地复现要**对整文件**跑，并先取同文件的 master 版本跑一遍做基线，分清"我引入的"与"本来就有的"。
+
+**⑥ 高频坑（旧断言已被证伪）：把文件加进仓内 `.markdownlintignore` 不能豁免文档门禁。** 仓里确实 ignore 了 `docs/zh/_menu.md`（GitBook 菜单里的空链接 `[算子开发]()` 会触发 MD042），但实测把 `docs/en/_menu.md` 加进仓内 ignore 后，同一 head 仍连续 3 次因该文件的 MD042 失败（PR #245）——**仓内 ignore 只对本地 pre-commit 有效，文档门禁读的是平台远端配置**。→ 有效修法（文件内 disable 注释）见 §6.8。
+
+**⑦ 本仓 `.markdownlint.yaml` 的开关**：关了 MD013/MD033/MD040/MD060/MD025/MD036/MD034/MD059/MD051，`MD024` 为 `siblings_only`；**MD004/MD007/MD009/MD042/MD049 等仍开着**（实测会挂）。⚠️ 这套开关只解释**本地 pre-commit 里的 markdownlint**，**不能拿来推断文档门禁的结论**（平台用的是托管配置，理由见 §9 第 3 条）。
+
+### 6.8 文档门禁的 markdownlint 用平台远端配置：仓内 `.markdownlintignore` 不生效（实测）
+
+**结论**：把文件加进仓内 `.markdownlintignore` **不会让文档门禁跳过它**——门禁的 markdownlint 配置与忽略规则都来自平台侧托管；仓内 ignore 只影响本地 pre-commit。
+
+- **实测（MindSpeed-Ops PR #245，base `26.2.0`，head `89aa547` 连跑 3 轮）**：`docs/en/_menu.md` 已进仓内 ignore，仍每轮逐字报：
+  `[文件路径]：docs/en/_menu.md / [检查类型]：markdownlint / [错误位置]：第 7 行 / [错误信息]：MD042：链接地址为空 / [错误内容]：- [Operator Development]()`
+- **配置从哪来（先抓这两个文件，别拿仓内 `.markdownlint.yaml` 推断）**：`Ascend/MindSpeed-Ops` 在 `https://raw.gitcode.com/Ascend/docs/raw/master/.doctools/config.json` 里是 `"extendConfig": "base"`（无 docPath 过滤）；markdownlint 配置取同目录 `markdownlint.config.json`（`default: true`，**未关 MD042**）。
+- **只 lint 本 PR 改到的文件**：`docs/zh/_menu.md` 有同样空链接却不报（本轮没改它）；反过来只要 PR 碰了某文件（哪怕只改一行 `[FAQ]`→`[FAQs]`），就**整文件**重新 lint（hook 收整文件不是 diff，同 ⑤）。
+- **有效修法（实测一次通过）**：在该 md 的 H1 与列表之间插**独立一行** `<!-- markdownlint-disable MD042 -->`（H1 仍是首行、列表不被拆断），提交 `b3d54ec` 后文档门禁四项全 ✅；平台配置与仓内配置下均 0 告警。**别写** `<!-- markdownlint-disable MD042: 说明文字 -->`（规则名后带说明，可能解析不成 MD042）；`disable-line` 需 markdownlint ≥0.28，平台版本未知，不推荐。
+- **本地复现（要绕过仓内 ignore 才看得见真告警）**：`node <markdownlint-cli 0.47.0>\markdownlint.js -c <平台 markdownlint.config.json> -p <空的 ignore 文件> <改动 md>`。`-p` 显式给出 ignore 文件后就不再自动加载仓内 `.markdownlintignore`，传空文件才是平台口径（否则被仓内 ignore 跳过 = 假绿）。
+
 ## 7. OpenAPI v5 自动化路径（有 token 时优先）
 
 - Base：`https://api.gitcode.com/api/v5`；认证：`Authorization: Bearer <token>`（或 PRIVATE-TOKEN 头 / access_token query）。token 生成：https://gitcode.com/setting/token-classic （勾选 api/pull_requests 等权限）。限速 400 次/分。
@@ -356,7 +406,7 @@ git push --dry-run --force-with-lease=refs/heads/<br>:<旧sha> upstream HEAD:ref
   #   → {"login":"EliasKaslan","name":"xmz", ...}        实测 200
   # GET https://api.gitcode.com/api/v5/repos/Ascend/MindSpeed-Ops -Headers @{ 'private-token' = $tok }  实测 200
   ```
-  **token 不写入仓库文件、日志或命令历史**；缓存位置放 skill 目录内或 `~\.dsh\.secrets\` 均可（2026-10-08 起鼓励 skill 写明凭据文件位置；统一策略见 `github-pr-flow` §0）。
+  **token 不写入任何 skill 目录、日志或仓内文件**；缓存位置必须在 skill 目录之外并已被 gitignore（统一策略见 `github-pr-flow` §0）。
 - **用 API 发 `compile` 触发代码门禁（实测有效）**：
   ```powershell
   $payload = @{ body = 'compile' } | ConvertTo-Json -Compress
@@ -385,11 +435,6 @@ git push --dry-run --force-with-lease=refs/heads/<br>:<旧sha> upstream HEAD:ref
   写完后**必须逐个回读校验**：`PATCH` 成功响应的 `milestone` 字段是空的（不代表失败），且 `title` 是否被写坏只能靠回读对比改前快照确认。
 - **辅助函数别 dot-source**：`. .\helper.ps1` 会被执行策略拦下（本机 `Restricted`，通用清单见 `pwsh-on-windows`）→ 把函数**内联进命令**，无需改策略。
 - **函数名别撞内置别名**：`GC` 是 `Get-Content` 的别名、**优先级高于函数**（实测与通用清单见 `pwsh-on-windows`）——用 `Get-GitCodeJson` 之类不冲突的名字。
-- **建私仓（Gitee 风格接口，本轮实测一次成功）**：`POST https://api.gitcode.com/api/v5/user/repos`（凭据用 `private-token` 头或 `Authorization: Bearer`），body `{"name":"<repo>","private":true,"auto_init":false}` → **200**（不是 201）。**建仓响应缺 `default_branch`、也缺权限字段** ⇒ 建完必须回读两步才算建好：`GET /repos/:owner/:repo`（拿默认分支）与 `GET /repos/:owner/:repo/collaborators?per_page=200`（确认自己 `access_level=50` / `role_name=Owner`；`total` 会超一页，分页口径同 §10 表末那条）。
-- **⚠️ git https 传输层鉴权与 API 头鉴权是两套，别互相推**：传输层**只认** `https://<user>:<token>@gitcode.com/<owner>/<repo>.git`；把 token 当用户名（`https://<token>@gitcode.com/...`）**必失败**，逐字原文 `fatal: could not read Password for 'https://<redacted>@gitcode.com': terminal prompts disabled`（同一形态在另一个机制里也有实测记录 → `dsh-repo-sync` §1/§4）。
-- **所有 git 调用都要前置禁用凭据助手**：`git -c credential.helper= ...` + `$env:GIT_TERMINAL_PROMPT='0'`——本机 `credential.helper=wincred` 时打 gitcode.com 会**弹 Git Credential Manager GUI 并挂死**（实测 `ls-remote` 卡满 120 s）。**不要**改用 `GIT_ASKPASS='cmd /c exit 1'` 顶替：实测报 `error: cannot spawn cmd /c exit 1: No such file or directory`。
-- **`ls-remote` 的退出码按"有没有匹配的 ref"读，不按成败读**：空仓（无任何 ref）时 `git ls-remote --exit-code <url>` → **exit=2**（无匹配 ref，**不是失败**）；**鉴权失败是 exit=128 + `fatal:`** ⇒ 先看 stderr 有没有 `fatal:`，别只看非零码。
-- **判据纪律：负控是判据的一部分**——要拿"空仓 exit=2"当结论，**必须配一个负控**：把 token 截短 1 个字符重跑**同一条**调用，必须复现 **exit=128**；否则无法证明那个 exit=2 不是被吞掉的真失败。
 - PR 的 `html_url` 是 `/merge_requests/<n>`（不是 `/pull/<n>`），`number` 与 `iid` 同值。
 - 文档：https://docs.gitcode.com/docs/apis/ （Pull Requests 章节）。
 - **创建跨仓库 PR**（对 MindSpeed-Ops）：
@@ -529,7 +574,7 @@ git push --force-with-lease origin HEAD:refs/heads/<branch>
 | 该不该给版本分支回合并，凭 `git diff --stat <版本分支> master` 就动手 | 必须补"严格祖先 + 等价性"两步：`git rev-list --count <版本分支>..master` / `git merge-base`，以及 `git merge-tree --write-tree <版本分支> <已合入 head>` 与 `git rev-parse '<squash>^{tree}'` 的 tree OID 相等（§12.2/12.3） |
 | 版本分支回合并后还想去发 `compile` | 直推 FF 后**没有待合入的 PR**，无处可发；只有走 `base=版本分支` 的 PR 才需要 `compile`（§12.4） |
 | 权限探测只看 `branches/:name` 的 `can_push` | 只拿到布尔值；要权威等级（10/20/30/40/50）改看 `GET /repos/:owner/:repo/collaborators?per_page=200`（total=100 会分页，**取 200 才够**） |
-| token 落到临时文件 | **默认绝不落盘**——`git credential fill` 取（§7）后只留内存变量，传参一律 `-Headers @{ 'private-token' = $tok }`；唯一例外是 §7 那次 `%TEMP%` 中转（用完立刻删、不进 git 工作区），除此之外别写任何临时文件 |
+| token 落到临时文件 | **绝不落盘**——只能 `git credential fill` 取（§7），只留在内存变量里，传参一律 `-Headers @{ 'private-token' = $tok }`，别写任何临时文件 |
 | ascend-cla/yes 消失 | 描述或代码更新后机器人重新校验，已签 CLA 会自动恢复 |
 | 强推后 `lgtm`/`approved` 没了 | ascend-robot 检测到 head 变化就摘标签，属预期；去请原评审人重新 approve/lgtm |
 | 强推后 `ci-pipeline-passed` 没了 | 同上；**必须重发 `compile`**（§5/§7）——按 §5 标准动作**自动补发，不必问用户**，否则合入时缺门禁标签 |
@@ -568,9 +613,9 @@ git push --force-with-lease origin HEAD:refs/heads/<branch>
 | 导出的 diff 被 read 工具判为 binary | 本机 PowerShell 的 `>` 写 UTF-16（见 `pwsh-on-windows`）；**改用 `cmd /c "git grep ... > out.txt 2>&1"` 拿原始 UTF-8 字节**（`\| Out-File -Encoding utf8` 仍带 BOM） |
 | 内容已改却用 `git commit --amend --no-edit` 提交 | message 会留在旧内容上、与实际 diff 矛盾（实测：提交标题仍写"新增英文版OVERVIEW.md"，而该提交已不新增任何英文文件）；内容一变必须 `git commit --amend -m "<新 message>"`，再用 `git rev-parse 'HEAD^{tree}'` 确认 tree OID 未变，然后 `--force-with-lease` + 补发 `compile`（§9.1） |
 | 已直推过的版本分支要回退，想 force-push 抹掉那个直推提交 | **不要改写共享版本分支的历史**：基于它**叠加一个回退提交**再推（实测 `fb09350..05a911c`、exit 0、无需 `--force`）；force-push 会让已 fetch 的人分叉。master 侧未合入的特性分支才可以 `amend` + `--force-with-lease`（强推代价见 §9）；版本分支的既有先例也是叠加修正提交（§12.5） |
-| git 报 `fatal: could not read Password for 'https://<redacted>@gitcode.com': terminal prompts disabled` | **鉴权形态错**：git 传输层只认 `https://<user>:<token>@`（把 token 当用户名必失败）；且每次 git 调用都要带 `-c credential.helper=`（否则弹 GCM GUI 挂死）（§7） |
-| `git ls-remote --exit-code` 在空仓/无匹配 ref 时回非零 | **exit=2 = 无匹配 ref，不是失败**；鉴权失败是 **exit=128 + `fatal:`**。要把它当结论必须配负控：token 截短 1 字符重跑须复现 exit=128（§7） |
-| 要建 GitCode 私仓 | `POST https://api.gitcode.com/api/v5/user/repos`、body 含 `"private":true` → **200**；响应**缺** `default_branch` 与权限字段 ⇒ 必须回读 `/repos/:owner/:repo` 与 `/collaborators?per_page=200`（`access_level=50`）（§7） |
+| code-ci 某 job 挂了，message 只写「步骤pre-commit执行失败，错误信息：点击任务查看详情」，想去翻 CI 日志 | 原生 actions 的 **step 日志拿不到**：匿名 401、带 token 418（WAF）、GET 405。改用匿名 `web-api.gitcode.com/api/v2/projects/<owner>%2F<repo>/actions/workflow-runs/<run_id>` 定位到 stage/job/step，再本地按同版本 hook 逐条复现（§6.7） |
+| 前几轮 compile 都绿、这次突然红，且原本 IGNORED 的阶段突然真跑 | 多半不是抖动：`need_ut` 由 `paths-changes-filter(non-doc)` 决定，纯文档变更里混进 1 个 `.py` 就会让 CodeCheck + UT 全部解除 IGNORED（§6.7） |
+| markdownlint / trailing-whitespace 挂在「我没改的那几行」上 | hook 收的是**整个文件**不是 diff：master 上既有违规只要本 PR 碰到该文件就一起算账 → 一起修或把那几处改动拆走；本地复现先取该文件 master 版本做基线（§6.7） |
 
 ## 11. 浏览器共享注意事项
 

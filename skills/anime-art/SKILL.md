@@ -1,8 +1,16 @@
 ---
 name: anime-art
-description: "本地离线画二次元图（SDXL Animagine XL 4.0 Opt 本地自建管线，不调在线 API）——约 8 秒出 832×1216：角色预设（鲸鱼娘／DeepSeek 拟人、Q 版、通用少女、子午）、中文场景直出（200+ 词表，含夜间游戏房道具，超 77 token 自动裁剪并报告）、画风与场景打光包（赛璐璐／柔光／电影感／单色线稿／贴纸／夜间电竞房）、景别与画幅、批量抽卡与拼图、hires 精修（最高 1248×1824）、可复现种子与 PNG 内嵌提示词。含 16 项自检与 4 篇参考文档。适用于「画一张二次元图／画鲸鱼娘／画夜晚打游戏／生成动漫头像立绘／出表情包／给文档配二次元插图／这张图用的什么提示词／批量出同一角色多张图／要单色线稿」。不适用：只是把现成图片排进 Word／PPT／PDF → 用 `office-render`；要改 skill 的 frontmatter 写法 → 用 `dsh-skill-authoring`；要把 skill 发布到公开仓 → 用 `dsh-skills-publish`。"
+description: 已停用（2026-11-11）——本 skill 的 SDXL 本地生图链路已被 minimax-ai-musume-4k-art（昇腾 192.168.13.190 上的 MiniMax-H3-Image）整体取代，任何新需求请改用 minimax-ai-musume-4k-art。保留仅为历史留档，不应再被触发。
 whenToUse: "要生成或重画二次元图、动画风插画、角色立绘头像或表情包时用；也用于复现某张图的提示词。模型看不到本节。"
+disable-model-invocation: true
+warm-triggers: "旧版 SDXL anime-art 生图 / 老的 local-diffusion 链路 / 需要历史留档时"
+warm-reason: "已停用：SDXL 生图链路被 minimax-ai-musume-4k-art 取代"
 ---
+
+> **本 skill 已于 2026-11-11 停用**：生图模型换成昇腾 .190 上的 `MiniMax-H3-Image`，
+> 请改用 `minimax-ai-musume-4k-art`（六位 AI 娘角色卡、12 种神态、5.4 秒/张）。
+> 物理删除被 `DSH-Guard` 的 `skills` 哨兵拦下（这是设计如此），故保留为停用桩。
+
 
 # anime-art · 二次元图像生成
 
@@ -20,7 +28,7 @@ whenToUse: "要生成或重画二次元图、动画风插画、角色立绘头�
 **不要用本 skill（转交）：**
 - 只是把已有图片排进 Word / PPT / PDF、导出文档 → 用 `office-render` / `office-export-pdf`。
 - 要改 skill 的 frontmatter、description、「何时调用」写法 → 用 `dsh-skill-authoring`。
-- 要把本 skill 发布到 GitCode / GitHub 公开仓 → 用 `dsh-skills-publish`。
+- 要在昇腾 NPU 服务器上出 AI 娘 4K 插画（DeepSeek/Claude/GPT/Grok/Gemini/Qwen）→ 用 `minimax-ai-musume-4k-art`。
 
 **前置**：运行时 `$env:DSH_HOME\venvs\anime-art` 与权重 `$env:DSH_HOME\models\anime-art` 就位（缺了先跑 `scripts\setup_runtime.ps1`，约 8GB 一次性下载）。 ／ **后继**：出图后必须用 `read_image` 亲自看图，别凭命令成功就交付（见 §6 验收红线）。
 

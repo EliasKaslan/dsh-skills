@@ -1,13 +1,11 @@
 param(
   [string]$SkillsRoot = (Join-Path $env:USERPROFILE '.dsh\skills'),
-  [string]$YamlModule  = ''
+  [string]$YamlModule  = (Join-Path $env:USERPROFILE '.dsh\profiles\node_modules\yaml')
 )
 # check-skill-frontmatter.ps1 - read-only validator for the "when to call" contract
-# Run (PS 5.1 needs bypass):
+# Run (PS 5.1 needs bypass; pwsh is NOT installed on this box):
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\check-skill-frontmatter.ps1
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\check-skill-frontmatter.ps1 -SkillsRoot <dir>
-#   -YamlModule <path> overrides the probe; an explicit MISSING path is honoured on purpose
-#   (so the "round-trip skipped" branch stays forceable for fault tests).
 # Exit code: 0 = no FAIL, 1 = FAIL present.
 # ASCII-only on purpose: PS 5.1 decodes BOM-less .ps1 as GBK and mojibake breaks the parser.
 #
@@ -17,10 +15,7 @@ param(
 #         / NAME_NE_DIR(<name>) / CAMELCASE_KEY_REJECTS_SKILL / DESC_MISSING
 #         / DESC_OVER_TRUNCATION(<len>)      <- len > 500: catalog keeps first 497 + "..."
 #         / DESC_NO_APPLIES / DESC_NO_DISAMBIG / DESC_POINTS_TO_BODY
-#         / WHENTOUSE_TOO_LONG(<len>)        <- len > 160 (hard, no spec source: a loose backstop)
-#   R6 (THE spec, D:\workspace\agent\skill\_recon\skill-when-to-call-standard.md L30) says
-#   whenToUse <= 150. $whenSoftMax = 150 below enforces the NORM; 160 is only a safety valve,
-#   so 151..160 is a deliberate non-fatal WARN -- do not treat 160 as the contract.
+#         / WHENTOUSE_TOO_LONG(<len>)        <- len > 160
 #         / BODY_NO_WHEN_SECTION
 #   WARN: DESC_OVER_BUDGET(<len>)            <- 480 < len <= 500: no truncation yet, no headroom
 #         / WHENTOUSE_MISSING / WHENTOUSE_OVER(<len>) / FRONTMATTER_MULTILINE
@@ -33,18 +28,12 @@ param(
 # skill away -> it never enters the session catalog, with no other error anywhere. The file
 # still looks perfectly compliant to every shape check in this script.
 # If node or the yaml package is unavailable this script prints a loud WARN instead of silently
-# skipping the round-trip (a silent skip would just be one more false OK). The yaml package is
-# AUTO-DETECTED among candidates (DSH_YAML_MODULE env -> launcher\runtime -> npm-cache\_npx\* ->
-# the legacy ~\.dsh\profiles path); a bare run on this box now yields YAML_SKIP=0.
+# skipping the round-trip (a silent skip would just be one more false OK).
 
 $ErrorActionPreference = 'Stop'
 $descHardMax = 500      # > this: DSH truncates to first 497 chars + "..." (dsh-tool-skill/lib/index.js:40)
 $descSoftMax = 480      # > this and <= 500: WARN (budget from skill-when-to-call-standard.md)
-$whenSoftMax = 150      # SPEC value: skill-when-to-call-standard.md L30 (R6) + L149 -- the norm, not a guess
-$whenHardMax = 160      # SELF-INVENTED backstop, NO spec source: the standard names only 150 for whenToUse.
-                        #   CONSULT THE STANDARD BEFORE CHANGING THIS NUMBER. Raising it makes real
-                        #   over-length FAILs disappear; lowering it to 150 silently turns the intended
-                        #   non-fatal WHENTOUSE_OVER WARN into a hard FAIL. Kept at 160 = behaviour unchanged.
+$whenSoftMax = 150
 
 function U([int[]]$cp) { -join ($cp | ForEach-Object { [char]$_ }) }
 $P_APPLIES    = U 0x9002, 0x7528, 0x4E8E              # Applies-to marker
@@ -79,23 +68,6 @@ console.log('OK ' + String(d.name) + ' ' + d.description.length);
 $nodeExe = $null
 $cmd = Get-Command node -ErrorAction SilentlyContinue
 if ($cmd) { $nodeExe = $cmd.Source }
-
-# --- yaml module auto-probe ------------------------------------------------------
-# The old static default (~\.dsh\profiles\node_modules\yaml) does NOT exist on this box, so a
-# bare run used to degrade to YAML_SKIP=N / status=ok / exit 0 with only a WARN banner -- the
-# same false OK the round-trip exists to prevent. Detect the first existing candidate instead;
-# pass -YamlModule <path> to override (a missing explicit path is still honoured on purpose, so
-# the failure branch stays forceable).
-$yamlCandidates = @()
-if ($env:DSH_YAML_MODULE) { $yamlCandidates += $env:DSH_YAML_MODULE }
-$yamlCandidates += (Join-Path $env:USERPROFILE '.dsh\launcher\runtime\node_modules\yaml')
-$yamlCandidates += (Join-Path $env:LOCALAPPDATA 'npm-cache\_npx\*\node_modules\yaml')
-$yamlCandidates += (Join-Path $env:USERPROFILE '.dsh\profiles\node_modules\yaml')
-if (-not $YamlModule) {
-  foreach ($cand in $yamlCandidates) {
-    if (Test-Path -LiteralPath $cand) { $YamlModule = $cand; break }
-  }
-}
 $yamlWhy = $null
 if (-not $nodeExe) {
   $yamlWhy = 'node not found on PATH'
@@ -228,7 +200,7 @@ Get-ChildItem $SkillsRoot -Directory | Sort-Object Name | ForEach-Object {
       if (-not $when) { $warns += 'WHENTOUSE_MISSING' }
       else {
         $wLen = $when.Length
-        if ($wLen -gt $whenHardMax) { $issues += "WHENTOUSE_TOO_LONG($wLen)" }
+        if ($wLen -gt 160) { $issues += "WHENTOUSE_TOO_LONG($wLen)" }
         elseif ($wLen -gt $whenSoftMax) { $warns += "WHENTOUSE_OVER($wLen)" }
       }
 

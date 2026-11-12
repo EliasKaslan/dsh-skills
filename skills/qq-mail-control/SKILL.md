@@ -1,6 +1,6 @@
 ---
 name: qq-mail-control
-description: QQ 邮箱接管（IMAP/SMTP，`mcp__qqmail__*`）——发 QQ 邮件、查收件箱、搜读信、建夹归档；含收件人别名：「黄区」= `xumingzhe4@huawei.com`、「我私人邮箱」= `3248569436@qq.com`。坑：文件夹名传中文原文（别传 UTF-7）、FETCH 只读铁律、中文搜索只覆盖本地窗口、发信必须带【AI 代发】前缀、发往黄区一律转发格式、MCP 无建夹工具、凭据与 `--read-only` 陷阱。适用于"给黄区发邮件 / 发邮件给我私人邮箱 / 发一封 QQ 邮件 / 查一下 QQ 邮箱收件箱 / 搜一下 QQ 邮箱里的邮件 / 帮我读某封 QQ 邮件 / 把一类邮件都归到一个文件夹 / QQ 邮箱只能读不能发"。不适用：Outlook / MSA 邮箱 → 用 `outlook-mailbox-control`；改 patch 与 MCP 接入层生效时机 → 用 `dsh-agent-customization`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。
+description: QQ 邮箱接管（IMAP/SMTP）：发信、搜读、归档、黄区/私人别名。适用于"发 QQ 邮件 / 查收件箱 / 搜邮件 / 读某封 / 建夹归档 / 只能读不能发"。
 whenToUse: 用 DSH 的 `mcp__qqmail__*` 接管 QQ 邮箱（列/搜/读/附件/发/回复/标记/移动/删除），或按收件人别名（黄区→本人工作邮箱、私人邮箱→本人 QQ 邮箱）发信、排查授权码/只读开关/文件夹名编码时使用。模型看不到本节。
 ---
 

@@ -1,0 +1,38 @@
+{
+  "_comment": "导出物：真相在 scripts/gen.py 的 CHARS。gen.py 从不读本文件，两者曾漂移过（deepseek 的 dark blue/blue、围裙/荷叶边）——改了 gen.py 要回来同步这里，别只改一边。",
+  "claude": {
+    "tags": "orange hair, long hair, orange eyes, flower hair ornament, black ribbon, white blouse, brooch, gentle smile",
+    "ref": "claude.png",
+    "palette": ["#E8763A", "#FFFFFF", "#1A1A1A"]
+  },
+  "deepseek": {
+    "core": ["dark blue hair", "gradient hair", "very long hair", "blue eyes", "ahoge", "maid headdress"],
+    "detail": ["navy blue dress", "white ruffled blouse", "blue bowtie", "gem brooch", "smile"],
+    "tags": "dark blue hair, gradient hair, very long hair, blue eyes, ahoge, maid headdress, navy blue dress, white ruffled blouse, blue bowtie, gem brooch, smile",
+    "ref": "deepseek.png",
+    "palette": ["#476599", "#385589", "#EDE0D6"],
+    "_palette_source": "2026-11-10 用户参考图实测主色（雾霾蓝/藏青/暖米白），旧值 #1B3FA0 太艳"
+  },
+  "gpt": {
+    "tags": "white hair, very long hair, purple eyes, white horn, white dress, bare shoulders, expressionless",
+    "ref": "gpt.png",
+    "palette": ["#F2F2F5", "#B9A7E8", "#FFFFFF"]
+  },
+  "grok": {
+    "tags": "blonde hair, long hair, blue eyes, bat wings, black crown, gold trim, red gem, black gothic dress, fang, smirk",
+    "ref": "grok.png",
+    "palette": ["#E8C55A", "#111111", "#B3122E"],
+    "_note": "只写 crown 会出金冠+蓝宝石（蓝不在她的色板里）；必须写 black crown + gold trim + red gem 才是参考的黑金冠"
+  },
+  "gemini": {
+    "tags": "purple hair, long twintails, drill hair, heterochromia, pink eyes, yellow eyes, star hair ornament, purple dress, open mouth, smile",
+    "ref": "gemini.png",
+    "palette": ["#7B4FD0", "#F06FB0", "#FFD34E"],
+    "_note": "long twintails + drill hair 才出钻卷；异色瞳左右为「左粉右黄」，seed 不对会左右互换"
+  },
+  "qwen": {
+    "tags": "black hair, bob cut, side part, brown eyes, black cropped sweater, blush, gentle smile",
+    "ref": "qwen.png",
+    "palette": ["#1C1C1C", "#FFFFFF", "#C98B6B"]
+  }
+}

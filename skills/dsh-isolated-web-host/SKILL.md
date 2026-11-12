@@ -1,6 +1,6 @@
 ---
 name: dsh-isolated-web-host
-description: 起个隔离 DSH host 做实验——想不污染真实 ~/.dsh 就验证插件行或 patch、真实 host 占着 3080 不能重启时用它：必加 --no-open、启动先落盘 pid 与端口、不带 token 的 401 判就绪、taskkill /PID 收尾；本机端口枚举是盲的（netstat / Get-NetTCPConnection 恒空），判就绪与判清理只认 HTTP 探针与落盘 pid。适用于"起个隔离 host 试试 / 想不污染真实环境就验证插件行或 patch / 真实 host 占着 3080 不能重启 / 端口枚举查不到监听 / netstat 找不到 3080 / 改了 preset 想找干净环境挂载看看"。不适用：只想验能不能挂载 → 用 `dsh-agent-preset-verification`；改哪层/何时生效/怎么撤 → 用 `dsh-agent-customization`。
+description: 起隔离 DSH host（重定向 DSH_HOME）：401 判就绪、落盘 pid 收尾、端口枚举恒空。适用于"起个隔离 host 试试 / 不污染真实环境验插件 / 真实 host 占着端口不能重启"。
 whenToUse: 需要一个不污染真实 ~/.dsh、不占 3080 的第二 host 来自由起停地试插件行 / patch / preset 改动时用；它只搭环境，不做验收。判就绪与判清理用 HTTP 探针 + 启动时落盘的 pid，别用端口监听状态（本机枚举恒为空）。模型看不到本节。
 ---
 
@@ -19,9 +19,9 @@ whenToUse: 需要一个不污染真实 ~/.dsh、不占 3080 的第二 host 来�
 
 **不要用本 skill（转交）：**
 - 要判定 preset 挂载是否正确、配置键 / 工具名对不对 → 用 `dsh-agent-preset-verification`（离线静态）。
-- 已起会话，要核对 persona、工具裁剪、委派结果与会话日志 → 用 `dsh-agent-preset-verification` 的「阶段二」（手册在 `dsh-agent-preset-verification` 的 `references/online-session.md`）。
+- 已起会话，要核对 persona、工具裁剪、委派结果与会话日志 → 用 `dsh-agent-preset-live-verification`。
 
-**前置**：本机能跑 `node`，且**已按第 0 步从进程命令行取到 `$BIN`**（`~/.dsh/profiles/node_modules/.../bin.js` **不存在**，别照抄旧路径）；已知真实 host 的端口占用情况（3080 是否在跑）。 ／ **后继**：host 起来并 401 判就绪后，进 `dsh-agent-preset-verification` 的「阶段二」做会话级验收；实验结束按本 skill 第 8 步 taskkill 收尾。
+**前置**：本机能跑 `node`，且 `C:\Users\admin\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js` 存在；已知真实 host 的端口占用情况（3080 是否在跑）。 ／ **后继**：host 起来并 401 判就绪后，进 `dsh-agent-preset-live-verification` 做会话级验收；实验结束按本 skill 第 8 步 taskkill 收尾。
 
 ## 前置检查
 
@@ -48,21 +48,6 @@ Invoke-WebRequest -Uri 'http://127.0.0.1:3080/' -UseBasicParsing   # 401 = 真�
 
 ## 步骤
 
-0. **先确定"用哪棵树驱动"**——**不要照抄路径**（本机实测：活跃 host 来自 **npx 缓存树**，`~/.dsh/launcher/runtime` 在盘但没在跑；而 `~/.dsh/profiles/node_modules` **根本不存在**，本 skill 旧版写的那个 `bin.js` 路径是错的，照抄必失败）：
-
-   ```powershell
-   # 从进程命令行认，不要从目录布局猜
-   Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
-     Where-Object { $_.CommandLine -match '@deepseek-ai\\dsh\\lib\\bin\.js' } |
-     ForEach-Object { "$($_.ProcessId)  $($_.CommandLine)" }
-   # → 取 bin.js 前面那段路径当 $BIN
-   #   本次实测：C:\Users\admin\AppData\Local\npm-cache\_npx\<hash>\node_modules\@deepseek-ai\dsh\lib\bin.js
-   ```
-
-   - `<hash>` 会随 npx 重装而变 ⇒ **每次现场重取**，别把 hash 写死进脚本。
-   - 用**它自己那棵树**驱动隔离 host 最省事：依赖闭包齐全，不需要额外 junction。
-   - 验证：`Test-Path $BIN` 为 `True`，且 `node $BIN --help` 能打印用法、退出码 0。
-
 1. **建测试 home 骨架**（profile 目录必须存在，见坑 1）：
 
    ```powershell
@@ -72,15 +57,21 @@ Invoke-WebRequest -Uri 'http://127.0.0.1:3080/' -UseBasicParsing   # 401 = 真�
 
    - 验证：`Test-Path "$T\profiles\web"` 为 `True`。
 
-2. **不需要 junction `profiles\node_modules`**（本 skill 旧版这一条已被实测证伪，**不要再照做**）：本机 `~/.dsh/profiles/node_modules` 与测试 home 的 `profiles\node_modules` **都不存在**，隔离 host 照常起，`--dump-config` 与 headless 真跑都退出码 0。
-   - 原因：profile bundle 按 **dsh 的安装位置**解析（`~/.dsh/launcher/launch-dsh.mjs` 头注释原话），**不是**按 profile 目录 ⇒ 只要驱动的那棵树自带依赖闭包就够了。
-   - `healProfilesModuleFallback` 仍会按需 `mkdirSync` 该目录并补依赖闭包链接（`dsh-app-boot/lib/index.js:657-666`），所以**即使事后出现**这个目录也不必惊讶；但它是自愈产物，**不是前置条件**。
+2. **只 junction `profiles\node_modules`**（不要 junction 整个 `profiles`，见坑 1）：
+
+   ```powershell
+   cmd /c mklink /J "$T\profiles\node_modules" "C:\Users\admin\.dsh\profiles\node_modules"
+   ```
+
+   - 验证：`(Get-Item "$T\profiles\node_modules").LinkType` 为 `Junction`。
+   - junction **不需要管理员权限**。
+   - 注：`healProfilesModuleFallback` 本身也会 `mkdirSync` 这个目录并补齐依赖闭包的链接（`dsh-app-boot/lib/index.js:657-666`），所以预先 junction 的作用是让闭包"已经 current"而跳过自愈。未验证：完全不做 junction、只靠自愈能否启动（本次未实跑该分支）。
 
 3. **初始化 `<DSH_HOME>\profiles\web`**，二选一（`package.json` 缺失时 `readProfileManifest` 直接抛 `failed to read profile manifest`，`dsh-app-boot/lib/index.js:746-753`）：
 
    ```powershell
    # 路径 A：从 shipped 模板初始化（bin.js:85 接受 --from-default-profile；模板见 app-boot:333-336）
-   node $BIN --profile web --from-default-profile web --no-open --port 3099
+   node C:\Users\admin\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js --profile web --from-default-profile web --no-open --port 3099
    ```
 
    ```powershell
@@ -107,14 +98,14 @@ Invoke-WebRequest -Uri 'http://127.0.0.1:3080/' -UseBasicParsing   # 401 = 真�
    ```
 
    - 已确认这份文件里**没有密钥、没有绝对路径**，只有 `apiKeyEnv` 变量名、模型路由、`permission.defaultPreset` 等。
-   - 但它可能带着 `agent-presets: default: orchestrator` 这类**已死的旧键**：`.agent-presets` 目录在 0.2.0 线**没有任何代码读**（单一归属见 `dsh-agent-customization` §2.1），顶层键还必须是**有效 entry id**，否则只 `logger.warn` 后静默丢弃。要干净就**删掉这一段**；复制 `.agent-presets\orchestrator` **没有意义**（该目录在本机也不存在）。
+   - 但它带着 `agent-presets: default: orchestrator`，而测试 home 没有 `.agent-presets/orchestrator`。未验证：默认 preset 找不到时是回退还是报 `agent-preset/not-found`。要干净就删掉这两行，或把 `C:\Users\admin\.dsh\.agent-presets\orchestrator` 一起复制过去。
    - 凭据文件 `~/.dsh/.credentials.yaml` **只在需要真实发 LLM 请求时**才复制；只做端口就绪验证不需要它。
 
 6. **起 host**：
 
    ```powershell
    $env:DSH_HOME = 'D:\dsh-test-home'
-   node $BIN --profile web --no-open --port 3099
+   node C:\Users\admin\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js --profile web --no-open --port 3099
    ```
 
    - launcher 参数 `--profile` / `--from-default-profile` / `--patch`（可重复）/ `--dump-config` / `--dump-default-config` **必须写在 app 参数之前**（`dsh/lib/bin.js:85`）。
@@ -157,7 +148,7 @@ Invoke-WebRequest -Uri 'http://127.0.0.1:3080/' -UseBasicParsing   # 401 = 真�
 
 - **不能 junction 整个 `profiles` 目录**。
   → 原因：`prepareProfile` 每次启动都会 `writeFileSync(join(profile.dir, 'cordis.yml'), ...)`（`dsh/lib/profile-boot-*.js:209`）。junction 整目录时 `<DSH_HOME>\profiles\web\cordis.yml` 会写穿到真实 profile 目录。
-  → 修法：`profiles\<name>` 在测试 home 里必须是**真实目录**；`profiles\node_modules` **不需要**预先建（步骤 2 已实测证伪，事后出现也只是 `healProfilesModuleFallback` 的自愈产物）。
+  → 修法：只 junction `profiles\node_modules`；`profiles\<name>` 在测试 home 里必须是真实目录。
 
 - **不加 `--no-open` 会在用户桌面弹出浏览器**。
   → 原因：`openBrowser: z.boolean().default(true)`（`dsh-web-app/lib/index.js:34`），且只在检测到 SSH 会话时才不弹（`:174`）。
@@ -190,23 +181,6 @@ Invoke-WebRequest -Uri 'http://127.0.0.1:3080/' -UseBasicParsing   # 401 = 真�
   → 修法：**判就绪只能用 HTTP 探针**（对目标端口发 GET，`401` = 就绪；连接被拒 / 超时 / 5xx 才是不就绪）；**判"我的进程已清理干净"不能用"端口没在监听"**，正确断言是**两条同时成立**：① `Get-Process -Id <启动时记录下来的 pid>` 无输出；② 对该端口发 HTTP 请求已连不上。
   → 推论：**启动时必须先把 pid 与端口落盘**（第 6 步），收尾只认这份记录；**不要**用 pid 差集、不要用按映像名 / 命令行的模糊匹配杀进程。
   → 判据：**没被真正触发过的安全网不算安全网 —— 一个恒真的断言看起来在保护你，实际什么都没查。**
-
-## RPC 驱动宿主（实测配方，2026-11-03）
-
-host 起来后要在里面**真跑一个会话**（验证 preset / 驱动长任务）时，按下面顺序，全部实测通过：
-
-1. **启动参数顺序**：`node $BIN --profile <name> --no-open --port <port>`。`web` 是 **profile 名**，不是子命令——
-   - `--profile lab web` → `error: too many arguments. Expected 0 arguments but got 1: web.`
-   - `web --profile lab` → `option '--profile <name>' argument 'lab' is invalid. select a profile only once`（`web` 已被当成 profile）
-   - 环境里残留 `DSH_PROFILE=desktop` 时再传 `--profile lab` → 同样 "select a profile only once"；先 `Remove-Item Env:DSH_PROFILE` 或只留一种选择。
-2. **token 只在子进程 stdout**：`dsh web: http://127.0.0.1:<port>/?token=<token>`。用 Electron 壳（`DeepSeek Harness.exe` + `ELECTRON_RUN_AS_NODE=1`）时把 stdout 重定向到文件可能**一直是 0 字节**（stdout 被 shell 接管）；用后台作业启动并读作业输出才拿得到。
-3. **拿 cookie**：先 `Invoke-WebRequest "$base/?token=$t" -SessionVariable sess`，后面所有 POST 都带 `-WebSession $sess`。
-4. **RPC 线格式**：`POST $base/api/<method>`，body `{"type":"client-request","rpcId":"<id>","method":"<method>","payload":{"args":{...}}}`；`ContentType` 必须 `application/json; charset=utf-8`，且 body 用 `[Text.Encoding]::UTF8.GetBytes($json)`——否则中文 cwd 变 `?????`，`session/create` 报 `ENOENT: no such file or directory, mkdir 'D:\workspace\...?????'`。
-5. **三个常用方法**（参数形状错了会报 `gateway/arguments-invalid` / `gateway/input-invalid`）：
-   - `session/create`：`args.request = {cwd, agentPreset}` → `result.value.sessionId`
-   - `session/prompt`：`args.request = {requestId, sessionId, mode:'queue', content:[{type:'text',text}]}`
-   - `session/page`：`args.request = {address:{kind:'session',sessionId}, throughSeq:<游标>, maxMessages:<n>}`；`throughSeq` 超过当前游标会报 `session page through seq X is past cursor Y`，**直接用 Y**；子代理页把 `address` 换成 `{kind:'subagent',parentSessionId,childSessionId,mode:'continuable'}`。
-6. **轮询而非等待**：`session/page` 返回 `records[].event`（`assistant/message`/`tool/call`/`tool/result`/`subagent/catalog`/`turn/end`），按 `event.seq` 递增；`tool/result` 的 `content[0].text` 就是工具输出，可据此判进度。长任务（审计/verify）常见 10-20 分钟无新事件，别误判成挂死。
 
 ## 不要做什么
 

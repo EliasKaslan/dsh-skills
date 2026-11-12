@@ -1,6 +1,6 @@
 ---
 name: outlook-mailbox-control
-description: Outlook.com（个人 MSA）邮箱接管——接管我的 outlook 邮箱、查收件箱、按关键词搜邮件、读正文和附件、以我的名义回信、存草稿：MS365 MCP discovery 直调的能力配方（工具名＋最小 parameters JSON）、三条个人账户硬规则（authority 必须 consumers／只支持 delegated／app password 已硬禁用）、设备码登录与令牌核验、🤖 前缀护栏、逐字错误原文。适用于"接管我的 outlook 邮箱 / 查一下收件箱 / 按关键词搜邮件 / 读某封邮件的正文和附件 / 以我的名义回一封信 / 帮我存个草稿 / outlook 邮件工具报错 / authority 该填什么 / app password 为什么用不了"。不适用：QQ 邮箱 IMAP → 用 `qq-mail-control`；改 DSH 插件行与 MCP 接入层 → 用 `dsh-agent-customization`；PowerShell 的坑 → 用 `pwsh-on-windows`。
+description: Outlook.com 邮箱接管（MS365 MCP）：登录、搜读、回信、草稿。适用于"接管 outlook 邮箱 / 查收件箱 / 读附件 / 以我的名义回信 / outlook 工具报错"。
 whenToUse: 通过 DSH 的 `mcp__outlook__*` 工具接管 Outlook.com 个人邮箱（列/搜/读/附件/回复/草稿）或排查其认证与调用错误时使用。基线：ms-365-mcp-server 0.157.0 ＋ consumers ＋ --discovery。模型看不到本节。
 ---
 
@@ -141,7 +141,6 @@ $env:MS365_MCP_SELECTED_ACCOUNT_PATH='C:\Users\admin\.dsh\.secrets\ms365\.select
 npx.cmd -y @softeria/ms-365-mcp-server --login    # 打印 URL + user_code，浏览器侧完成（含 2FA）
 ```
 
-- **不要拿密码去填 outlook.com 的网页登录表单**：个人 MSA 从非惯用 IP 用密码登录极易触发 `Help us protect your account`，锁号后要靠手机/备用邮箱解。要读邮件就用本 skill 的设备码流程；确实需要网页登录时走 `login-credential-autofill`（默认只填不提交，受 24h 一次提交额度约束）。
 - **必须用 `npx.cmd`，不能写 `npx`**：执行策略 `Restricted` 会拦下 `npx.ps1`，逐字原文 `File C:\Program Files\nodejs\npx.ps1 cannot be loaded because running scripts is disabled on this system.`（Python 侧 `shutil.which('npx')` 按 PATHEXT 已解析成 `npx.CMD`，只有 PowerShell 会踩）。
 - **但 §1 配置里的 `command: npx` 是安全的，别当成同一个执行策略坑**：那条由 `@deepseek-ai/dsh-mcp-client` 用 MCP SDK 的 `StdioClientTransport` 启动（`lib/index.js:6` 导入），SDK 的 `client/stdio.js` **第 1 行 `import spawn from 'cross-spawn'`、第 65 行 `spawn(this._serverParams.command, ...)`** ⇒ cross-spawn 在 Windows 上按 PATHEXT 把 `npx` 解析为 `npx.cmd`，**不经过 PowerShell**，所以不会踩 `npx.ps1` 被执行策略拦截。该坑只在**你在 PowerShell 里手敲 `npx`** 时出现（属 `pwsh-on-windows`）。
 - 令牌缓存是**密文信封**：`{_cacheEnvelope, v, alg, iv, tag, data}`（AES-256-GCM），**32 字节 key 存在 Windows 凭据管理器**（keytar），不在文件里。

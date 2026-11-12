@@ -1,6 +1,6 @@
 ---
 name: mindspeed-ops-whl-build
-description: 把 MindSpeed-Ops 源码打成可安装 whl 并逐层验收——cmake≥3.16、Python3_EXECUTABLE 注入、gcc8 必须换 clang-11、cmake 包装脚本会被 setup.py 按前 128 字节含 python 拒掉、SOC_VERSION 决定 aclnn 与 arch、CATLASS 需 MINDSPEED_BUILD_CATLASS=1；whl 非 manylinux、无 Requires-Dist。适用于"打 MindSpeed-Ops 的 whl / pip wheel 报 cmake_minimum_required / 报 too old version of GCC / 报 No module named regex / 验证 whl 能不能用 / whl 装完 import 找不到 torch"。不适用：装 CANN → 用 `ascend-cann-env`；torch 栈 → 用 `ascend-torch-npu`；给仓提 PR → 用 `gitcode-pr-flow`。
+description: 打 MindSpeed-Ops whl 并验收：cmake/clang、SOC_VERSION、CATLASS。适用于"打 ops 的 whl / cmake 版本报错 / GCC 太旧 / 验证 whl"。
 whenToUse: 要产出 MindSpeed-Ops 的 whl、判断某个 whl 能不能用、或 whl 构建中途报错时用：构建环境三件套（cmake / 编译器 / python 解释器）+ 八项验收矩阵 + 单测分片跑法。模型看不到本节。
 ---
 
@@ -18,7 +18,7 @@ whenToUse: 要产出 MindSpeed-Ops 的 whl、判断某个 whl 能不能用、或
 ```bash
 git clone -b <branch> https://gitcode.com/Ascend/MindSpeed-Ops.git src/<label>
 cd src/<label>
-source /mnt/share/x00886548/cann/cann_9_1_0/ascend-toolkit/set_env.sh
+source /home/x00886548/env/cann/cann_9_1_0/ascend-toolkit/set_env.sh
 export SOC_VERSION=ascend910_9382     # 芯片 910/9382 → 内部归一成 ascend910_93 / arch32
 export MINDSPEED_BUILD_CATLASS=1      # 只有 ascend910b / ascend910_93 生效
 export MAX_JOBS=16

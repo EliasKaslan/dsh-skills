@@ -103,3 +103,20 @@ git push origin <branch>:refs/heads/26.2.0
 **回退后回读（与 12.4 同口径）**：`git fetch origin '+refs/heads/26.2.0:refs/remotes/origin/26.2.0'` + `git rev-parse 'origin/26.2.0^{tree}'`；直推 FF 后**没有待合入的 PR，不需要发 `compile`**。
 
 **未验证的观察**：`26.1.0` 与 master 在那 13 个文件上 "13 of 13 differ"，但 26.1.0 是**已分叉**的旧版本分支（另有 4 个自有提交），差异很可能来自旧版文档内容本身。**是否要给 26.1.0 也回合并 #163 尚未核实**，需要逐文件看它是否还停在 #163 之前的同名内容，不能照搬 26.2.0 的结论。
+
+### 12.6 已合入 master 的 PR 同步到版本分支：先做逐文件三方状态分类，别直接 cherry-pick
+
+**踩点**：拿 master 上 PR 的 squash 提交去 `git merge-tree --write-tree <版本分支> <squash>`，会报几十个冲突，容易误判成"要大改"。但版本分支往往**已经先行包含了大半改动**（实测本仓 `26.2.0` 的 `docs/en` 比 master 早两周进：`36f5c51` 2026-10-23 vs `e0d16d2` 2026-11-05），真实差量可能只有十几行。
+
+**做法（三步）**：
+
+1. **逐文件分类**（Python + git plumbing，`git rev-parse <ref>:<path>` 取 blob OID，取不到即"该 ref 无此文件"）：
+   - `SAME` 版本分支已有同一内容 → 不用动；`CLEAN` 仍停在 squash 的父像 → 干净应用；
+   - `ADD` 版本分支没有该文件 → **先判对应算子在不在**；`CONFLICT` 两边各自发展 → 逐块看。
+2. **只应用 squash 提交自身的 diff**（`git diff <squash>^ <squash>`）；`git diff <版本分支> master` 是"全量差异"，混着别的提交，不能当待同步内容。
+3. **逐条以版本分支的代码为准**：算子是否存在（`git ls-tree -r --name-only <branch>` 里 0 命中 = 该分支没有代码，别把它的文档搬过去）；依赖版本看 `requirements.txt` / `pyproject.toml`；**接口形状以单测里的 `torch.randn(...)` 为准**，docstring 常与实现不一致（实测 `mhc_pre_only` 的 docstring 仍写 `[n_D, num_stream]`，而代码 `weight.float().t()` 后直接 matmul、单测传 `[num_stream, nD]`）。
+
+**实测（2026-11-05，PR #239 → 26.2.0）**：`merge-tree` 报 42 个冲突；逐文件分类后，PR #239 触及的 7 个中文文档里 1 个无对应算子（`inplace_rope`）、1 个已完全同步（`introduction.md`）、其余 5 个真实差量合计 **+18/−20**，很快闭环（PR #245：`ascend-cla/yes` + `ci-pipeline-passed` + `docs-ci-pipeline-success` 全绿）。
+
+**另一条边界**：版本分支上若已有人为文档门禁做的"摘要 / 代码块语言标签"修正（本仓 `c87d7b3`），**别把主干侧的旧写法整块覆盖回来**——`text` 与 `python` 这类代码块语言标签在 26.2.0 上是修复、在 master 上是历史状态。
+

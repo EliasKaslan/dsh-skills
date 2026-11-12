@@ -1,7 +1,7 @@
 ---
 name: ascend-vllm-serve
-description: 在昇腾 A3（.188/.190）上把装好的 vllm + vllm-ascend 跑起来——三层自检、按 HBM 挑空闲 die、起 OpenAI 兼容服务、离线推理冒烟、sleep/wake_up 显存释放与重载、运行时排障。适用于"在昇腾上起 vllm 服务 / 跑离线推理冒烟 / sleep mode 释放显存 / sleep level 1 还是 2 / wake_up 后输出乱码 / reload_weights 热更新权重 / 报 MemoryError 或 dtype / import torch_npu 报 No module named 'acl' / 别设 VLLM_TARGET_DEVICE / 报 aclInit 107001 / Kimi-K3 在 A3 上 500 EZ0037 / 模型太大单卡放不下要 TP=2"。不适用：装/重装/编译 vllm-ascend → 用 `vllm-ascend-source-install`；栈装不上（torch_npu、pip） → 用 `ascend-torch-npu`。
-whenToUse: 环境已装好、现在要真的跑模型时才用：起 OpenAI 兼容服务、跑离线推理冒烟、sleep/wake_up 与权重热更新，或服务起不来要定位；装的过程见 vllm-ascend-source-install。模型看不到本节。
+description: 在昇腾上起 vllm 服务：三层自检、选空闲 die、serve/离线/sleep、运行时排障。适用于"起 vllm 服务 / OOM / 输出乱码 / reload_weights / 该占哪张卡 / 模型太大要 TP=2"。
+whenToUse: 环境已装好、现在要真的跑模型时才用：起 OpenAI 兼容服务、跑离线推理冒烟、sleep/wake_up 与权重热更新，或服务起不来要定位；装的过程见 vllm-ascend-source-install。
 ---
 
 # 昇腾 vllm / vllm-ascend 起服务、离线推理与运行时排障
@@ -12,12 +12,10 @@ whenToUse: 环境已装好、现在要真的跑模型时才用：起 OpenAI 兼�
 
 **加载本 skill 当：**
 
-- 在 `192.168.13.188`（文档里代称 `a3`，但 ssh 用 IP，见「前置检查」）上 `vllm serve` 或 `LLM()` 跑模型；`.190`（`a3b`，**2026-11-03 重装为 openEuler 22.03，起服务未实测**）与 A5 `177.8.21.1`（**需连 A5 VPN 后可达**，8×Ascend950DT，起服务未实测）同理；三台准入与凭据见 `ascend-server-access` §0。
+- 在 `192.168.13.188`（文档里代称 `a3`，但 ssh 用 IP，见「前置检查」）上 `vllm serve` 或 `LLM()` 跑模型；`.190`（`a3b`）同理但 ssh 易假死。
 - 要 `sleep()` / `wake_up()` 释放显存，或要 `reload_weights` 热更新权重（见步骤 3.1）。
-- 报 `MemoryError`、`dtype or format of parameter`、`NnopbaseExecutorDoTiling`、`No module named 'triton.experimental'`、`Engine core initialization failed`、`AttributeError: module 'vllm.v1.engine.utils' has no attribute 'get_physical_gpu_ids_for_local_dp_rank'`。
-- **KDA / 线性注意力系模型（Kimi-K3、GLM5next）起不来**：报 `ModuleNotFoundError: No module named 'fla_npu'`、`Error in inspecting model architecture`、`Model architectures ['KimiK3ForConditionalGeneration'] failed to be inspected.` → 见下文「KDA 系模型（Kimi-K3 / GLM5next）的隐藏硬依赖 `fla_npu`」一节（含 glibc 闸门）。**注意：不是所有 GLM 5.x 都需要 `fla_npu`——先查 `config.json` 的 `model_type`，`glm_moe_dsa`（GLM-5.2）不需要**。
+- 报 `MemoryError`、`dtype or format of parameter`、`NnopbaseExecutorDoTiling`、`No module named 'triton.experimental'`、`Engine core initialization failed`。
 - 共享机上要决定占哪张 die、用多少显存、用哪个端口。
-- **起服务前的容量规划**（这个 MoE 模型要几张卡、EP/TP/DP 怎么配、64GB 卡真实预算 56.378 GiB 够不够） → 用 `ascend-moe-ep-capacity-planning`（本 skill 从"已经决定要起"开始）。
 
 **不要用本 skill（转交）：**
 - 还没装 / 要重装 / 要重编 vllm 或 vllm-ascend 的 AscendC 算子 → 用 `vllm-ascend-source-install`（本 skill 只管「跑得起来」，不管「装得上」）。
@@ -27,23 +25,16 @@ whenToUse: 环境已装好、现在要真的跑模型时才用：起 OpenAI 兼�
 - 上游仓库 docs 刷新审计（需求 vs docs 缺口清单） → 用 `upstream-docs-refresh-audit`。
 - e2e 用例进 CI 的落位与 estimated_times 登记 → 用 `vllm-ascend-e2e-ci-wiring`。
 
-**前置**：`source /mnt/share/x00886548/workspace/batch_inv_qwen35/env_batch_inv.sh` 能跑通，三层自检 ① torch_npu 与 ② `NPUPlatform npu` 都过（②不过别做 ③）。 ／ **后继**：收尾必做「步骤 5 杀服务 + 端口 / 残留进程 / HBM 三查」；装的问题回 `vllm-ascend-source-install`。
+**前置**：`source /home/x00886548/work/batch_inv_qwen35/env_batch_inv.sh` 能跑通，三层自检 ① torch_npu 与 ② `NPUPlatform npu` 都过（②不过别做 ③）。 ／ **后继**：收尾必做「步骤 5 杀服务 + 端口 / 残留进程 / HBM 三查」；装的问题回 `vllm-ascend-source-install`。
 
 ## 前置检查
 
-ssh 一律直连 **IP**：`ssh root@192.168.13.188`。**实测客户端 `~/.ssh/config` 里没有 `a3` / `a3b` / `a5` 别名**（它们只是文档里的代称；2026-11-03 复核仍只有 `.188` / `.190` 两段 Host），照抄别名写法会直接连不上。三台当前状态见 `ascend-server-access` §0：**`.188` / `.190` 连蓝区网关即达（`.190` 2026-11-03 刚重装），A5 `177.8.21.1` 需先连 A5 VPN**——「连不上」先判是 VPN / 路由 / 认证哪一层，别一律当环境坏。
-
-**A5（`177.8.21.1`）是例外：宿主机没有可用的 vllm/torch_npu，必须在容器里跑**（2026-11-03 实测）：
-
-- 镜像 `quay.nju.edu.cn/ascend/vllm-ascend:v0.30.0-a5-openeuler`：CANN 9.2.1（`/usr/local/Ascend/cann-9.2.1`）、py3.12.16、`torch 2.10.0+cpu`、`torch_npu 2.10.0.post7`、`vllm 0.30.0 ced6857`、`vllm-ascend v0.30.0 c09d3e20b`（editable 在 `/vllm-workspace/vllm-ascend`）。
-- **容器必须 `--privileged`**。不 privileged 时，即使把 `/dev/davinci0..7` + `/dev/davinci_manager` + `/dev/hisi_hdc` 全映射进去，容器内仍 `torch_npu.npu.device_count()==0`、`acl` 拿不到设备，`npu-smi` 报 `dcmi model initialized failed, because the device is used. ret is -8020`（伴生 `Failed to obtain the console log level`）。加 `--privileged` 后 `acl.rt.get_device_count()==8`、`npu-smi info` 正常——本机其它用户的容器也都是这个路子。
-- 挂载与参数（可照抄）：`--net=host --shm-size=16g`，`-v /usr/local/Ascend/driver`、`/etc/ascend_install.info`、`/etc/hccl_rootinfo.json`、`/usr/local/dcmi`、`/usr/local/bin/npu-smi`，`-v /mnt/share`、`/mnt/weight`、`/home`。
-- 实测可用组合（单进程夹具）：`ASCEND_RT_VISIBLE_DEVICES=<die>`、`VLLM_ENABLE_V1_MULTIPROCESSING=0` + `distributed_executor_backend="uni"`，`Qwen3-30B-A3B` 单 die（96 GB，KV 缓存 20.29 GiB / 221,568 token）与 TP=2（die 1,2）都能起；`enforce_eager` 真/假都验过（图模式细节见 `batch-invariance-acceptance` §五之二）。**不要**设 `VLLM_TARGET_DEVICE`。
+ssh 一律直连 **IP**：`ssh x00886548@192.168.13.188`。**实测客户端 `~/.ssh/config` 里没有 `a3` 别名**（`a3` 只是文档里的代称），照抄别名写法会直接连不上（未验证：其他客户端是否配了别名）。
 
 环境激活（`.188` 唯一推荐入口，2026-09-23 实测可用，别重建）：
 
 ```bash
-source /mnt/share/x00886548/workspace/batch_inv_qwen35/env_batch_inv.sh
+source /home/x00886548/work/batch_inv_qwen35/env_batch_inv.sh
 ```
 
 给到 python 3.12.14（`/mnt/share/vllm/conda_envs/xmz_0921`）、vllm `84030bbe`、vllm-ascend `bf439330c`、CANN 9.1.0、`LD_LIBRARY_PATH` 已前置 `compat_lib`。**它默认 `export VLLM_BATCH_INVARIANT=1`**（见坑 5）。
@@ -59,8 +50,6 @@ python -c "import vllm, importlib.metadata as m; print(vllm.__version__, m.versi
 ```
 
 **别读 `vllm_ascend.__version__`**（`.188` 无该属性，用 `importlib.metadata`）。
-
-> **平台层（`current_platform` 不是 `NPUPlatform npu`）失败的第一诊断点**：先 `echo $VLLM_TARGET_DEVICE` —— 只要它是 `cpu`，所有平台插件都被绕过、必然退化成 `UnspecifiedPlatform`（机理、源码行号与配方见 `vllm-ascend-source-install` §5.3）。
 
 ## 步骤
 
@@ -87,23 +76,6 @@ print(f.index(max(f)))" | tail -1)
 
 ⚠️ **共享机上空闲 die 是分钟级变量，别用几分钟前的选卡快照**：2026-09-28 实测同一个 die 9，20 分钟内 free 从 `62619MB` 掉到 `20815MB`（`npu-smi` 变成 `34895/65536`）——别人的进程随时会进来。**必须在 launch 前一刻复测 `torch.npu.mem_get_info`，再定 `ASCEND_RT_VISIBLE_DEVICES`**，不要复用早先脚本或早先对话里那份选卡结果。TP≥2 时两张卡都要这样复测。
 
-⚠️ **多卡列表必须升序，且绝不能设成空字符串（2026-10-22 在 `.188` A3 实测）**：
-
-| 取值 | 结果 |
-|---|---|
-| `1,3,9,11`（升序、不连续）/ `9,11,13,15` / `9`（单卡） | ✅ 正常，`device_count` 对得上 |
-| `11,9,3,1`（**降序**） | ❌ `aclInit` 失败 |
-| `""`（**空字符串**） | ❌ 同上 |
-| 真正 unset（`env -u`） | ✅ 16 卡全可见 |
-
-```text
-RuntimeError: Initialize:../torch_npu/csrc/core/npu/sys_ctrl/npu_sys_ctrl.cpp:165 NPU function error: aclInit, error code is 107001
-Invalid_Argument(EE1003): Obtaining the logical device ID based on the user device ID failed because value 0 for parameter userDevId is invalid. Expected value: [0, 0).
-```
-
-- **按"最空闲优先"挑卡天然产出降序列表**（`sorted(..., reverse=True)`）⇒ 选完必须再 `sorted()` 一次才赋给 `ASCEND_RT_VISIBLE_DEVICES`。
-- **"设为空串" ≠ "unset"**：脚本里 `export ASCEND_RT_VISIBLE_DEVICES=$PICK` 在 `PICK` 为空时会变成空串，正好复现这个错；赋之前先判空并 abort。
-
 ### 2 挑空闲端口
 
 ```bash
@@ -112,9 +84,6 @@ for p in $(seq 18000 18100); do case " $USED " in *" $p "*) ;; *) echo $p; break
 ```
 
 验证：`ss -ltnp | grep :18000` 无输出即可用（实测取到 18000）。
-
-- **`.188` 有常驻服务占着固定端口，别撞**（2026-10-22 `ss -ltnp` 实测）：`8686`/`8687`/`9800` = `vector`（日志采集）、`9500`/`9100` = `node_exporter`、`9200` = `npu_exporter`、`8118` = `privoxy`、`111` = `rpcbind`、`53` = `dnsmasq`（绑 `192.168.122.1`，libvirt）、`6010–6015` = 别人 ssh 的 X11 转发。⇒ 起服务只用 `18000–18100` 这一段（或 8000 这类惯例端口先 `ss` 探一下），**不要用 9100/9200/9500** ——会与监控打架，而且报错长得像"端口被 vllm 自己占了"。
-- 端口一旦被并发抢占，`vllm serve` 的报错是 `OSError: [Errno 98] Address already in use`（不指向"别人的服务"）⇒ 见到它先 `ss -ltnp | grep :<port>` 看去向，再换端口。
 
 ### 3 离线推理冒烟（目的：不依赖 HTTP，先验引擎+算子）
 
@@ -132,9 +101,6 @@ PY
 ```
 
 脚本核心：`LLM(model=<本地目录>, max_model_len=512, enforce_eager=True, gpu_memory_utilization=0.4, trust_remote_code=True)` + `SamplingParams(temperature=0.0, max_tokens=64)`。验证：末行打印 `SMOKE_OK`。实测 load 10.0s、KV cache 23.25 GiB / 2,031,616 tokens、154.51 toks/s。本次脚本 `pick_card.py` / `smoke_npu.py` 在 `D:\workspace\agent\skill\_recon\serve\`（若该侦察工作区已清理，按上面两段内联片段自行重建即可）。
-
-- **同配置另一次冒烟实测值（2026-10-08，模型 `/mnt/weight/Qwen2.5-0.5B`、`max_model_len=512`、`enforce_eager=True`、`gpu_memory_utilization=0.4`）**：权重 **0.9320 GB**、加载耗时 **0.29 s**；`Available KV cache memory: 23.25 GiB`、`GPU KV cache size: 2,031,872 tokens`、`Maximum concurrency for 512 tokens per request: 3968.50x`；`init engine (profile, create kv cache, warmup model) took 9.66 s`；启动时 `Free memory on device (61.16/61.28 GiB)`。⇒ 上面那次记的 KV 是 `2,031,616`、这次是 `2,031,872`，**两次不是同一次运行**；别把某个具体 token 数当"必须逐字一致"的判据。
-- **小模型 + 固定 temperature 的输出重复退化不是环境问题**（2026-10-08 实测）：`temperature=0.0` 下两条 prompt 的第二条会输出 `+1+1+1+…` 直到 `max_tokens`——这是**模型能力问题，不是环境问题**。判环境成功**只看是否打印出 `SMOKE_OK`**，不要拿输出内容好不好去判。
 
 ### 3.1 sleep / wake_up 释放显存 + 权重热更新（reload_weights）
 
@@ -160,8 +126,7 @@ A = llm.generate(["你好"], sp)[0].outputs[0].text
 llm.sleep(level=2)                                        # level 1 / 2 都会释放 HBM
 llm.wake_up()                                             # level 2 唤醒【不】恢复权重（三重印证见下）
 B = llm.generate(["你好"], sp)[0].outputs[0].text         # 期望退化：B != A
-CKPT = "/mnt/weight/Qwen3.5-35B-A3B"                      # ← 换成你的 ckpt 目录（别把 <...> 尖括号粘进 python，会当比较运算符）
-llm.collective_rpc("reload_weights", kwargs={"weights_path": CKPT})
+llm.collective_rpc("reload_weights", kwargs={"weights_path": "<ckpt 目录绝对路径>"})
 C = llm.generate(["你好"], sp)[0].outputs[0].text         # 期望 C == A
 print("VERDICT", "WEIGHT_UPDATE_PROVEN" if (B != A and C == A) else "NOT_PROVEN")
 ```
@@ -212,7 +177,7 @@ curl -s 'localhost:18000/is_sleeping'                                           
 vllm serve --help | head -40     # 参数名以本机为准：usage: vllm serve [model_tag] [options]
 setsid nohup vllm serve /mnt/weight/Qwen2.5-0.5B --port 18000 --max-model-len 512 \
   --enforce-eager --gpu-memory-utilization 0.4 --trust-remote-code \
-  > /home/vllm/x00886548/serve_test/serve.log 2>&1 < /dev/null &
+  > /home/x00886548/serve_test/serve.log 2>&1 < /dev/null &
 ```
 
 就绪判据（轮询日志，别只 sleep）：`grep -m1 'Application startup complete' serve.log`。curl **全部写进远端 .sh 跑**（PowerShell 内联会吃引号）：
@@ -232,15 +197,12 @@ curl -s localhost:18000/v1/chat/completions -H 'Content-Type: application/json' 
 最小改动就是在步骤 4 的 flag 串上加 `--tensor-parallel-size 2`（`ASCEND_RT_VISIBLE_DEVICES` 必须**在起 vllm 前**设好、且要两张都空闲，见步骤 1）：
 
 ```bash
-DIE_A=4; DIE_B=5                             # ← 换成步骤 1 挑出的两张空闲 die（**变量形式**，别把 <dieA> 粘进 shell）
-MODEL=/mnt/weight/Qwen3.5-35B-A3B            # ← 换成模型绝对路径
-export ASCEND_RT_VISIBLE_DEVICES=$DIE_A,$DIE_B
-vllm serve "$MODEL" --served-model-name qwen3-35b-a3b --port 8000 \
+export ASCEND_RT_VISIBLE_DEVICES=<dieA>,<dieB>
+vllm serve <模型绝对路径> --served-model-name <name> --port <port> \
   --tensor-parallel-size 2 --max-model-len 32768 --gpu-memory-utilization 0.85 \
   --dtype bfloat16 --enforce-eager --limit-mm-per-prompt '{"image": 2, "video": 0}' \
   --max-num-seqs 16 --max-num-batched-tokens 4096 --trust-remote-code
 ```
-> 上面三个变量与 `--port` 都要换成真实值——`<dieA>`、`<模型绝对路径>` 这类尖括号在 bash 里是**重定向符**，照抄会读不存在的文件或截断文件。
 
 - `--limit-mm-per-prompt` 传多模态 key 被 v0.30.0 正常接受；`--trust-remote-code` 对没有 `auto_map` 的模型是 no-op 但无害。
 - 就绪判据与步骤 4 相同（`grep -m1 'Application startup complete'`）；实测参考值：**就绪 114 秒**、`Loading safetensors checkpoint shards: 14/14`、每 die `32.93GiB weights + 3.68GiB activation`、`KV cache 14.96 GiB = 1,126,027 tokens`、`seed=0`、吞吐 ≈ **21 tok/s**（此时 `VLLM_BATCH_INVARIANT=1` 生效，见坑 5）。
@@ -254,82 +216,15 @@ ss -ltnp | grep :18000 || echo "PORT RELEASED"
 # 只 kill 自己端口上的 PID；绝不用 pkill -f vllm——本机 NPU0 上就有别人的 VLLMWorker
 ```
 
-- **`PORT RELEASED` ≠ 进程已退**（2026-10-22 实测）：只结束监听者时，`vllm serve` 主进程可能仍在，4 张 die 各占 ~51 GB。收尾必须再查一次**只属于自己的**进程 + 每 die HBM：
-  ```bash
-  ps -ef | grep '[v]llm serve' | grep <你的环境根> | awk '{print $2}'   # 有输出 = 残留 → kill -9
-  npu-smi info | grep -E '^\| [0-9]+ +[0-9]+ '                         # 判据是"回到空闲基线的 MB 数"
-  ```
-  空闲基线本机约 **2.8–3.2 GB/die**（别按 0 判，也别拿 `No running processes` 当已释放——HBM 回收会滞后几秒）。
-
-### 6 服务起来后：查每卡显存占用与分布（2026-11-03 在 `.188` 实测）
-
-**先记住形态：vLLM 的显存是"台阶"不是"斜坡"**——KV 池启动时一次性预分配，跑负载基本不涨（实测同一 die 请求前后只从 `29017` → `29041 MB`，+24MB）。所以查到的是**分配账**，别拿"显存没涨"当"请求没生效"。
-
-四层，从粗到细：
-
-| 层 | 命令 | 给什么 |
-|---|---|---|
-| L1 全卡 | `npu-smi info` | 16 个 die 的 `used / 65536`（**含驱动基线**） |
-| L2 进程 | `npu-smi info -t proc-mem -i <npu>` | 每进程 MB 归因（唯一能给到进程级的命令） |
-| L3 vLLM 账本 | `grep 'Free memory on device' <serve.log>` | 权重/激活/非 torch/图/KV 的精确拆解 |
-| L4 长期监控 | `curl localhost:9200/metrics`（npu_exporter） | `npu_chip_info_hbm_used_memory` 绝对值，可 PromQL |
-
-**L1 读数（最容易读反的一处）**：数据行**第一列是 Chip 序号（NPU 内 0/1），第二列才是 `Phy-ID` = 全局 die 号**。按 `NPU×2+Chip` 去反推会把 die 15 算成 17。
-
-```
-| 1     1                   | 0000:E5:00.0  | 0   0 / 0   29017/ 65536 |
-   ↑     ↑                                      ↑
-  Chip  Phy-ID = die 号                    HBM-Usage（含基线）
-```
-
-- `Memory-Usage(MB)` 那列恒 `0 / 0` 是 **DDR 不是 HBM**，别拿它判显存。
-- `npu-smi info -t memory` 只给容量/频率/温度、**不给已用量**；`-t usages` 只给 `HBM Usage Rate(%)` 百分比。要 MB 就用主表或 `proc-mem`。
-
-**L2 的 `Chip ID` 是段尾标记**（进程列表在前、`Chip ID` 在后），当标题读会把归属整段搞反；换算是 `die = NPU×2 + Chip`，更稳的是拿 **Bus-Id** 在主表/HBM/进程三段对齐。
-
-**L3 信息量最大**，vLLM 启动就打完整拆解（实测原文，为便于阅读已折行）：
-
-```
-Free memory on device (61.14/61.28 GiB) on startup. Desired GPU memory utilization is (0.4, 24.51 GiB).
-Actual usage: 0.93 GiB for weights, 0.09 GiB for peak activation,
-              0.03 GiB for non-torch memory, 0.0 GiB for NPU graph memory.
-Current KV cache memory: 23.46 GiB.
-After warmup: torch reserved memory 25.36 GiB, torch allocated memory 24.55 GiB.
-```
-
-闭合校验：`0.93 + 0.09 + 0.03 + 0 + 23.46 = 24.51 GiB = 0.4 × 61.28` ✓。多卡时**每卡 used 应基本相等**（权重与 KV 按 TP 均分）：某卡偏高 = 混进了别人的进程（回 L2 归因）；偏低 = 该 rank 没起来或权重没加载完。
-
-**四种口径不许混用**（实测同一时刻同一 die）：`npu-smi` `29041 MB`（含基线）／`proc-mem` `26229 MB`（进程实占）／`torch.npu.mem_get_info` `26310 MB`（不含基线）／硬件 `65536 MB`。`npu-smi − proc-mem ≈ 2812 MB` 恒为驱动基线——**拿含基线的数去比 torch，会凭空多出 2.7GB "泄漏"**。
-
-**运行期 `vllm:kv_cache_usage_perc` 在小模型上恒 `0.0`**（128 token 对 205 万 token 池 = 0.006%，四舍五入即 0），别据此判"KV 没生效"。
-
-**手动速查（不想跑脚本时）**：`npu-smi info` 看全表 / `watch -n 1 npu-smi info` 实时盯（`q` 退出，`watch` 已在 `/usr/bin/watch`）/ `npu-smi info -t proc-mem -i <npu>` 看进程。⚠️ **`npu-smi info -i 0 -c 1` 是非法写法**——实测只回 `Must input parameter of type.` + Usage 帮助；单卡查询必须带 `-t`（`-t usages -i 0 -c 1` 只给百分比、`-t proc-mem -i 0 -c 1` 给进程 MB），**要看 MB 只能读全表主表或 `watch`**。
-
-**图模式 vs eager 的账目差（2026-11-03 同模型 / 同 die / 同配额 0.4 对比实测）**：去掉 `--enforce-eager` 会多出 **`0.4 GiB` 的 NPU graph memory**（日志 `Graph capturing finished in 42 secs, took 0.40 GiB`，捕获 35 PIECEWISE + 35 FULL 共 70 张），启动从 **96s 拉到 166s**；且此时 `0.93 + 0.09 + 0.03 + 0.4 + 23.46 = 24.91` **超过配额 24.51 约 0.4 GiB**（`Current KV cache memory` 不会自动回退，vLLM 轻微超配）⇒ **共享机显存紧时加 `--enforce-eager` 更省也更稳**。图捕获慢的直接原因见日志警告：`NPU Triton causal_conv1d_update is unavailable ... falling back to the PyTorch implementation, which syncs per request and therefore stalls ACL graph capture at decode-FULL.`（**不是错误，是回落**）。
-
-核账时踩到的坑：设了 `ASCEND_RT_VISIBLE_DEVICES=1` 之后**逻辑 id 从 0 开始**，再 `torch.npu.mem_get_info(1)` 会报 `AssertionError: Invalid device id` + `PTA ERR00003`——核账时那个进程里要读 `device 0`，不是物理 die 号。
-
-四层一次跑完的脚本在本 skill 的 `assets/npu_mem_report.sh`（已在 `.188` 实测通过；`bash assets/npu_mem_report.sh <serve.log>`）。
-
-## KDA 系模型（Kimi-K3 / GLM5next）的隐藏硬依赖 `fla_npu` → `references/kda-fla-npu.md`
-
-**只有模型确实会走进 KDA / GDN 导入链时才需要读。** 该文件（原正文 209 行，逐字保留）依次解答：会不会真走进 KDA 链 → 症状与报错锚点（**炸在"检视模型架构"阶段，不是运行时**）→ 谁引入的（`12e7e1cb` 实测行号，全是**模块级** import）→ 官方 CI 逐字来源 → 档位→SOC 映射与定档方法 → **先量 glibc 再决定下不下这个 wheel** → glibc < 2.32 的三条出路（出路 ③ 已端到端验证）→ K3 在 A3 上的版本配对。
-
-判据一句话：**`import` 阶段就 `ImportError: No module named 'fla_npu'`** ⇒ 按该文件查；能正常 import 就不要提前装它，版本对不上反而会把 vllm 依赖树带崩。
 ## 坑与修法
 
 1. **权重是 git-lfs 指针 → `MemoryError`**（实测复现，文件正好 134 字节）。原文：`File ".../vllm/transformers_utils/utils.py", line 114, in parse_safetensors_file_metadata` → `metadata = json.loads(f.read(length_of_metadata).decode("utf-8"))` → `MemoryError`（上层是 `maybe_untie_word_embeddings`）。判别：`ls -la *.safetensors` 看 134 字节 + `head -c 200 model.safetensors | grep -c git-lfs` → 1。修法：下真权重，别 `git clone`；`/mnt/weight/Qwen2.5-0.5B/model.safetensors` 是真权重（988097824 字节）。
 2. **`import vllm` 报 `No module named 'triton.experimental'`**（实测：直接 `import triton.experimental` 复现；`import vllm` 后再 import 即 OK，`vllm_ascend/__init__.py` 打了 stub）。**装完 vllm-ascend 即消失，别单独升级 triton**（会覆盖 triton-ascend）。
-3. **`.188` 缺 `GLIBCXX_3.4.26`（运行时坑，症状像算子 API 用错）**。实测原文：`[ERROR] Failed to load custom_transformer library ... via dlopen.` + `Error detail: /lib/x86_64-linux-gnu/libstdc++.so.6: version 'GLIBCXX_3.4.26' not found (required by .../op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so)`，随后 `RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {'EngineCore': 1}`。旧记录的 `dtype or format of parameter` / `NnopbaseExecutorDoTiling` 是同一根因的另一表现（**未验证：本次未复现该措辞**）。修法：`export LD_LIBRARY_PATH=/mnt/share/x00886548/workspace/batch_inv_qwen35/compat_lib:$LD_LIBRARY_PATH`（env 脚本已做）；只前置 `compat_lib`，**别加整个 `$CONDA_PREFIX/lib`**（`git` 会崩）。
-4. **`VLLM_USE_V1` 已废弃**。实测：设了不致命，起服务打 `WARNING ... [envs.py:2290] Unknown vLLM environment variable detected: VLLM_USE_V1`，服务照样 200；`vllm.envs` 已无该属性（`AttributeError: module 'vllm.envs' has no attribute 'VLLM_USE_V1'`）。V1 是唯一引擎 → **不要设**。
-   > **`VLLM_VERSION`：2026-10-08 二次修正（上一轮的"该设时必须设"也已不成立）**。原写"同理别设 `VLLM_VERSION`"是错的；但上一轮改成"**必须设**"在 vllm `v0.23.0` 上同样不成立——该版本 `setup.py` **不再读 `VLLM_VERSION`**（`grep -n VLLM_VERSION setup.py` 逐字只剩 `VLLM_VERSION_OVERRIDE` 两行），且**不导任何变量时** `vllm_version_is("0.23.0")` 本来就为 `True`：它是**版本线**判定，不是等值判定。逐字三向实测见 `vllm-ascend-source-install` §5.1（**单一归属，本文件只留指针**）。
-   > 仍然成立的噪声事实：起服务路径能看到 `WARNING [envs.py:2088] Unknown vLLM environment variable detected: VLLM_VERSION`（**无害，别为消它去改代码**）；离线 `LLM()` 冒烟路径该 warning 实测 **0 次**。
-   > 下面那条 `AttributeError: module 'vllm.v1.engine.utils' has no attribute 'get_physical_gpu_ids_for_local_dp_rank'` 的观测**只对"仍读取该变量"的 vllm 版本成立**：它记的修法 `export VLLM_VERSION=<tag>` 在 `v0.23.0` 上不可能生效，请改用 `VLLM_VERSION_OVERRIDE` 或核对配对版本（§5.1）。
-   > 完整机理、~20 处受影响分支、以及一行预检命令见 `vllm-ascend-source-install` §5 与 §6 坑 10。
+3. **`.188` 缺 `GLIBCXX_3.4.26`（运行时坑，症状像算子 API 用错）**。实测原文：`[ERROR] Failed to load custom_transformer library ... via dlopen.` + `Error detail: /lib/x86_64-linux-gnu/libstdc++.so.6: version 'GLIBCXX_3.4.26' not found (required by .../op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so)`，随后 `RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {'EngineCore': 1}`。旧记录的 `dtype or format of parameter` / `NnopbaseExecutorDoTiling` 是同一根因的另一表现（**未验证：本次未复现该措辞**）。修法：`export LD_LIBRARY_PATH=/home/x00886548/work/batch_inv_qwen35/compat_lib:$LD_LIBRARY_PATH`（env 脚本已做）；只前置 `compat_lib`，**别加整个 `$CONDA_PREFIX/lib`**（`git` 会崩）。
+4. **`VLLM_USE_V1` 已废弃**。实测：设了不致命，起服务打 `WARNING ... [envs.py:2290] Unknown vLLM environment variable detected: VLLM_USE_V1`，服务照样 200；`vllm.envs` 已无该属性（`AttributeError: module 'vllm.envs' has no attribute 'VLLM_USE_V1'`）。V1 是唯一引擎 → **不要设**；同理别设 `VLLM_VERSION`（未验证：本次只实测了 `VLLM_USE_V1`）。
 5. **env 脚本默认 `VLLM_BATCH_INVARIANT=1`，慢 5.5 倍**。实测同模型同卡：BI=1 → load 20.8s / **27.87 toks/s**；`unset VLLM_BATCH_INVARIANT` → load 10.0s / **154.51 toks/s**（日志另有 `Disabling cascade attention when VLLM_BATCH_INVARIANT is enabled.`）。不要求批次不变性就先 unset。
-   > **要证「BI 下结果真的批次不变」**（而不只是"BI 装上了"）→ 跑算子级验收配方：`vllm-ascend-source-install` §5.5（`torch.equal` 逐位比、参考必须是**同一个逻辑行**、空张量判 FAIL、负控；**正文归它，本文件只留指针**）。
 6. **共享机抢卡/显存**：`gpu_memory_utilization=0.4` 在小模型上仍一次吃 23 GiB KV（单 die 共 61.28 GiB）；一个进程只占一张卡，先按步骤 1 挑 free 最大的 die，别拉满利用率。
-7. **无害噪声**（别当故障）：`/root/.bashrc: line 36: /usr/local/Ascend/ascend-toolkit/set_env.sh: No such file or directory`（每条 ssh 都打）、`[W NPUCachingAllocator.cpp:202] Warning: The current CANN and HDK(driver) versions require processing for 32 padding size, with memory allocation. (function operator())`、`WARNING [parallel_state.py:2092] torch._C._host_emptyCache() only available in Pytorch >=2.5`、`WARNING [utils.py:1404]` 与 `WARNING [platform.py:1067] GPU-specific parameter is not supported on Ascend`、`[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0`（**单卡时正常**）、`VLLM_USE_V1 not set, auto-detected`。
+7. **无害噪声**（别当故障）：`/root/.bashrc: line 36: /usr/local/Ascend/ascend-toolkit/set_env.sh: No such file or directory`（每条 ssh 都打）、`NPUCachingAllocator ... require processing for 32 padding size`、`[Gloo] Rank 0 is connected to 0 peer ranks`、`VLLM_USE_V1 not set, auto-detected`。
 8. **思考型模型的 CoT 会写进 `content`，别误判成"没输出答案"**（2026-09-28 在 `.188` 实测）：`max_tokens=48` / `256` 时 `choices[0].message.content` 全是 `Thinking Process:` 之类的推理过程、`finish_reason=length`，**看起来像失败，其实是正常行为**。要给最终答案就把 `max_tokens` 放到 **≥1000**（实测 1200 才吐出最终答案；一次请求约 55s）。所以**冒烟判据只能写成「HTTP 200 且 `content` 非空」**，不要断言 content 里就是答案本身、也不要因为 `finish_reason=length` 判服务异常。
 9. **换模型前先验架构支持，比 grep 源码可靠**（上机前的决定性判据）：
    ```bash
@@ -351,12 +246,8 @@ After warmup: torch reserved memory 25.36 GiB, torch allocated memory 24.55 GiB.
 14. **`ValueError: FRACTAL_NZ mode is enabled...`**（原文片段，完整尾句本次未留档）
     → 修法：构造 `LLM()` 时传 `additional_config={"weight_nz_mode": 0}`。
 15. **HTTP 调 `/sleep` 时 body 里的 level 不生效**：level **只从 query string 读**，JSON body 里的 level 被忽略 → 写成 `POST /sleep?level=2`。
-16. **`pkill -f '<模式>'` 在共享机上必伤人（或自伤）**：自伤形态是命令无输出、只得到 `[exit code: 1]`（模式串匹配到了自己那条 ssh 包装命令行）；伤人形态是模式同时命中**同机别人的进程**——2026-10-26 在 `.188` 上用 `pkill -9 -f "VLLM::Worker_TP"` / `VllmWorker` 清自己的实验残留，把另外三个用户的作业（Qwen2.5 sleep-poc、Qwen3-30B+DSpark、Qwen3-Omni）的 worker 全部清空，omni 父进程还活着成了孤儿。
-    → 修法：**不要用 `pkill -f`，包括 `pkill -f "[t]est_x"` 这种"不自匹配"写法**——字符类只让模式不匹配**自己**那条命令行，对**别人**的进程毫无约束。改按**落盘的 pid / 端口**精确杀（配方见 `orchestrating-subagents` §7）；要清整棵进程树就起 `setsid` 记 PGID、收 `kill -9 -<PGID>`。硬规则见 `~/.dsh/AGENTS.md` K1。
-17. **共享机 HCCL 端口被别人占了 → `Communication_Error_Bind_IP_Port(EI0020)`**（2026-10-22 实测，与你的代码/参数/die 全无关）
-    → 原文（三行连看才定性）：`RuntimeError: create_config:../torch_npu/csrc/distributed/HCCLUtils.cpp:140 HCCL function error: hcclCommInitRootInfoConfig(...), error code is 7` ／ `ERR02200 DIST call hccl api failed.` ／ `Communication_Error_Bind_IP_Port(EI0020): Failed to enable listening for the NPU network adapter socket. Reason: The IP address 192.0.2.195 and port 16666 have already been bound.`
-    → 修法（纯 opt-in，不设就沿用默认端口段）：`export HCCL_NPU_SOCKET_PORT_RANGE=61230-61250`。实测同一条命令加上它就从 `hcclCommInitRootInfoConfig` 失败变成正常起服务。
-    → 判据：见到 `EI0020` / `already been bound` / `error code is 7` 就是这一类，**别去查驱动、CANN 或 NPU 状态**；重跑也常自己就好。
+16. **`pkill -f '<模式>'` 会杀掉自己的 ssh 包装进程**：现象是命令无输出、只得到 `[exit code: 1]`（模式串匹配到了自己那条命令行）。
+    → 修法：把模式写成不自匹配的形式，例如 `pkill -f "[t]est_x"`（字符类让模式本身不再包含字面量 `test_x`）。
 17. **强杀（`kill -9`）进程后该 die 残留 HBM**：现象是服务已不在，`npu-smi info` 里该 die 的 HBM 却明显高于基线。
     → 修法：强杀后必须复查 `npu-smi info`（步骤 5 的收尾三查之一），确认进程真退出、HBM 回落到基线；别以为"进程没了显存就没了"。
 18. **图模式下 `reload_weights` / `update_weights` 可能丢值**：上游尚未闭合（vllm issue #15648、RFC #16558，原话 "pointer stability does not imply value preservation"）。
@@ -366,21 +257,16 @@ After warmup: torch reserved memory 25.36 GiB, torch allocated memory 24.55 GiB.
     → 原因：为了挂一个额外包写成 `export PYTHONPATH=/some/dir`，把 CANN 原本在 `PYTHONPATH` 里的搜索路径**覆盖**掉了（`acl` 就在那里）。
     → 修法：**追加式**写法 `export PYTHONPATH=/some/dir:${PYTHONPATH:-}`（`:-` 兜住空值）。归因：这不是 CANN 装坏，别去重装（CANN 路径真相见 `ascend-cann-env`）。
 
-20. **运行期 `export VLLM_TARGET_DEVICE` → 平台层**静默**降级，三层自检的第 ③ 层就此假失败**（2026-10-10 实测）。
-    → 原因：只要该变量 == `cpu`，`vllm/vllm/platforms/__init__.py` 会在**咨询任何平台插件之前**就 `return` cpu 插件 ⇒ 平台层退化成 `UnspecifiedPlatform`（机理、源码行号与配方见 `vllm-ascend-source-install` §5.3，**单一归属**）。构建期的 `VLLM_TARGET_DEVICE=empty` 是**另一回事**（让 `ext_modules=[]`），与运行期**无关**，别顺手把它带进运行 shell。
-    → 修法：**运行期 `unset VLLM_TARGET_DEVICE`**——一键激活 / env 脚本里都**不要** export 它。干净态自检实测：`TARGET_DEVICE_ENV None` + 平台层 `NPUPlatform npu`。
-
 ## 不要做什么
 
 - 不要 `pip install`/卸载任何包；不要 `pip install -U triton`；不要重建 vllm。
-- 不要设 `VLLM_USE_V1`（已废弃）。**`VLLM_VERSION` 要按版本区分、不要无条件设也不要无条件不设**：vllm `v0.23.0` 上它**已不被读取**（真开关 `VLLM_VERSION_OVERRIDE`），且不导它时 `vllm_version_is("0.23.0")` 本来就 `True`——见本文件坑 4 的二次修正与 `vllm-ascend-source-install` §5.1。
-- 不要 `pkill -f <任何模式>`（含 `pkill -f "[t]est_x"` 这类"不自匹配"写法，见坑 16）；不要动 `/mnt/share/x00886548/cann/`、`/usr/local/Ascend`、`/etc/Ascend`、`xmz_0921` 里的包。
-- 不要 `export VLLM_TARGET_DEVICE`（运行期只要它是 `cpu` 就把平台层静默降级成 `UnspecifiedPlatform`，见坑 20）；构建期的 `VLLM_TARGET_DEVICE=empty` 与运行期无关，别带进来。
+- 不要设 `VLLM_USE_V1` / `VLLM_VERSION`。
+- 不要 `pkill -f vllm`；不要动 `/home/x00886548/env/cann/`、`/usr/local/Ascend`、`/etc/Ascend`、`xmz_0921` 里的包。
 - 不要在共享机上占用**未确认空闲**的 die、也不要起自己放不下的模型；**「别占多张卡」不是绝对禁令**——TP≥2 要同时占两张，但前提是 launch 前一刻确认两张都空闲（见步骤 1 与 4.1）；`gpu_memory_utilization` 别无脑拉满（TP=2 实测可用 0.85，留基线余量给别人）。
-- 不要把大文件/日志写 `/`、`/mnt/share`、`/tmp`、`/root`（同一块系统盘，长期紧张，余量现场 `df -h` 看）；写 `/home/vllm/x00886548/serve_test/`。
+- 不要把大文件/日志写 `/`、`/mnt/share`、`/tmp`、`/root`（同盘仅剩 139G）；写 `/home/x00886548/serve_test/`。
 - 内联 ssh 里别用 `<` `"` `$()`；脚本里别用 heredoc（会永久挂起）。
 - 别在 `load_format="dummy"` 下用 `reload_weights`（互斥，坑 11）；也别只 `wake_up(tags=["weights"])` 就 `generate()`（会挂住，坑 13）。
-- 强杀进程后不复查 `npu-smi` 不算收尾（坑 17）；**`pkill -f` 一律禁用**（自伤 + 伤人两种形态，坑 16），只按落盘的 pid / 端口 / 进程组精确杀。
+- 强杀进程后不复查 `npu-smi` 不算收尾（坑 17）；`pkill -f` 的模式别能匹配到自己那条命令行（坑 16）。
 
 ## 验收标准
 
@@ -391,4 +277,4 @@ After warmup: torch reserved memory 25.36 GiB, torch allocated memory 24.55 GiB.
 
 5. sleep / 权重热更新（步骤 3.1）：`sleep(level=1|2)` 后该 die 的 used HBM 应降到 ~1GiB 量级（权重确实被释放的证据），`wake_up()` 后回到与 sleep 前同量级；A→B→C 打印 `VERDICT WEIGHT_UPDATE_PROVEN`（`B != A` **且** `C == A`），只看到 C 有文本不算过。
 
-**未验证**：`.190`（`a3b`）与 A5（`177.8.21.1`）上的起服务、冒烟与多卡都没跑过——`.190` 2026-11-03 才重装回来（openEuler 22.03 / CANN 9.2.1），A5 需先连 A5 VPN，且只有 8×Ascend950DT（96 GB/卡）的规格，起服务相关全部 `未采`。⇒ 这两台的任何「跑起来了」都不要写。`.188` 上 `--tensor-parallel-size 2` **已实测通过**（TP=2 起服务 + 真推理成功，见步骤 4.1）。
+**未验证**：`.190`（`a3b`）上的起服务、冒烟与多卡本次未跑（ssh 易假死）→ `.190` 的多卡仍未验证。`.188` 上 `--tensor-parallel-size 2` **已实测通过**（TP=2 起服务 + 真推理成功，见步骤 4.1）。

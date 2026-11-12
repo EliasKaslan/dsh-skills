@@ -1,7 +1,10 @@
 ---
 name: korea-official-source-research
-description: 韩国（济州）官方一手信息源——官方页面怎么抓、没日期怎么看：web_fetch 对韩国站点多数不可用，urllib 按站点分档，pwsh 最稳；含出入境/入境申告官方源结构（e-AC 的 bbsId / flId、mofa.go.kr 详情页、无日期戳用响应头 Date 与 등록일 定锚、判废止）、假页面陷阱、公交 BIS、visitjeju、休馆日、门票 xlsx、潮汐。适用于"韩国出入境/入境申告/法务部/关税厅/检疫 Q-CODE 官方源怎么抓 / 韩国官方页面没有日期怎么看 / 驻外使馆 mofa.go.kr 详情页怎么取 / 政策是否已废止怎么查 / 查济州公交线路和末班车 / 韩国景点开放时间与休馆日 / 抓 visitjeju 详情页字段 / 门票 xlsx 怎么解析 / 潮汐表怎么取 / 抓韩国站点全失败怎么办"。不适用：本机 pwsh 编码坑 → 用 `pwsh-on-windows`；判厂商官网链接真假 → 用 `ai-vendor-official-source-audit`。
-whenToUse: 要拿韩国官方一手数据（出入境/入境申告、公交时刻、景点与店铺营业时间/休馆日、门票、渡轮、潮汐）时用：先按站点量本机可达性（web_fetch / python urllib / pwsh 三级），再按端点配方抓取。模型看不到本节。
+description: 韩国（济州）官方一手信息源抓取与端点配方——web_fetch 对韩国站点普遍不可用，python urllib 按站点分档，pwsh 直连最稳；含出入境/入境申告官方源结构（e-AC 的 bbsId=文章id / flId=附件id、列表页、使馆 mofa.go.kr 详情页、无日期戳用响应头 Date 与 등록일 定锚、判废止）、假页面与域名陷阱（HTTP 200 却是 404）、koreatourinfo 镜像、济州公交 BIS、visitjeju、열린관광、免税店协会、门票 xlsx、潮汐站。适用于"韩国出入境/入境申告/法务部/关税厅/检疫 Q-CODE 官方源怎么抓 / 韩国官方页面没有日期怎么看 / 驻外使馆 mofa.go.kr 详情页怎么取 / 政策是否已废止怎么查 / 查济州公交线路和末班车 / 韩国景点开放时间与休馆日 / 抓 visitjeju 详情页字段 / 门票 xlsx 怎么解析 / 潮汐表怎么取 / 抓韩国站点全失败怎么办"。不适用：本机 pwsh 自身的编码坑 → 用 `pwsh-on-windows`。
+whenToUse: 要拿韩国官方一手数据（出入境/入境申告、公交时刻、景点与店铺营业时间/休馆日、门票、渡轮、潮汐）时用：先按站点量本机可达性（web_fetch / python urllib / pwsh 三级），再按端点配方抓取。
+disable-model-invocation: true
+warm-triggers: 韩国出入境/济州官方源抓取 / 公交 / 潮汐 / 门票
+warm-reason: 个人旅行调研，低频
 ---
 
 # 韩国（济州）官方一手信息源：抓取通道与端点配方
@@ -118,7 +121,7 @@ whenToUse: 要拿韩国官方一手数据（出入境/入境申告、公交时�
   → 修法：判"JS 空壳 / SPA"之前先确认自己拿到的**是不是详情页**——对比**列表页 vs 详情页的字节数**与 `<title>`；站点的"JS 渲染"结论只对**具体那类页面**成立（如 visitjeju 的 `?keyword=` 搜索页），不能从一个页面的失败推广到整站。
 - 现象：含韩文的 python 脚本用 `Out-File -Encoding ascii` 写出后，韩文变 `??`，随后正则报 `error: nothing to repeat`（正则里本该是韩文字符的位置成了 `?` 量词）。
   → 原因：`ascii` 编码**丢弃**非 ASCII 字符，把韩文换成 `?`，`?` 在正则里是量词 → 语法错误。
-  → 修法：写文件用 `[IO.File]::WriteAllText($path, $text, [Text.UTF8Encoding]::new($false))`（无 BOM UTF-8）。**编码类陷阱的完整清单不在本 skill**，见 `pwsh-on-windows`。
+  → 修法：改用 `[IO.File]::WriteAllText($path, $text, [Text.UTF8Encoding]::new($false))`（无 BOM UTF-8）；不要 `Set-Content` / `Out-File -Encoding utf8`（写 BOM）。完整陷阱表 → 用 `pwsh-on-windows`。
 - 现象：`us-losangeles`（缺连字符的驻外使馆域名段）返回 **HTTP 200**，但正文是外交部门 404 页。
   → 原因：域名段拼写错，回退到部门级 404。
   → 修法：正确段是 `us-losangeles-ko`（或 `-en`）；判存在性看 `<title>`（`페이지를 찾을 수 없습니다…`）/ 字节数（约 1557B），不看状态码。

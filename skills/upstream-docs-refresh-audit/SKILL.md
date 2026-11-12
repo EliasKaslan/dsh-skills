@@ -1,7 +1,7 @@
 ---
 name: upstream-docs-refresh-audit
-description: 上游仓库 docs 刷新审计——这批需求在 docs 里都能检索到吗、这版主线资料要不要刷新：输入一批中文内部需求或中文转测文档，判 docs/source 是否需要刷新，产出六节结论清单 + 逐条刷新方案：三件前置产物先行、只读 worktree 隔离、代号靠 git log --grep 破解、页名看 nav_titles.py、判存在性搜全仓、findings 落盘 fan-out、分次写盘、`.po` 翻译归责与脚本存在性判据。适用于"这批需求在 docs 里都能检索到吗 / 转测文档声明的能力主线能查到吗 / 这版主线资料要不要刷新 / 出一份资料刷新清单 / 内部代号在仓库里到底叫什么 / 转测文档写的环境变量和启动参数主线到底有没有 / 要不要顺手改 .po 翻译 / 那个脚本到底存不存在"。不适用：要装 vllm 或 vllm-ascend → 用 `vllm-ascend-source-install`；要起服务跑推理 → 用 `ascend-vllm-serve`。
-whenToUse: 手里有内部需求或转测文档，要判上游仓库 main 的 docs 缺口并产出刷新清单时用；只是要装或跑 vllm 请转 ascend 系列。模型看不到本节。
+description: 上游 docs 刷新审计：需求/转测文档 → 存在性普查 → 六节清单。适用于"这批需求 docs 里能查到吗 / 要刷新吗 / 内部代号叫什么 / 启动参数主线有没有"。
+whenToUse: 手里有内部需求或转测文档，要判上游仓库 main 的 docs 缺口并产出刷新清单时用；只是要装或跑 vllm 请转 ascend 系列。
 ---
 
 # 需求资料刷新审计（内部需求 / 转测文档 ↔ 上游仓库 docs）
@@ -15,7 +15,7 @@ whenToUse: 手里有内部需求或转测文档，要判上游仓库 main 的 do
 - 一批已完成的中文内部需求（含内部代号），要判定某上游仓库 main 的 docs 是否需要刷新。
 - 需要「结论清单 + 逐条刷新方案」这种可交付物，而不是自己直接改文档。
 - 定期核查「需求说的能力，用户能不能在单一文档页检索到」。
-- 要判 `.po` 中文翻译该不该跟着改，或某脚本存不存在 / 会不会在 PR 上跑（链路与触发条件见步骤 4d）。
+- 要的是「缺口结论 + 逐条刷新方案」这种可交付物，而不是自己动手改上游文档。
 
 **不要用本 skill（转交）：**
 - 要装 vllm / vllm-ascend（源码配对安装、算子编译） → 用 `vllm-ascend-source-install`。
@@ -105,27 +105,9 @@ git -C D:\workspace\260928_vllm资料确认\repo_main grep -F -i -c -- <VAR_OR_F
 
 4c. **locale `.po` 命名规则 = `docs/source/` 下相对路径去 `.md` 加 `.po`**：`user_guide/feature_guide/lora.md` → `docs/source/locale/zh_CN/LC_MESSAGES/user_guide/feature_guide/lora.po`；`getting_started/installation.md` → `.../getting_started/installation.po`。文件内 `msgid` = 英文原文、`msgstr` = 中文，由 `detect_po_changes.py` 生成（文件头 `"Generated-By: detect_po_changes.py\n"`，少数老文件是 `Babel 2.17/2.18`）。判「译文是否同步」就用这个映射直接 `Select-String -Path <对应 .po>`。
 
-4d. **`.po` 翻译归责的判据是「谁在改 + 有没有门禁」，不是「上游约定」**（本轮纠正两条已被证伪的断言）：
-
-   结论先写：**跳过 `.po` 在本次是合理选择，但理由只能是「机器翻译流水线负责 + 无 CI 门禁」**。
-
-   - **真实链路**（逐环节按磁盘 glob + 读 `on:` 键复核）：
-     - `.github/workflows/schedule_doc_translate.yaml` —— `:20-34` 的 `on:` 只有 `schedule`（cron `0 0 */3 * *`）与 `workflow_dispatch`，`:43` 的 `if:` 也只放行 `workflow_dispatch || schedule` ⇒ **没有 `pull_request` 触发**；它是**自建 PR**（`:186-190` 往上游 `vllm-project/vllm-ascend` 提 `auto-pr/doc-translate-*`），不是对别人 PR 的门禁。
-     - `.github/workflows/scripts/detect_po_changes.py` —— `:77` 被上面那个 workflow 调用，是 `.po` 的**写入方**。
-     - `.github/workflows/scripts/po_translate.py` —— `:106` 被调用；`:202` `base_url="https://api.deepseek.com"`、`:211` `model="deepseek-chat"`、`:104` 凭据 `DEEPSEEK_API_KEY` ⇒ **机翻执行方**。
-     - `tools/generate_zh_docs.py` —— 只是 `.po` → `zh.md` 的**消费方**，别把消费方当生成方。
-   - **「存在性判据别信脚本名」**：`tools/detect_po_changes.py` **不存在**（全仓 `glob **/detect_po_changes.py` 只回 `repo_main\.github\workflows\scripts\` 与 `pr_work\.github\workflows\scripts\` 两份）。判某脚本存不存在 / 会不会在 PR 上跑，**不要按名字猜路径**：先全仓 glob 定位，再读对应 workflow 的 `on:` 与 `if:`。
-   - **「没有 CI 门禁管 `.po`」的验法**：`.github/workflows` 全目录 grep `\.po\b|LC_MESSAGES`（`*.yaml` 与 `*.yml` 各扫一遍），唯一命中是 `schedule_doc_translate.yaml:31` 里 `workflow_dispatch` 的一条 input 描述 ⇒ **没有任何 job 检查 PR 里的 `.po`**。
-   - **已证伪断言 ①「改了英文就该顺手改 `.po`」**——上游没有这条约定，人类维护者**确实手改过** `.po`（提交 `0a52fdd` 手工改了 8 个）⇒ 手改不违规，改不改是**成本选择**。
-   - **已证伪断言 ②「改了 `.po` 会被下次 cron 覆盖」**——`detect_po_changes.py:415-422` 对**未被触碰**的 `msgid` 直接 `continue`（`:422`），**保留现有 `msgstr`**；只有 `:443-449` 命中「相似但已变更」的段落才走 `new_entry.msgstr = ""`（`:447`）强制重译 ⇒ 与本次改动无关的老 `msgstr` 不会被清掉。
-   - **可照抄进交付物的表述**：`.po` 由每 3 天一次的机器翻译 workflow 自建 PR 维护，且**没有任何 CI 门禁**要求 PR 同步 `.po` ⇒ 本次跳过 `.po` 合理；**不要**写成「上游约定不许手改」或「改了会被覆盖」。
-
 5. **Fan-out**（`workflow` 的 `parallel()`）：N 条需求 = N 个**只读**子代理 + 1 个汇总代理。每个子代理用 write 落盘 `findings/REQ-XX.md`（≤60 行六节结构，见 `references/findings-template.md`），只回结构化 JSON：`req_id / mapping / code_status / docs_status / needs_refresh / refresh_plan / confidence / gaps_or_risks`。汇总代理读全部 findings 写最终清单（六节，见 `references/deliverable-template.md`）。本轮 13 个 agent 全部成功，findings 实测每份 43-50 行、恰含 6 个 `## ` 小节。
 
 6. **子代理 prompt 必须写死的 4 条**：仓库绝对路径（`D:\workspace\260928_vllm资料确认\repo_main`）；映射陷阱提醒（如「A5 不是 docs 面向用户的用词，需自行确认实际写法」）；「关键结论必须给 file:line，不要臆断，映射不成立就填 unclear 并列出搜过的关键词」；只读边界（禁止 checkout / commit / push / fetch）。
-
-> **子代理供给**：下发前在 prompt 里点名让它 `skill` 加载 `upstream-docs-refresh-audit`（正文步骤 6 的 4 条硬约束）与 `pwsh-on-windows`；落盘 findings 的子代理再加本 skill 的 `references/findings-template.md`。加载不到（工具受限的子代理）就把 `C:\Users\admin\.dsh\skills\upstream-docs-refresh-audit\SKILL.md`、`C:\Users\admin\.dsh\skills\pwsh-on-windows\SKILL.md` 路径给它 `read`。机制与判据见 `orchestrating-subagents` §3.1。
-> 并发成员 ≥2 或子任务 ≥3 时，按 `orchestrating-subagents` §9.1 在本轮 cwd 落 `.dsh-run\<日期>-ledger.md` 台账，收尾清空。
 
 6b. **prompt 里的「已知线索」一律标成待验证假设**：本轮曾在 REQ-06 的 prompt 里写「GLM-5.1 与 GLM-5 合并成一行」，子代理用 file:line 反驳——`supported_models.md:25`（950DT tab）是**独立** `|GLM-5.1|…` 行，`:42`（A2/A3 tab）才是 `GLM-5/5.1` 合并行（已复验）。写 prompt 时加一句：「以下线索是**待验证假设**，以 file:line 证据为准，与线索冲突时用证据反驳」。汇总代理必须复核「主线提示 vs findings」的冲突并写进交付物（本轮写在差异节第 6 条）。
 
@@ -143,7 +125,7 @@ git -C D:\workspace\260928_vllm资料确认\repo_main grep -F -i -c -- <VAR_OR_F
 
 9. **汇总协议（第三轮实证，13 个 agent = 12 findings + 1 汇总；现有 skill 只写到「fan-out 产出 findings」，这一段是补的）**：
 
-   1. **分 3 次写盘**（>250 行交付物必须这样，见步骤 12）：`write` 首版（§1 核查口径 + §2 总览结论表）→ `edit` 追加 §3 逐条刷新方案 → `edit` 追加 §4 需业务澄清 + §5 未确认项 + §6 复验锚点。本轮产出 317 行，三次全成功。
+   1. **分 3 次写盘**（>250 行交付物必须这样，见步骤 13）：`write` 首版（§1 核查口径 + §2 总览结论表）→ `edit` 追加 §3 逐条刷新方案 → `edit` 追加 §4 需业务澄清 + §5 未确认项 + §6 复验锚点。本轮产出 317 行，三次全成功。
    2. **等级只能来自 findings、汇总不得改判**。本轮 12 条 = `yes` 6（REQ-01/02/05/09/10/11）/ `partial` 6（REQ-03/04/06/07/08/12）/ `no` 0 / `unclear` 0。
    3. **「与上一轮的差异」一节只在真有上一轮交付物时才写**。本轮工作区**没有**上一轮产物 ⇒ 不写该节、也不得虚构上一轮结论（第二轮有，范本 `vllm-ascend主线资料刷新清单_v2_转测文档校核.md:34-50`）。开工第一件事就是列工作区，判定这一节到底写不写。
    4. **必须复核 findings 互相矛盾并写明处理**（不能只挑一份采信）。本轮实证 5 处：① `:139` vs `:153` = 两行两 tab（见步骤 8）；② REQ-03 判 GLM-5.2 `max-model-len` 200k「非冲突」 vs REQ-08 判「四源冲突待裁」→ 采 REQ-08 框架（四值并存、以转测 `1024000` 为权威）但采 REQ-03 对 `40960/34816` 的定性（短序列场景值、不入冲突表）；③ 审计表写 `VLLM_ASCEND_DSV4_KV_BF16`「无等价物」 vs findings 写等价物是 `--kv-cache-dtype bfloat16` → 实为**字面等价 vs 功能等价**两种口径，须显式登记；④ REQ-04/REQ-06 描述同一行不同列（BF16 列为空 vs Note 列已有），复验后**同时记录两列状态**；⑤ REQ-09/REQ-10 对「A3 可检索」基准不同（3.5 无行 vs 兄弟页 `Qwen3.6-35B-A3B.md:139`）。
@@ -152,9 +134,9 @@ git -C D:\workspace\260928_vllm资料确认\repo_main grep -F -i -c -- <VAR_OR_F
 
 10. **判「词是否存在」用 `git -C <repo> grep -F -q -- <词>`（exit 0 存在 / exit 1 不存在），且必须搜全仓**——只搜 `vllm_ascend` 会误判（`max-model-len` 在 `vllm_ascend` exit=1，但代码属性 `max_model_len` 有 51 文件命中）。**误命中与口径三件套**：① `-i A5` 回 190 行含 `Binary file ... matches` 24 行与 CSS `color: #ffa500;` 2 行 → 改 `git grep -I -l -E "\bA5\b"` 回 8 文件；② `-i 35B` 回 69 文件、其中 42 个是 `235B` / `DequantSwigluQuantV35BaseTilingData` → 改 `\b35B\b` 回 27；③ `-F -c` 是**子串**匹配（`GLM-5.2-w4a8` 会因 `w4a8c8` 得 11）→ 精确性要求高的场合改用 `\b` 或 `-w`。**`-l` 回的是文件数不是命中次数。** 本轮实测 236 词：存在 193 / **不存在 43**（env 8 + flag 6 + 类别关键词 29），关键裁决：`--master_addr/--master_port/--node_rank` 主线只有连字符写法 `--master-addr`(8)/`--master-port`(8)/`--node-rank`(10)，`--nproc_per_node` 两种写法都没有；`CUDA_VISIBLE_DEVICES` → 主线是 `ASCEND_RT_VISIBLE_DEVICES`(165 文件)；`--additional_config` 11 文件 vs `--additional-config` 298 文件（**都存在但悬殊**）。完整协议与分组清单见 `references/recon-artifacts.md`。
 
-11. **验收前主 Agent 再亲手复验一遍锚点**（步骤 7 是过程中抽查、这里是交付前终检；命令与抽查相同）。问题类型与计数见步骤 7，此处不重复；要说明的是**终检仍抓到了问题** ⇒ 它不是走过场。终检锚点清单见「验收标准」末两条。
+12. **验收前主 Agent 再亲手复验一遍锚点**（步骤 7 是抽查、这里是交付前终检）：一条 pwsh 把 `git grep -F -n -- <kw> -- <path>` 与 `Get-Content -Encoding UTF8 <path> | Select-Object -Skip N -First M` 组合起来，直接看目标行原文。本轮抓到 1 处章节误标、2 处分节归属错；终检锚点清单见「验收标准」末两条。
 
-12. **长交付物必须分次写盘**：汇总任务产出预期 >250 行时，在汇总子代理 prompt 里明写「write 首版（前 3 节）→ edit 追加第四节 → edit 追加剩余节」的三到四段式。本轮证据：第一轮一次 write 失败（workflow 返回 `synthesis_summary: null`，交付物未生成）；第二轮改分次写盘后成功产出 336 行；**第三轮 3 次全成功（317 行）**。`edit` 失败过一次，报错原文 `Error: old_string was not found`，原因是**被替换串里的全角标点不一致**（把 `，结论只有` 写成 `、结论只有`）→ 修法 = 换更短的唯一尾串重试，不要重写整段。**汇总失败 ≠ 白干**——12 份 findings 已在盘上，直接补派/补跑汇总即可，不要重跑核查。
+13. **长交付物必须分次写盘**：汇总任务产出预期 >250 行时，在汇总子代理 prompt 里明写「write 首版（前 3 节）→ edit 追加第四节 → edit 追加剩余节」的三到四段式。本轮证据：第一轮一次 write 失败（workflow 返回 `synthesis_summary: null`，交付物未生成）；第二轮改分次写盘后成功产出 336 行；**第三轮 3 次全成功（317 行）**。`edit` 失败过一次，报错原文 `Error: old_string was not found`，原因是**被替换串里的全角标点不一致**（把 `，结论只有` 写成 `、结论只有`）→ 修法 = 换更短的唯一尾串重试，不要重写整段。**汇总失败 ≠ 白干**——12 份 findings 已在盘上，直接补派/补跑汇总即可，不要重跑核查。
 
 ## 坑与修法
 
@@ -177,7 +159,6 @@ git -C D:\workspace\260928_vllm资料确认\repo_main grep -F -i -c -- <VAR_OR_F
 - 从转测文档抽环境变量的正则别只写 `(?:^|\bexport\s+)(\w+)\s*=`：**抓不到** `env["VLLM_ALLOW_RUNTIME_LORA_UPDATING"] = "1"` 这类写法，必须补扫 `os.getenv|environ|env\[`。
 - 用户看到的页名 ≠ 文件名 ≠ `mkdocs.yml` 标题：权威是 `docs/hooks/nav_titles.py` 的 en/zh 双键。本轮转测用名 `Qwen3.5-35B-A3B` 只在矩阵 `supported_models.md:153`（Atlas 300I DUO tab）命中，而用户真打开的页名是 `Qwen3.6-35B-A3B`（`nav_titles.py:194`）——只按文件名判会写错刷新落点。
 - `edit` 报 `Error: old_string was not found` 时，先怀疑**全角标点不一致**（实测把 `，结论只有` 写成 `、结论只有` 就复现了）→ 换更短的唯一尾串重试；在长中文段落里一次替换整段很容易踩到。
-- **判「某脚本存不存在 / 会不会在 PR 上跑」别信脚本名**：`tools/detect_po_changes.py` **不存在**（真身 `.github/workflows/scripts/detect_po_changes.py`），而确实存在的 `tools/generate_zh_docs.py` 只是**消费方** ⇒ 先全仓 glob、再读对应 workflow 的 `on:`/`if:`。`.po` 归责判据与两条被证伪的断言见步骤 **4d**。
 
 ## 不要做什么
 

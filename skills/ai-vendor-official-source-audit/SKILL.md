@@ -1,7 +1,10 @@
 ---
 name: ai-vendor-official-source-audit
-description: AI 厂商官方源真伪与覆盖——这家厂商官方报告有哪些来源、这个文档链接是真的吗、抓下来是空壳还是真页：产品名≠API model id（按官方列表逐名计数）、新闻页与详情页都抓；体积极小或与假 slug 同档判空壳；HF &full=true 拿时间、401 只按状态码判（裸名要回列表按前缀核）、createdAt≠发布日；/raw/ vs /resolve/ 二进制验 magic。适用于"这家厂商官方报告有哪些来源 / 这个文档链接是真的吗 / 抓下来是空壳还是真页 / 这个模型 id 官方有没有对外提供 / 某模型是否真发布了 / 二手稿说的超越是真的吗 / 这个 arXiv 编号算不算官方 / 某产品是否已下线查无"。不适用：只精读论文并核查开源声称 → 用 `arxiv-paper-deep-read-and-claim-verification`；只做外部热度量级 → 用 `external-buzz-magnitude-check`；只看 GitHub 组织增量 → 用 `github-org-delta-watch`。
-whenToUse: 要判某模型厂商的官方来源有哪些、某文档链接或模型 id 是不是真的、某模型是否真发布、二手稿的竞品对标方向对不对时用；含 sitemap 取权威索引、假 slug 对照破空壳、逐名计数核 id、HF 与 ModelScope 端点陷阱。模型看不到本节。
+description: AI 厂商官方源真伪与覆盖面判定——产品名≠API model id（按官方列表计数）；新闻页/详情页信息不同都抓；HF &full=true 拿时间、401=not found、createdAt≠发布日；判 BF16/FP8 版本只看 safetensors dtype 分项（config 的 dtype 会骗人）。适用于"官方报告有哪些来源 / 文档链接是真的吗 / 抓下来是空壳还是真页 / 某模型 id 官方有没有提供 / 某模型是否真发布 / 官方有没有 BF16 或 FP8 权重版本 / 只有 FP8 吗 / 二手稿说超越竞品是真的吗 / 某 arXiv 编号算官方吗 / 某产品是否已下线"。不适用：精读论文核查开源声称 → 用 `arxiv-paper-deep-read-and-claim-verification`；外部热度量级 → 用 `external-buzz-magnitude-check`；GitHub 组织增量 → 用 `github-org-delta-watch`。
+whenToUse: 要判某模型厂商的官方来源有哪些、某文档链接或模型 id 是不是真的、某模型是否真发布、二手稿的竞品对标方向对不对时用：按字节数与假 slug 对照破空壳、sitemap 取权威索引、逐名计数核 id、官方新闻页与详情页都抓、HF 与 ModelScope 端点陷阱、二进制走 /resolve/ 并验 magic。
+disable-model-invocation: true
+warm-triggers: AI 厂商官方源真伪 / 模型是否发布 / BF16/FP8 权重
+warm-reason: 一次性调研方法论，低频
 ---
 
 # AI 厂商官方信息源真伪与覆盖面判定
@@ -57,15 +60,6 @@ $r.StatusCode; $r.RawContentLength
 8. **判"查无"必须三条同时成立**：
    - 实测 abab 系列（已下线产品）：官网路径 404 + 文档模型列表里 0 次出现 + arXiv 检索 0 条。
    - 判定规则：**三条同时成立才可判"查无"**；任一缺失只能写"未检索到 / 未能确认"。
-   - **判 not found 只认 HTTP 状态码，不认异常文本**：同一台机器上 HF 不存在的仓抛的是**中文**异常 `远程服务器返回错误: (401) 未经授权。`，**不是**本文件坑里记的 `Invalid username or password.`（同一 401 的另一种本地化文案）⇒ 按 `StatusCode` 判，别写按异常文本匹配的分支（本轮实测两条文案来自同一个 401）。
-
-8.5 **`safetensors.parameters` 的计数不是字节数（packed quant 陷阱）**：
-   - 实测 `{"F32":11122432,"BF16":57179884544,"U8":2722740830208}`。把 `U8` 当字节 ⇒ 得出"**3.1 TB 权重**"的错误结论。
-   - 真关系：`U8` numel ÷ 剩余可用字节 = **1.882 ≈ 2** —— MXFP4 把 **2 个权重打包进 1 个 U8**，且 U8 里还混有 **per-32 的 scale 字节**。⇒ `U8` 既不是字节数、也不能简单 ×2。
-   - 另：`safetensors.total`（实测 2.78e12）与 `.safetensors` 文件总字节（实测 1.56e12）**不是一个量**，别互相替代（一个含打包后的逻辑计数、一个是盘上存储）。
-   - 判定规则：参数量一律报**逻辑参数 × dtype 字节数**，并显式说明口径；存储量另算。
-
-8.6 **HF 仓名大小写不敏感**：`moonshotai/kimi-k3` 与 `moonshotai/Kimi-K3` 同样返回 200 ⇒ **不能用大小写差异当"另一个仓"**的证据（要判两个仓是否同源，比 `id` / `sha` / `lastModified`，不比 URL 大小写）。
 
 9. **产品名 ≠ API model id：判"某模型是否真的对外提供服务"必须看官方模型列表 / 价格页里的 id**。
    - 做法：把官方模型列表页 / 定价页整页抓下来，对候选 id 逐个**计数**：`[regex]::Matches($t,[regex]::Escape($m)).Count`（计数规则的坑归 `pwsh-on-windows`，本 skill 只留指针：**不要**用 `Select-String -SimpleMatch -AllMatches`，它 `Matches.Count` 恒为 0）。
@@ -73,9 +67,6 @@ $r.StatusCode; $r.RawContentLength
 10. **官方"新闻页 / 博客"与"模型详情页"承载的信息不同，必须两页都抓**：
     - 竞品对标口径（"超过谁 / 仍落后谁"）常只出现在**新闻页 / 博客**；只抓 `/models/<slug>` 详情页会得出"官方没有提及某竞品"的**错误结论**（实测首轮子代理即漏报，主 Agent 用 `$t.IndexOf('关键词')` 取上下文复验纠正）。
     - 做法：抓全文后取 `$t.IndexOf('<关键词>')` 前后 **±700 字符**上下文再判语义，**不要**只数出现次数。
-
-> **子代理供给**：下发前在 prompt 里点名让它 `skill` 加载 `ai-vendor-official-source-audit`；加载不到（工具受限的子代理）就把 `C:\Users\admin\.dsh\skills\<name>\SKILL.md` 路径给它 `read`。机制与判据见 `orchestrating-subagents` §3.1。
-
 11. **二手稿的"超越 X"断言必须回厂商官方原文核对方向**：
     - 实测：二手稿依据的是 AutoEval 子榜**"持平"**，而厂商官方页原文是**"仍有差距"**——传成"超越"后方向完全反转。
     - 判定模板：官方页搜该竞品名 → 取上下文 → **逐字记下原文**；二手来源只能标注为"二手转述"，不得升级为事实。
@@ -130,19 +121,6 @@ $r.StatusCode; $r.RawContentLength
 - 现象：HF 单模型查询返回 `401`，误判为需要登录 / 无权限。
   → 原因：不存在的仓库在该路径下以 401 表达 not found。
   → 修法：把 401 记为"查无此仓"，再用 `?author=<ORG>` 列表普查确认。
-  → **补充（文案会随本地化变）**：同一台机器另一次实测抛的是中文 `远程服务器返回错误: (401) 未经授权。`，**不是** `Invalid username or password.` ⇒ **判 not found 只按 HTTP 状态码**，别按异常文本写分支。
-- 现象：读 HF 仓的 `config.json` 判模型规模 / 架构，**所有字段都查不到**，于是判"这个 config 是空壳 / 元数据缺失"。
-  → 原因：**多模态 config 把语言塔全部参数嵌在 `text_config` 下**——顶层只有 `architectures` / `dtype` / `tie_word_embeddings` / `text_config` / `vision_config`；且键**改过名**：`torch_dtype` → **`dtype`**，MoE 字段是 `num_experts` / `num_experts_per_token` / `num_shared_experts`（**不是** `n_routed_experts` / `num_experts_per_tok` / `n_shared_experts`）。
-  → 修法：先 `if 'text_config' in d: d = d['text_config']` 再取字段；取不到时先怀疑**嵌套与改名**，别先怀疑模型（本体同时保留新旧键名作为回退）。要拿它算显存 → 用 `ascend-moe-ep-capacity-planning`。
-- 现象：拿 `createdAt` 当发布日。
-  → 原因：`createdAt` 常是**空占位**（仓建好了但里面没权重）。实测 `createdAt` **2026-06-13**，而权重落地是 **2026-07-27** 的 `Initial commit`，**差 44 天**。
-  → 修法：发布日只认 **commits 里的 `Initial commit`（权重落地日）**+ 官方 Blog / News 原文，`createdAt` 只当"仓何时被创建"。
-- 现象：抓官方博客正文找不到发布日期（全文 `20\d\d-\d\d-\d\d` 正则只命中 2 个图片 URL）。
-  → 原因：发布日**不在博客正文、也不在 HF**，而在**官网首页卡片的 `<span class="_cardDate_*">`** 里。
-  → 修法：发布日按顺序找：官方首页卡片日期 `<span class="_cardDate_*">` > HF `Initial commit` > 博客正文；`createdAt` 与"图片 URL 里的日期"都不算。
-- 现象：抓 HF 二进制/大文件时用 `[System.IO.File]::WriteAllBytes($out, $r.Content)` 落盘。
-  → 原因：`$r.Content` 是字符串不是字节数组，**异常消息里会把整份文件正文喷出来**（逐字原文 `Cannot convert value "# SPDX-License-Identifier..." to type "System.Byte[]"`）⇒ 瞬间炸掉上下文。
-  → 修法：一律 `Invoke-WebRequest -OutFile <path> -UseBasicParsing`；该坑的归属与完整修法见 `pwsh-on-windows`。
 - 现象：ModelScope 组织页返回 200，就写下"组织存在"。
   → 原因：200 只证明 SPA 外壳返回了（约 4767 B）。
   → 修法：一律记字节数；组织存在性用逐模型 API 的结果反推。
@@ -195,3 +173,39 @@ $r.StatusCode; $r.RawContentLength
 8. 每条竞品对标断言附**官方页原文片段 + 上下文**，二手来源单独标注"二手转述"。
 9. 二进制文件证据给 `/resolve/` 的字节数 **+ magic 前几字节**。
 10. 所有引用的自报数字都带 harness / 来源口径；发现官方自报内部矛盾时**并列陈述**，不做减法推断。
+
+## 判「官方有没有 BF16 / FP8 权重版本」（safetensors dtype 取证）
+
+问题形态："某模型有没有 bf16 版本 / 是不是只有 FP8 权重 / 官方放的是量化版还是全精度"。只看仓名、`config.json` 的 `dtype`、或模型卡文案都会判错，**唯一决定性证据是 safetensors 的 dtype 分项计数**。
+
+### 端点（免 token，响应都是百字节级）
+
+- HF 单仓：`https://huggingface.co/api/models/<org>/<repo>?expand[]=safetensors`
+  → 只回 `{"safetensors":{"parameters":{"BF16":N,"F8_E4M3":N,"F32":N},"total":N}}`。
+- 仓名存在性：`https://huggingface.co/api/models?search=<org>/<repo>-BF16&limit=5`
+  → 不存在时返回 `[]`（比 `/raw/` 探测便宜且无歧义）。
+- 镜像交叉：`https://modelscope.cn/api/v1/models/<ns>/<model>` → `Data.ModelInfos.safetensor.tensor_type`（实测 `["BF16","F32"]`）、`model_size`、`StorageSize`。
+
+### 实测（GLM-5.x，2026-11 复核）
+
+| 仓 | parameters 分项 | total |
+| --- | --- | --- |
+| `zai-org/GLM-5.1` | BF16 753,864,119,552 + F32 19,456 | 753,864,139,008 |
+| `zai-org/GLM-5.1-FP8` | F8_E4M3 751,749,169,152 + BF16 2,114,950,400 + F32 19,456 | 753,864,139,008 |
+| `zai-org/GLM-5.2` | BF16 753,329,921,024 + F32 19,456 | 753,329,940,480 |
+| `zai-org/GLM-5.2-FP8` | F8_E4M3 751,226,191,872 + BF16 2,103,729,152 + F32 19,456 | 753,329,940,480 |
+| `zai-org/GLM-5.3-BF16` | BF16 753,329,921,024 + F32 19,456 | 753,329,940,480 |
+
+### 判据
+
+1. `parameters` 里只有 `BF16`（外加极少量 `F32`，通常是 norm / gate bias）且**没有** `F8_*` / `I8` 等量化键 ⇒ 官方确有未量化 BF16 权重。`F32` 占比可忽略时可口头说"纯 BF16"。
+2. 同一模型 BF16 仓与 FP8 仓的 `total` **完全相等** ⇒ 同一套张量的两份权重，可用来否掉"两个名字就是两个模型 / 参数量不同"的猜测。
+3. **BF16 与 FP8 常是两个独立仓，不是同仓两套文件**；命名约定还会随代次反转：GLM-5.1 / 5.2 的 BF16 就是**主仓裸名**（`zai-org/GLM-5.1`），FP8 才带 `-FP8`；到 GLM-5.3 反过来显式叫 `zai-org/GLM-5.3-BF16`。故"有没有 BF16 版"必须**双名同查**：主仓裸名 + `<repo>-BF16`，只查一个都会得出错结论。
+4. 体积换算按 `total × 字节数`：BF16 ≈ 2 B/参数（753B 参数 ≈ 1.51 TB 落地 / 1.5 TB 十进制），FP8 ≈ 1 B/参数。
+
+### 坑
+
+- **`config.json` 的 `"dtype": "bfloat16"` 不能判有没有 BF16 权重**。实测 `zai-org/GLM-5.1-FP8` 的 config 同样写 `"dtype": "bfloat16"`，只多一个 `"quantization_config":{"quant_method":"fp8","fmt":"e4m3","weight_block_size":[128,128],"activation_scheme":"dynamic"}`（并带 300+ 行 `modules_to_not_convert`）。⇒ 判据是 **`quantization_config` 有无 + safetensors 分项**，`dtype` 只是张量栈默认值。
+- **ModelScope 逐模型详情 API 是十万字符级**：`Data.ModelInfos.safetensor.files` 会把全部分片（实测 282 个 `model-000xx-of-00282.safetensors`）的 name / sha256 / size 列全。只要 `tensor_type` / `model_size` / `StorageSize` 时必须**先过滤再打印**，直接抓会被 spill 到临时文件、白烧上下文。
+- 元数据只能证明"官方提供了未量化的 BF16 权重"，**无法证明**这份 BF16 是原生训练精度还是由 FP8 上采样而来（shapes / total 一致）⇒ 该细节标 **未验证**，不要顺着模型卡文案猜。
+- 判"只有 FP8"要三类同时成立：主仓裸名与 `<repo>-BF16` 都无此仓 / 主仓 `parameters` 无 `BF16` / 镜像 `tensor_type` 不含 `BF16`（沿用本 skill 的证据不对称规则）。

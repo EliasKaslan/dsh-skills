@@ -1,6 +1,6 @@
 ---
 name: vllm-ascend-e2e-ci-wiring
-description: vllm-ascend e2e 用例进 CI 的落位与登记——tests/e2e/pull_request 下新增 test 必须登记 estimated_times.yaml，否则 coverage.py 打印 ✗ MISSING 后 sys.exit(1)；该门禁在 Windows 上必然全报 MISSING；e2e_model 只喂报告，e2e_coverage 值错即硬失败；模型 ID 须在 ModelScope 有仓。适用于"新增 e2e 用例怎么进 CI / 为什么 CI 报 MISSING estimated_times / 本地跑 coverage.py 全是 MISSING / 测试该放 one_card 还是 four_card / e2e_coverage 标记怎么写 / 用例怎么脱钩共享 conftest / 要不要登记 model_dataset_list"。不适用：装或跑 vllm-ascend → 用 `vllm-ascend-source-install`。
+description: vllm-ascend e2e 进 CI：estimated_times 登记、coverage 门禁、目录归属。适用于"新增 e2e / CI 报 MISSING / 本地全 MISSING"。
 whenToUse: 写/审 vllm-ascend 的 e2e 用例落位与 CI 登记时用（模型看不到本节，触发判定只看 description）。
 ---
 
@@ -83,6 +83,8 @@ whenToUse: 写/审 vllm-ascend 的 e2e 用例落位与 CI 登记时用（模型�
 - **别的 manifest 里的悬空路径没人管**：`coverage.py` 的 BROKEN PATHS 只校验 `test_config.yaml` 的 `curated_tests`/`skip_tests`/`accuracy_tests`（`:20-33`）。例：`main2main_tests.json:18` 指向 `tests/e2e/pull_request/two_card/test_hccl_weight_transfer.py`，而真实文件在 `two_card/rlhf/state_transitions/` 下 → 自己用 `git ls-tree` 核，别信清单。
 - **目标 HF 仓带 NPU 不支持的量化配置 → 起不来**：实测原文 `ValidationError: mxfp4 quantization is currently not supported in npu`（仓里是 `mxfp4-pack-quantized`）→ 在用例生成的 config 里清掉量化配置。
 - **多模态仓 + 只枚举文本塔 → `load_weights` 失败**：用例用 `meta_config_attribute="text_config"` 时实测报 `ValueError: Following weights were not initialized from checkpoint: {vision_tower.*, mm_projector.*}` → 必须同时把顶层 `architectures` 覆盖成**纯文本塔**架构名（值照抄官方 `config.json` 里 `text_config.architectures`）。
+- **`hf_overrides` 的嵌套 dict 是深合并，不是整体替换**（vLLM 侧证据：`vllm/config/model.py` 的 `_apply_dict_overrides` → `_update_nested`，对已存在的子 config 对象递归 `setattr`）→ 只写 `{"text_config": {"num_hidden_layers": 4, "layer_types": [...]}}` 时，`num_experts` 这类兄弟字段会被保留；若某版 vLLM 退回浅替换，`get_hf_text_config()` 会先抛 `ValueError: The text_config extracted from the model config does not have num_attention_heads attribute`，用例根本走不到后面的断言。注意 `text_config` 若已是 plain dict（不是 config 对象）走的仍是整体替换分支。
+- **`enforce_eager=True` 会把 conftest 注入的 cudagraph_mode 清成 NONE**（vLLM `config/vllm.py`：`if model_config.enforce_eager: compilation_config.cudagraph_mode = CUDAGraphMode.NONE`）→ marker 里写 `graph_mode="eager"` 是准确的，ModelCache 默认塞进来的 `FULL_DECODE_ONLY` 不会与它冲突。
 - **`checkpoint_name_map` 只能改名、不能融合张量**：昇腾 KDA 把短卷积融合成单个 `self_attn.ascend_conv1d_weight`，而 HF meta 模型给的是分开的 `q/kv_conv1d.weight` → 这种映射**改不出来**，属基建缺口，只能跳过该 case。
 - **已实测（本次）**：第 3 步的 `coverage.py` 已在 Linux scratch 上**真跑过**（见步骤 10，退出码 0、`141/141 covered`、MISSING=0）；`select_tests.py --all-tests` 也真跑过（stdout 非 JSON，看 stderr）。**Windows 侧仍然跑不了**（反斜杠根因，见步骤 10），别在 Windows 上用它判登记对错。
 - **别拿 hash 相等当「远端实测的文件 == 你提交的 blob」的证据**（本机 `core.autocrlf=true`：工作副本 CRLF、blob LF）→ 判 blob 同一性的方法见 `orchestrating-subagents` §4 第 6 条。
@@ -104,10 +106,3 @@ whenToUse: 写/审 vllm-ascend 的 e2e 用例落位与 CI 登记时用（模型�
 4. 若打了 `e2e_coverage`：7 维齐备、每个值都在 `ALLOWED_VALUES`。
 5. 用例引用的模型 ID 在 ModelScope 有仓（否则离线 CI 拉不到权重）。
 6. 门禁**在 Linux 上**跑过（步骤 10 的 scratch 跑法）：`[2] E2E: N/N covered` 里 N 比基线大 1、MISSING=0、退出码 0、`[5]` unknown marker value = 0。在 Windows 上跑出的 MISSING 不作数。
-
-## 零权重范式与补强实测 → `references/zero-weight-and-fixup.md`
-
-- **零权重范式**：权重搬运类 e2e 用例只需要一个 `config.json`，不必放真权重。
-- **补强实测（merge 4004d10e）** 六条：`tests/ut/**` 的 CPU UT 登记 = **主动制造 `✗ LEAKED`**；新 e2e 文件缺 `e2e_coverage` marker 时 CI 只 WARNING；`main2main_tests.json` 的悬空引用在该提交上仍然悬空；「改名/搬家」的用例 GitHub API 只给 removed+added、**必须同步改 `estimated_times` 的 key**；判"权重真的换上了"要比对**行为签名**，不要比对张量；同一 PR 的打包开关 / 缓冲区 / 主机侧 / 触发标签。
-
-命令、原文与逐条出处都在该文件；上面只留判据。

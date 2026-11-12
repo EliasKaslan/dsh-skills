@@ -1,10 +1,27 @@
 ---
 name: dsh-repo-sync
-description: 我的 DSH 私仓同步——现在同步一次、昨天同步没成功、私仓内容少了或不对、ALERT.md 出现了、计划任务 DSH-Repo-Sync 报错：脚本 sync-dsh-repos.ps1 把 ~/.dsh 与编排 preset 用 robocopy 快照进私仓镜像，明文 PAT 脱敏成 redacted，退出码即结论（0 成功 / 非 0 见码表）。适用于"私仓天天收到 workflow 失败邮件 / 手动同步我的私仓 / 现在同步一次 / 同步坏了怎么办 / ALERT.md 出现了 / 昨天同步没成功 / 私仓内容少了或不对 / 计划任务 DSH-Repo-Sync 报错 / 想改同步的排除项 / 把私仓公开"。不适用：向 GitHub 上游仓提 PR → 用 `github-pr-flow`；向 GitCode 社区仓提 PR → 用 `gitcode-pr-flow`；计划任务注册与退役取证 → 用 `win-scheduled-task-forensics`。
-whenToUse: 要手动跑一次 ~/.dsh 到私仓的同步、排查同步失败（ALERT/退出码/日志）、或改同步排除项与计划任务时使用。模型看不到本节，触发只靠 description。
+description: 已退役——~/.dsh 私仓同步机制（DSH-Repo-Sync 任务与镜像仓均已删除）。仅留作历史记录与令牌形态参考。
+whenToUse: 只在考古旧同步机制、或要查 GitHub/GitCode 令牌文件路径与鉴权形态时读。已退役，不要再按本文去跑同步。
+disable-model-invocation: true
+warm-triggers: 私仓同步 / DSH-Repo-Sync / deepseek-harness / ALERT.md / sync-dsh-repos
+warm-reason: 机制已于 2026-11-12 退役，计划任务与镜像仓 D:\repos\deepseek-harness 都已不存在
 ---
 
-# dsh-repo-sync：DSH 配置 → 我的私仓（GitHub / GitCode）
+> ## ⚠ 已退役（2026-11-12）
+>
+> 本文描述的机制**已不存在**，不要再按它操作：
+>
+> - 计划任务 `DSH-Repo-Sync` 已删除；镜像仓 `D:\repos\deepseek-harness` 已不存在。
+> - `sync-dsh-repos.ps1` 现在跑必然 **exit 3**（`MIRROR_PRESENT` 失败）。
+> - 「skills 发布到公开仓」这件事已由 **DSH 插件 `dsh-plugin-skill-publish`** 接管
+>   （见 profile `desktop` 的 bundle `dsh-plugin-skill-publish`，工具 `skill_publish` / `skill_publish_status`）。
+>   它只发布 `~/.dsh/skills`，不做 `~/.dsh` 整体快照。
+> - 本文仍然有效的部分：**令牌文件路径**与 **GitHub / GitCode 两种鉴权形态**（§6），
+>   以及「不要 force push / 不要把 credential helper 放回来」这几条纪律。
+>
+> 历史留档：`D:\workspace\agent\skill\artifacts\legacy-skill-publish-backup-20261112\`。
+
+# dsh-repo-sync：DSH 配置 → 我的私仓（GitHub / GitCode）【已退役】
 
 一个**确定性**同步：本机的 DSH 配置（`~/.dsh`）与生效中的编排 preset bundle，双向快照进本机镜像仓
 `D:\repos\deepseek-harness`，再从那里推到两个私仓远端。**没有 shell 里的手工 git 步骤**——
