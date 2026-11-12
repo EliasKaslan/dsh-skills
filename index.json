@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 60,
   "file_count": 239,
-  "total_bytes": 26541731,
+  "total_bytes": 26546811,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -120,9 +120,9 @@
     {
       "name": "batch-invariance-acceptance",
       "path": "skills/batch-invariance-acceptance",
-      "description": "验证 vLLM Ascend 的 batch 不变性：BS=1 与 BS=N 逐位一致、TP 矩阵、长输入输出、数据集验收。适用于\"验证/回归 batch 不变性 / logprobs 是否一致 / 算子白名单\"。",
+      "description": "batch 不变性验收：减层模型能否作为证据、算子级判据、外推六条件、昇腾 BI 白名单审计。",
       "files": 8,
-      "bytes": 108509
+      "bytes": 113589
     },
     {
       "name": "batch-invariant-weekly-digest",

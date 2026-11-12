@@ -1,6 +1,6 @@
 ---
 name: batch-invariance-acceptance
-description: 验证 vLLM Ascend 的 batch 不变性：BS=1 与 BS=N 逐位一致、TP 矩阵、长输入输出、数据集验收。适用于"验证/回归 batch 不变性 / logprobs 是否一致 / 算子白名单"。
+description: batch 不变性验收：减层模型能否作为证据、算子级判据、外推六条件、昇腾 BI 白名单审计。
 version: 1.0.0
 domain: inference-model
 function: batch-invariance-validation
@@ -363,3 +363,58 @@ runs/
 | 已经 `FAIL` 了，不知道从哪查 | [失败定位](references/failure-triage.md) |
 
 脚本都可以直接读一遍再改：`bi_equivalence.py` 是判定核心（约 380 行，注释写的是"为什么"，不是"做了什么"），`bi_matrix.py` 是场景驱动，`bi_preflight.py` / `bi_ops_triage.py` 是准入与分诊。
+
+## 减层模型能否作为 BI 证据：算子级判据与外推条件（含 §五之三 归因更正）
+
+## 减层模型能否作为 BI 证据（2026-11-12 增补）
+
+### 先更正一条已被证伪的归因
+
+本 skill 前文 §五之三 把"20480 长 prompt 必断"归因为"长序列 attention/MoE 在批维上的归约"。**该归因不成立。**
+真因是 `vllm_ascend/attention/sfa_v1.py` 里按"单步打包 token 总量 T"切换 kernel（2026-11-12 main 仍在）：
+
+```python
+# sfa_v1.py:331  TRANSPOSE_BMM_MAX_SUPPORTED_DIM = 65536
+if q_nope.dtype in [torch.float16, torch.bfloat16] and hasattr(torch_npu, "npu_transpose_batchmatmul") \
+   and q_nope.shape[0] < TRANSPOSE_BMM_MAX_SUPPORTED_DIM:      # T < 65536
+    ql_nope = torch_npu.npu_transpose_batchmatmul(...)          # 路径 A：未 BI 化
+else:
+    ql_nope = torch.bmm(q_nope.transpose(0, 1), self.W_UK_T).transpose(0, 1)   # 路径 B：已被换成 bmm_batch_invariant
+```
+
+两条路径差约 1 个 bf16 ULP ⇒ **判据是"单步打包量 T 是否跨 65536"，与单请求长度、请求条数、TP 都无关**；BS=1 基线 T<65536 走 A、BS=N 打包后 T≥65536 走 B，同一 prompt 的 logits 就不逐位相同。所以要复现/回归这个缺陷，构造 `T = 65535 / 65536 / 65537` 三种打包即可，不必上 20480 长 prompt。
+
+### 结论：减层模型证伪有力、证真无力
+
+BI 不是"模型深度"的性质，而是"计算图里每个算子在某形状域上是否**逐行局部**"的性质。
+
+- 定义：算子 `f` 行局部 ⟺ 对任意批 `B`、任意行 `i`，`f(B)[i] ≡ f({B_i})[i]`（逐位）。
+- 正向定理：每个算子行局部 + 打包/调度不改变算子实参（dtype / shape 语义 / **kernel 选择** / layout）⇒ 整图 BI。证明是对计算图拓扑序做归纳，**与层数无关**。
+- 推论：缩层切片 `S` 只覆盖 `Ops(S) ⊆ Ops(M)` 与 `Shapes(S)`。`S` FAIL 且失败路径全模型也走 ⇒ 全模型 FAIL（可信）；`S` PASS ⇒ 只说明切片内 op 实例在切片形状上恰好一致。
+- 层数只通过三件事影响结论：**出现哪些算子族**、**出现哪些形状**、**KV 容量允许跑到多大的 T/BS**（容量大 ⇒ 更容易触发 shape 分叉，检出能力反而更强）。
+
+推论：**真要证明全模型 BI，证明对象是"算子集 × 形状域"，缩层不是必需品**；一旦把缩层当证明手段，说明还没定位到算子级性质。
+
+### 外推前必须补齐的六项（缺一只能写 PASS_SLICE_SCOPE_ONLY）
+
+1. **算子族覆盖**：`Ops(切片) ⊇ Ops(全模型)`（族级）。做法：切片与全模型各跑一次 `TorchDispatchMode` 计数（不需要 profiler），对集合做差；差集非空即不足。
+2. **形状域覆盖**：跨过每个算子的分叉边界（T=65536、`linear_persistent` 的 M<256/256~1024 BLOCK 分支、block_size、图桶、num_seqs）。"BS=1 vs BS=N"只覆盖一条嵌套对，生产是连续批处理、批组成每步变。
+3. **无层号数值依赖**：`layer_idx` 不得进 kernel 参数（本项目唯一入口是 per-layer c8 量化 scale）。
+4. **负控有牙**：同形状关掉 `VLLM_BATCH_INVARIANT` 必须能看见差异；`INCONCLUSIVE` ⇒ 该形状 PASS 作废。dummy/随机权重 + `load_format=dummy` 的 PASS 一律作废。
+5. **调度域一致**：block_size=128、禁 chunked prefill / prefix caching / preemption，TP/EP、图模式、量化一致。
+6. **白名单外算子逐个定性**：要么给行局部性单测，要么承认该区域未验证。
+
+### 昇腾 BI 白名单怎么审（当前实现范式）
+
+BI 是**进程级全局 patch + 白名单**，不是"整模式"。审的时候只看两处：
+
+- `vllm_ascend/batch_invariant.py` 的 `enable_batch_invariant_mode()` 注册表：`aten::mm/matmul/addmm/bmm/softmax/_softmax/sum`（仅末维）+ `npu_add_rms_norm` 拆分 + `npu_fused_infer_attention_score`（仅稠密 FIA）。
+- `vllm_ascend/utils.py` 的 `_CUSTOM_OP_ENABLED=False`：仓库自认"有些自定义算子没有 BI 实现，必须关掉"——这是**部分覆盖**的官方声明，不是补全。
+
+白名单之外、且 GLM/DeepSeek-DSA 类模型的**主干**：`npu_grouped_matmul`、gating top-k、`npu_swiglu`、`npu_moe_init_routing/token_permute`、`npu_quant_matmul`、indexer / sparse attention 那套（`dsa_v1` / `dsa_v41` / `indexer.py`，走独立 impl，连被 patch 的 FIA 都不经过）。这些只要在 dispatch 集合里，就必须单独定性。
+
+配套 vllm 侧的对照原则值得抄：**kernel 配置必须与批形状解耦**（`determinism/batch_invariant_configs.py`：每个 expert 形状只取一个 fused MoE 配置、对所有 M 复用；`BLOCK_K` 只由形状/dtype 定）。昇腾侧 `ops/triton/batch_invariant/matmul.py` 的 `matmul_persistent` 固定 128/128/64 是好例子，而 `linear_persistent` 的 `BLOCK_M/N` 随 M 变——设计上仍逐行，但属需单算子实测确认的风险项，不能假设。
+
+### 判决词
+
+新增两档，避免把"没测到"写成"通过"：`PASS_SLICE_SCOPE_ONLY`（切片范围通过，须附形状域声明）、`BLOCKED_OPERATOR_COVERAGE`（白名单外算子族未定性）。
