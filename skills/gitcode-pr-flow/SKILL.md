@@ -767,3 +767,29 @@ git status --short                            # 应为空
 ```
 
 **坑**：`git add -Aa -N` 里的 `-A` 与 `-a` 冲突，命令返回 129，随后 `git diff` 可能为空 → 你会得到一个 **0 字节补丁**却毫不知情。生成后一定先看字节数，别只看命令退出码。
+
+## ## 判两个 MR 是否同一提交（重复 MR 排查）
+
+**别用标题判重**：两个 MR 标题都带同一个版本号（例如都写「26.2.0 配套」）时，看一眼标题就下结论必错。判据只有 `head.sha`。
+
+### 三个匿名可读的端点（实测无 token 也能拿全）
+
+```bash
+# 元信息：state / base.ref / head.ref / head.sha / mergeable / merged_at
+curl -s https://api.gitcode.com/api/v5/repos/Ascend/<repo>/pulls/<n>
+# 改动文件清单（filename / additions / deletions）
+curl -s https://api.gitcode.com/api/v5/repos/Ascend/<repo>/pulls/<n>/files
+# 完整 unified diff（HTTP 200，可直接落盘比对）
+curl -s https://gitcode.com/Ascend/<repo>/merge_requests/<n>.diff
+```
+
+- `head.sha` 相同 ⇒ 同一提交；`head.ref` 是**裸分支名**（不带 `fork/` 前缀），要判来源仓看 `head.repo.full_name`（返回 `head_repo` 字段）。
+- 字段形状不定：`base` / `head` 有时是字符串、有时是对象；取值前先 `isinstance(v, dict)`。
+- base 分支不同 = 两件事，不能只看文件是否重叠就判重复。
+
+### 判重后必做的两项核对
+
+1. **文件是否真重叠**：`pulls/<n>/files` 两边取交集；空交集就是互补而非重复。
+2. **值是否自相矛盾**：不同 MR 对同一个版本常量可能有两种口径（产品口径 vs pip 包口径）。逐条把要填进命令行/构建参数的值拿去 `pip download`/`pip index` 验，别信 release notes 的表述。
+   - 实证：`torch-npu==26.2.0` → `ERROR: No matching distribution found`；同期另一 MR 写的 `2.10.0.post7` 才是真包版本。
+3. `mergeable=false` 只说明目标分支已前进（本例：base 是 `master`，而 `master` 的对应文档又被 4 个 docs 提交改过），不等于 MR 内容无效 —— 报「需要 rebase」，不要报「MR 错了」。
