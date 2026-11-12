@@ -85,6 +85,8 @@ whenToUse: 要改 DSH 自身行为（行为宪法 / 流程 skill / agent 组合 
 
 → 本总纲只给一条纪律：**先别挂**；确实要挂，先看子 skill `dsh-agent-preset-live-verification`（有机制溯源、错误原文、上游修法与对照组做法）。
 
+**更新（2026-11-12，0.2.2-rc.2 实测，上面这条已被部分证伪）**：`dsh-experimental-agent-team*` 三个包已改名为 `dsh-agent-team` / `dsh-tool-agent-team` / `dsh-client-ui-agent-team`，由 `dsh-base` / `dsh-web-app` **默认挂载且 `enabled=true`**（`plugin_manager list_plugins` 里两个 `include:*` 行都是 `active`）。在这种默认开启状态下，本会话成功派发了两个 `subagent` ⇒ **`TEAM_NOT_MEMBER` 在 0.2.2-rc.2 未复现**；该地雷只对 0.2.1-era 的 `dsh-experimental-*` 包名成立。注意团队模式**默认关闭**（新 Session 默认关），所以普通会话的工具面里看不到任务工具——那是设计，不是故障。判定"为什么插件页没有它了"见本文末尾那节。
+
 ### 2.6 生效 / 回滚矩阵（每层都要能一句话说清"怎么撤"）
 
 | 层 | 怎么撤 | 撤完何时生效 |
@@ -844,3 +846,36 @@ HMR transactions cannot be nested
 5. **发行包自带迁移说明**：`docs/upgrade-guide/README.md` + 各节 `guide.zh.md`，讲"从某版升到下一版要改什么"。**它的分节与 GitHub Release 不是严格一一对应**（同一主题的迁移说明和公告会落在不同版本）→ 判断"哪版发布"只认 Release + yml，指南只用来查"该怎么改"。
 
 读 asar 内文件的姿势：文件用 read 工具直接读；要**列目录**得用 electron 以 `ELECTRON_RUN_AS_NODE=1` 跑 `fs.readdirSync`（原生 glob / grep / cat 进不去 asar，会报 `系统找不到指定的路径`）。启动该进程时注意 `ProcessStartInfo.ArgumentList` 在本机不存在，见 skill `pwsh-on-windows`。
+
+## 升级后官方插件从插件页消失：退役 / 内置 / 改名三选一
+
+## 何时调用
+
+用户问「上个版本还能看到的官方插件/开关，这个版本怎么没了 / 是不是被砍了 / 现在在哪开」，或你要判定某个能力是**内置**、**可装 bundle**，还是**已退役**时。前置：知道 `DSH_INSTALL_DIR`（本机在 `app.asar` 内）；后继：要改配置回本文开头的「五层 + 上线纪律」。
+
+## 判定顺序（全只读，先别假设"被删了"）
+
+1. **查退役名单**：`<DSH_INSTALL_DIR>\node_modules\@deepseek-ai\dsh-official-bundles\lib\index.js`
+   - `RETIRED_BUNDLES`（0.2.2-rc.2 在 `:21`）注释原文：`Bundles an earlier release shipped and the installation no longer carries; app-boot removes them from profiles.` ⇒ 上一版随包发过、这一版**不再携带**，且**加载时会从 profile 组合里删掉**。这是"插件页条目凭空消失但功能还在"的第一嫌疑人。
+   - `OPTIONAL_BUNDLES` / `EXPERIMENTAL_BUNDLES` / `MORE_BUNDLES` / `OFFICIAL_ON_DEMAND_CATALOG`：当前版本插件页会出现的官方条目全集。**不在这几张表里 ⇒ 它根本不是 bundle**，永远不会作为插件页条目出现（不是被下架）。
+2. **查它是不是 bundle**：读包 `package.json`。有 `dsh.bundle.patch` 才是可安装 bundle；只有 `dsh.client`、或**连 `dsh` 键都没有** = 普通插件包，只能被某个 bundle 的 patch 行挂载。
+3. **查是谁挂的**：`@deepseek-ai\dsh-base\cordis.patch.yml`（宿主能力）与 `@deepseek-ai\dsh-web-app\cordis.patch.yml`（Web UI）。行里有 `id:` + `name:` ⇒ 随包内置，不是可选插件。
+4. **查入口搬到哪了**：`<DSH_INSTALL_DIR>\docs\upgrade-guide\README.md` 是**本安装版本**的迁移索引（按版本段列条目 + 指向 `guide.zh.md`）；功能改名、开关搬家、斜杠命令移除都记在这里，是"为什么变、迁到哪"的本机权威答案。
+5. 需要确认是否真的跑起来：`plugin_manager list_plugins` 看 `enabled` / `fiberPhase`（`active` = 已挂载），比在 UI 里找更快。
+
+## 实例：Agent Teams「智能体团队」（2026-11-12 取证，0.2.2-rc.2）
+
+- **旧形态**：`@deepseek-ai/dsh-experimental-agent-team-profile`（插件页里一个"实验性"开关）＋ `dsh-experimental-agent-team` / `-tool-agent-team` / `-client-ui-agent-team`。
+- **现状**：旧 bundle 只在 `RETIRED_BUNDLES` 里（包目录已不存在）；三个包改名为 `dsh-agent-team` / `dsh-tool-agent-team` / `dsh-client-ui-agent-team`，分别由 `dsh-base`（`cordis.patch.yml:366-372`）与 `dsh-web-app`（`:412-413`）内置挂载 ⇒ **不再有插件页条目**。
+- **入口搬到会话菜单**：`docs\upgrade-guide\v0.2.1-rc.2\session-team-mode\guide.zh.md:12`「Agent Teams 随基于 base 的 profile 提供；**新 Session 默认关闭**。插件页不再提供独立的智能体团队开关。」；`v0.2.1-rc.3\team-mode-menu\guide.zh.md:12`「`/team on` 和 `/team off` 不再注册」。同一份 guide 的迁移节还给了包名替换映射（`dsh-experimental-*` → `dsh-*`）与"加载时移除旧组合选项"。
+- **判据**：插件页里现在只会出现子包的中文名「任务板」(`dsh-client-ui-agent-team\locale\zh.json`) / 「团队工具」(`dsh-tool-agent-team\locale\zh.json`)；**不会再有**叫「智能体团队」的条目——不是删除，是毕业。
+
+## 顺手：用户问「super agent 是不是 DSH 的新功能」
+
+`deepseek-ai/dsh-superagent-prototype`（GitHub，2026-10-31 创建）是**外部 bundle**，README 原文：`Research prototype for reference only, not an official DeepSeek product.` 与 `packaged as a bundle for DeepSeek Harness`；装进**独立 profile**（`dsh superagent --from-default-profile`），不在发布包里。本机反证：全 asar 搜 `superagent` / `super agent` / `超级智能体` 在产品代码与文档里 **0 命中**（只有 got / undici 的第三方 README 提到同名 HTTP 库）。⇒ 回答口径：**能装进 DSH，但不是 DSH 自带**；媒体报道的"DeepSeek 发布超级智能体"与 repo 自述冲突，以 repo 为准。
+
+## 坑
+
+- 别用 `Test-Path` / `Get-ChildItem` 在 `app.asar` 里找包：对原生 FS 不可见，恒 `False`（假阴性）。列目录要用 `ELECTRON_RUN_AS_NODE=1` 跑 `<DSH_NODE_EXECUTABLE>` 的 `fs.readdirSync`，或用宿主 `read` 直接读已知路径。
+- 别只读 `docs\user\`：用户文档大多是跳转页，真正解释"东西去哪了"的是 `docs\upgrade-guide\`。
+- 别把"我这一版没有这个 bundle"说成"官方删了/砍了"：先按第 1 步分类，`RETIRED` 与"被下架"是两种不同的结论。

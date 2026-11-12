@@ -199,3 +199,59 @@ sed -n '1,12p' ci/CI_GUID.md                                            # 镜像
 ## 10. 维护记录
 
 - **2026-11-09 建立**：在 `root@192.168.13.190`（openEuler 22.03 LTS-SP4，8×Ascend910/16 die）上，对 `Ascend/MindSpeed-Ops` 26.2.0 @ `7ccec74` 跑通 UT（24 文件）+ ATK（27 算子）全流程；坑 1/2/3/4/5/6 均为当次实测。
+
+## ## 11. 把 CI 门禁镜像换到 26.2.0 商发：4 步与逐行改动（2026-11-12 复验）
+
+**顺序是硬约束**：改 `ci/` 配方 → aarch64 建镜像 → 进镜像自证+冒烟 → push → **最后**切 workflow 的 4 处 `image:`。反过来（先切 image）= 目标分支所有 PR 立刻全红。
+
+### 11.1 步骤 1：配方（`ci/` 三文件）
+
+- `ci/Dockerfile:9` `BASE_IMAGE_VERSION` `9.1.0`→`9.2.0`；`:21` `TORCH_NPU_VERSION` `2.10.0`→`2.10.0.post7`；`:23` `TRITON_ASCEND_VERSION` `3.2.2`→`3.6.0`
+- `ci/build.sh:9/:13/:15` 同上三值；`:16` `TRITON_ASCEND_WHL` → `triton_ascend-3.6.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl`
+- `ci/CI_GUID.md:9,25` 示例 tag
+- **现成 PR**：`Ascend/MindSpeed-Ops` **!261**（`open`，base `26.2.0`，head `ci/2620-pairing-recipe@63070b3`，只动 ci/ 三文件 +16/−16）。该补丁对今日 master / 26.2.0 **均 `git apply --check` 通过**，可直接复用，别重写。
+
+### 11.2 步骤 2：构建（必须 aarch64 机器；.188/.190 是 x86_64）
+
+```bash
+cd MindSpeed-Ops/ci
+bash build.sh -t 910b -o openeuler24.03 \
+  --python-version 3.12 --base-image-version 9.2.0 \
+  --torch-version 2.10.0 --torch-npu-version 2.10.0.post7 \
+  --triton-ascend-version 3.6.0 \
+  --triton-ascend-whl triton_ascend-3.6.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl \
+  -i swr.cn-north-4.myhuaweicloud.com/mindspeed/pr-ops:<自证 tag>
+```
+
+- **不能直接 `docker build -f ci/Dockerfile`**：`:26` 的 `COPY configure_repo.sh` 由 `build.sh:171` 把 `configure_*_repo.sh` 现拷出来，绕过 build.sh 必失败。
+- tag 用自证格式（照 `docker/image_build.sh:187`）：`{分支}-cann{CANN}-torch_npu{PTA}-{chip}-{os}-py{PY}-{arch}`。别再用 `-0820` 那种日期段——线上 tag 连 CANN/TA 都不含，事后无法反查栈版本。
+
+### 11.3 步骤 3：进镜像自证（不过就别推）
+
+```bash
+cat /usr/local/Ascend/ascend-toolkit/version.cfg | head
+ls -l /usr/local/Ascend/nnal/atb/set_env.sh    # ut.sh:18 无条件 source，缺了整片 UT 直接 exit
+python -c "import sys,torch,torch_npu,importlib.metadata as m;print(sys.version.split()[0],torch.__version__,torch_npu.__version__,m.version('triton-ascend'),m.version('triton'),m.version('numpy'))"
+```
+
+再按 `ci/MindSpeed_Ops_ut.sh` 同口径跑：`MINDSPEED_BUILD_CATLASS=1` + `pip install -e . --no-deps --no-build-isolation` + `pytest tests/unit_tests/catlass` + `python ci/access_control_test.py --rank 1..4`。
+
+### 11.4 步骤 4：只切目标分支的 4 处 `image:`
+
+- master：L198 / L218 / L238 / L258
+- 26.2.0：L173 / L193 / L213 / L233
+- **别先切 master**：master 的 `requirements.txt` 仍是 `triton-ascend==3.2.2`，跑了 3.6.0 镜像等于把门禁栈换错。
+
+### 11.5 关键事实（本轮实测）
+
+- 两分支 `ci/` **blob 完全相同**（`Dockerfile=df5b771e`、`build.sh=e5ad3151`、`CI_GUID.md=273d1c10`）；`70c1479`（MR !237）只升了 `docker/`，`ci/` 落后**一整个配套**。
+- 门禁镜像 tag 是 `py3.11`，而 `ci/Dockerfile:11` 默认 `py3.12` ⇒ 现镜像**不是**按仓内默认值构建的；换配方时必须显式对齐 py 版本，否则继续"配方一套、镜像另一套"。
+- 可得性实测：`ascendhub/cann:9.2.0-910b-openeuler24.03-py3.11` 与 `-py3.12` manifest 均 200 且 `amd64+arm64`；`triton_ascend-3.6.0` cp311/cp312 aarch64 wheel 均 200（322.9 MB）；`torch_npu 2.10.0.post7` cp311/cp312 aarch64 在 PyPI。**只有 `cn-south-1` 匿名可读**（`cn-north-4/1/east-3` 取 token 返 401）。
+- 「商发」= 裸 `9.2.0`；该版本线只有 `beta.1/beta.2`，无 RC。`26.2.0` 是产品火车号，不是 CANN 版本。
+
+### 11.6 坑
+
+- 仓内**无** `docker login/push/buildx`，唯一 workflow 是 `pr-pipeline`；镜像人工建、人工推，凭据在仓外。
+- `ci/Dockerfile:93` 用一条命令同装 `torch`+`torch_npu`、无重试；`docker/Dockerfile:117-146` 是**分步 + `while … && break` 重试 + 先 `+cpu` 索引**。换基镜像装挂时照 docker/ 改。
+- 本地 clone 是浅克隆且落后：判"今天"必须 `git ls-remote`（2026-11-12：`master=ac671f24`、`26.2.0=19a603c0`）。
+- PS 5.1 `>` 重定向写 UTF-16，`git apply` 报 `error: No valid patches in input` → 用 `cmd /c "git … > x.patch"`。
