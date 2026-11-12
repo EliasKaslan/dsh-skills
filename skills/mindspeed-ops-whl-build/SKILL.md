@@ -65,3 +65,26 @@ python -m pip wheel . --no-deps --no-build-isolation -w dist -v
 - `ASCEND_CUSTOM_OPP_PATH` 在 import 时被改写成 `<site-packages>/mindspeed_ops/_cann_ops_custom/vendors/mindspeed_transformer`，无需外部设置。
 - `26.2.0` 分支的 whl 是 `master` 的严格子集（本轮 master 多 13 个 py：4 个新 triton api + arch32/arch35 变体）；两个 whl 的 7 个 `.so` 同名同大小但 ext 的 sha256 不同。
 - `CANN 9.1.0` 上跑时会看到 `libstdc++.so.6: version GLIBCXX_3.4.26 not found (required by .../opp/vendors/batch_invariant/.../libcust_opmaster_rt2.0.so)` —— **非致命**，算子照常工作（换 9.2.0 即消失）。
+
+## CI 门禁不产 whl；SOC_VERSION 为空不等于纯 py
+
+## 门禁只做就地编译，不产 whl
+
+- 仓内 `.gitcode/` 只有 `PULL_REQUEST_TEMPLATE.md` 与 `pr-pipeline-mindspeed-ops.yml` 一个 workflow；该 workflow 里 `wheel|bdist|dist` **零命中**，`ci/` 也只构建 docker 镜像。
+  ⇒ **合任何 CI 相关 PR 都不会让流水线开始产 whl**。要 whl 只能自己跑 `python -m pip wheel ...`（§1）。
+- 门禁真实动作（`ci/MindSpeed_Ops_ut.sh`）：`pip install -e . --no-deps --no-build-isolation` → `pytest -x tests/unit_tests/catlass`（rank1）→ `python ci/access_control_test.py --rank N`。它证明的是"能在该栈下就地编译并跑过 UT"，**不证明 whl 可用**。
+
+## 修正：`SOC_VERSION` 为空不等于"一定静默纯 py"
+
+- 26.2.0 分支 `setup.py:96-99`：`SOC_VERSION` 未设时先调 `get_chip_type()` **自动探测**——内部执行 `npu-smi info -t board -i <n> -c 0`，取 `Chip Name` / `Chip Type` / `NPU Name` 拼成 soc 名；探测成功就照常编扩展（`setup.py:419-421` 仅在 `if _env_soc_version` 时追加 `ext_modules`）。
+- 所以"whl 里没有 `.so`"要分两种成因：①机器无 NPU 或 `npu-smi` 不可用 → 探测返回空 → 静默纯 py whl；②**有 NPU 时即使不显式 export 也会编**。
+  判定只能看 whl 成员，不能看"有没有设环境变量"。
+- CI 容器探测得到（runner 带 `npu=1`，driver / dcmi / npu-smi 都 bind-mount 进去），因此门禁里从不设 `SOC_VERSION` 也能正常编。
+
+## 在 CI 镜像里构建时先核镜像架构
+
+```bash
+docker inspect --format '{{.Architecture}}' <image>   # 必须 arm64
+```
+
+`ci/build.sh` 的默认 tag 用 `uname -m` 推架构，但 `-i` 显式给镜像名会**绕过**这层保护 → 在 x86_64 机器上能产出"名字写 aarch64、内容其实 x86_64"的镜像；推到 SWR 后门禁 runner 拉下来跑不起来，且从 tag 上看不出问题。

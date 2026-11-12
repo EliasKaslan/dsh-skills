@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 61,
   "file_count": 240,
-  "total_bytes": 26564526,
+  "total_bytes": 26566464,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -290,7 +290,7 @@
       "path": "skills/mindspeed-ops-whl-build",
       "description": "打 MindSpeed-Ops whl 并验收：cmake/clang、SOC_VERSION、CATLASS。适用于\"打 ops 的 whl / cmake 版本报错 / GCC 太旧 / 验证 whl\"。",
       "files": 1,
-      "bytes": 7301
+      "bytes": 9239
     },
     {
       "name": "minimax-ai-musume-4k-art",
