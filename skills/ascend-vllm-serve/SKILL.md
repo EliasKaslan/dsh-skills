@@ -55,6 +55,8 @@ python -c "import vllm, importlib.metadata as m; print(vllm.__version__, m.versi
 
 ### 1 挑空闲 die（目的：共享机不抢别人的卡）
 
+> 硬规则（用户 2026-11-13）：**卡上有别人的进程 ⇒ 整张卡不可用**，连"只用剩余显存跑个小东西"都不行（会毁掉别人正在跑的性能/精度数据）；判据与让路动作的唯一出处在 `ascend-server-layout`「共享机占用铁律与断点续跑」，本节只讲怎么挑、怎么起。
+
 ```bash
 npu-smi info | head -20                          # 先看谁在跑；HBM-Usage 是单 die 值
 python -c "

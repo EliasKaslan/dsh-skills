@@ -1,12 +1,13 @@
 ---
 name: ascend-server-access
-description: 昇腾服务器准入清单：a3/.188、a3b/.190、A5 各 IP、UniVPN、免密。适用于"188 连不上 / 177.x 怎么连 / 该连哪个 VPN / 凭据在哪 / 新机器怎么配免密"。
-whenToUse: 昇腾服务器清单、凭据、可达性判据与 UniVPN 准入/双开（含 2026-11-09 批 177.2.x / 177.11.x）；模型看不到本节。
+description: 昇腾服务器准入：在册 6 台（A3×2、A5×4）、双隧道、凭据与免密。适用于"188/177.x 连不上 / 走哪个 VPN / 凭据在哪 / 新机配免密"
+whenToUse: 昇腾服务器清单、凭据、可达性判据与 UniVPN 准入/双开（在册见 §12：A3×2 + A5×4）；模型看不到本节。
 ---
 
 # 昇腾服务器清单与 UniVPN 准入
 
-**一句话**：现在只有三台可用的昇腾机——`a3`=`192.168.13.188`、`a3b`=`192.168.13.190` 走 **蓝区网关**，`a5`=`177.8.21.1` 走 **A5**。原生客户端单隧道、单 TAP，两配置互斥；**两个客户端（原件 + `UVP002` 实例）可同时在线**，2026-11-03 实测三台同时 `ping` + `tcp 22` 全通。
+**一句话**：**在册 6 台（清单见 §12，2026-11-13 用户口径）**——蓝区A3 `192.168.13.188` / `.190` 走 **蓝区网关**，蓝区A5 `177.8.21.1` / `177.11.25.1` / `177.11.26.1` / `177.11.27.1` 走 **A5**。原生客户端单隧道、单 TAP，两配置互斥；**两个客户端（原件 + `UVP002` 实例）可同时在线**。
+> **共享机红线**：卡上有别人的进程 ⇒ 整张卡不可用，不抢卡、也不蹭剩余显存（会毁掉别人的性能/精度数据）；长任务按可断点续跑写。唯一判据出处：`ascend-server-layout`「共享机占用铁律与断点续跑」。
 
 ## 何时调用
 
@@ -25,8 +26,9 @@ whenToUse: 昇腾服务器清单、凭据、可达性判据与 UniVPN 准入/双
 
 ## 0. 服务器清单与准入（唯一出处，2026-11-03 实测）
 
+> ⚠️ **在册清单只看 §12（2026-11-13，6 台）**：本节与 §11 的"有哪些机器"已过时，规格数字仍可参考。
 > 用户口径（2026-11-03）：**当前只有这三台可用**。正文或记忆里若还有别的机器，一律按不可用处理，别去试。
-> **2026-11-09 更正**：这条已不成立——当晚又发了 4 台 A5 环境（`177.2.25.1` / `177.2.26.1` / `177.11.25.1` / `177.11.26.1`，同一张 A5 隧道即可达），规格与坑见 **§11**。判「有没有机器可用」不要照抄本节，先按 §11 的清单。
+> **2026-11-09 更正**：这条已不成立——当晚又发了 4 台 A5 环境（`177.2.25.1` / `177.2.26.1` / `177.11.25.1` / `177.11.26.1`，同一张 A5 隧道即可达），规格与坑见 **§11**。判「有没有机器可用」不要照抄本节，先按 §12 的在册清单。
 
 | 代称 | 地址 / 账号 | 角色 | 系统与规格（现场实采） | 准入 |
 |---|---|---|---|---|
@@ -44,7 +46,7 @@ whenToUse: 昇腾服务器清单、凭据、可达性判据与 UniVPN 准入/双
 | `177.8.21.1` | **A5**（账号 `vpn_xmz`） | `177.0.0.0/8`、`170.70.0.0/16`、`197.0.0.0/8`、`1.2.16.0/21` | 蓝区网关**到不了** A5，反过来也一样 |
 | 三台同时 | 原件连蓝区 + `UVP002` 实例连 A5 | 两套路由不重叠 | 2026-11-03 实测三台同时 `ping` / `tcp 22` 全通；做法见 §7 |
 
-**凭据**：服务器 root 密码、VPN 账号/密码都在本目录 `credentials.txt`；**正文不写密码**。三台都已有免密公钥（2026-11-03）；密码只作 fallback，用 `paramiko`（本机已装 5.0.0）非交互登录最稳（见 `ascend-env` §5）。**新机器登录成功后先配免密，见 §0.1。**
+**凭据**：**唯一凭据文件是 `%USERPROFILE%\.dsh\.secrets\ascend-servers.txt`**（2026-11-13 已按在册 6 台更新，见 §12 / §13）；**正文不写密码**。本目录下的 `credentials.txt` **已不存在**（2026-11-13 核对），两个 python 脚本已改为**优先读 `.secrets/ascend-servers.txt`、缺了才退回 `../credentials.txt`**（同日实测 `read_creds('177.11.27.1')` / `password_for('177.11.27.1')` 都能命中）。目前实测能用的免密脚本：`D:\workspace\昇腾环境\setup_passwordless.py`（复制一份改 `HOSTS`）与 §0.1 的 `install-pubkey.py`。**新机器登录成功后先配免密，见 §0.1。**
 
 **连通性三测（缺一不可，别把「连不上」混成一句）**
 
@@ -64,12 +66,12 @@ ssh -n -o BatchMode=yes root@192.168.13.190 "hostname"             # ③ 认证�
 每成功登录一台新机器（不管这次用的是密码还是已有 key），**先配免密再干别的**：
 
 ```powershell
-# 相对本 skill 目录；密码从 credentials.txt 的 "<host> <user> <pwd>" 行取
+# 密码由脚本自己从 %USERPROFILE%\.dsh\.secrets\ascend-servers.txt 读（"<host>  <user>  <pwd>" 行）
 python scripts\install-pubkey.py 192.168.13.190 177.8.21.1
 ssh -n -o BatchMode=yes root@192.168.13.190 "hostname; whoami"   # 必须看到主机名才算成
 ```
 
-`install-pubkey.py` 的行为：登录 → `mkdir -p ~/.ssh` → **读原 `authorized_keys`** → 只在缺本机 `id_ed25519.pub` 时追加 → `chmod 700/600` + `chown` → 断开，再用 **key-only** 重连复核。没有 `--password` 时读 `credentials.txt`，读不到才用 `$env:SSH_PASSWORD`。
+`install-pubkey.py` 的行为：登录 → `mkdir -p ~/.ssh` → **读原 `authorized_keys`** → 只在缺本机 `id_ed25519.pub` 时追加 → `chmod 700/600` + `chown` → 断开，再用 **key-only** 重连复核。没有 `--password` 时读 `%USERPROFILE%\.dsh\.secrets\ascend-servers.txt`（缺了才退回 `../credentials.txt`），再缺才用 `$env:SSH_PASSWORD`。
 
 **红线：只追加，绝不覆盖。** 共享机的 `authorized_keys` 不是我们一个人的——2026-11-03 A5 原有 **73 条**其它 key，`cat >` / `>` 会把别人全部锁在门外。配完必须复核（`.190` / A5 用 `ssh -o BatchMode=yes`；`.188` 用 paramiko key，OpenSSH 可能卡 KEX），**不要只看文件里有那行**。
 
@@ -142,7 +144,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File univpn-instance.ps1 -Action 
 powershell -NoProfile -ExecutionPolicy Bypass -File univpn-instance.ps1 -Action Disconnect -Instance 2
 ```
 
-**服务器免密脚本**：`scripts\install-pubkey.py`（Python 3.12 + paramiko 5.0.0；幂等追加、保留原 `authorized_keys`、配完自动 key-only 复核；密码从 `credentials.txt` 取）：
+**服务器免密脚本**：`scripts\install-pubkey.py`（Python 3.12 + paramiko 5.0.0；幂等追加、保留原 `authorized_keys`、配完自动 key-only 复核；密码从 `.dsh\.secrets\ascend-servers.txt` 取）：
 
 ```powershell
 python scripts\install-pubkey.py 192.168.13.190 177.8.21.1
@@ -214,7 +216,7 @@ python scripts\install-pubkey.py 192.168.13.190 177.8.21.1
 - 改本机 MTU 走 `netsh interface ipv4 set subinterface` **需要管理员**；本机实测 `IsInRole(Administrator)=False`，改不了 ⇒ 别无脑推这条。
 ⇒ **判据顺序**：① 先 `ping -f -l 1472` / `-l 1416` 二分定位 MTU，丢 1472 通 1416 就直接判 MTU，**别去查 sshd、负载、VPN 认证**；② 首选跳板（见上）；③ paramiko 能用是因为它协商出的包更小，但别再把它当唯一出路。旧结论「sshd 被高负载饿死」作废。
 
-**⑩ 免密公钥与「登录成功就先配」（2026-11-03 三台已全部配好）。** `.190` / A5 的 `ssh -o BatchMode=yes` 直接通；`.188` 的 key 用 paramiko 稳定，OpenSSH 会踩 ⑨ 的 MTU 黑洞（**不是 load**）。**新机器登录成功后仍要按 §0.1 先配**。坑在覆盖：A5 原有 **73 条**其它 key、`.190` 原有 1 条，直接 `cat >` / `>` 会把别人锁在外面——只能读出来、追加、写回。配完必须用 key-only 复核，别只看文件里有那行。密码 fallback 仍在 `credentials.txt`（paramiko 5.0.0；PowerShell 双引号里别拼 `!` / `$`）。
+**⑩ 免密公钥与「登录成功就先配」（2026-11-03 三台已全部配好）。** `.190` / A5 的 `ssh -o BatchMode=yes` 直接通；`.188` 的 key 用 paramiko 稳定，OpenSSH 会踩 ⑨ 的 MTU 黑洞（**不是 load**）。**新机器登录成功后仍要按 §0.1 先配**。坑在覆盖：A5 原有 **73 条**其它 key、`.190` 原有 1 条，直接 `cat >` / `>` 会把别人锁在外面——只能读出来、追加、写回。配完必须用 key-only 复核，别只看文件里有那行。密码 fallback 仍在 `%USERPROFILE%\.dsh\.secrets\ascend-servers.txt`（脚本已改读这里；paramiko 5.0.0；PowerShell 双引号里别拼 `!` / `$`）。
 
 ### 关键 AutomationId
 
@@ -354,7 +356,7 @@ sc.exe delete UVP002Service
 | L4 端口 | `timeout 6 bash -c '</dev/tcp/<peer>/22'` | 立即成功；**别用 `Test-NetConnection` 代替** |
 | 吞吐 | `nc` 灌 1 GiB（见脚本） | 见下「带宽天花板」 |
 
-**一键体检**：`python scripts\node-pair-check.py 192.168.13.188 192.168.13.190 [--throughput]`——paramiko 走本机 key（失败自动用 `credentials.txt` 里的密码），打印上表全部判据 + 网卡速率/错误计数 + NFS 挂载数 + 「能否 ssh 到对端」；`--throughput` 才跑 1 GiB 双向灌流。**不要用 OpenSSH 驱动**：`.188` 的 sshd 在高负载下会卡 KEX（§5 ⑨），本脚本不受影响。
+**一键体检**：`python scripts\node-pair-check.py 192.168.13.188 192.168.13.190 [--throughput]`——paramiko 走本机 key（失败自动用 `.dsh\.secrets\ascend-servers.txt` 里的密码），打印上表全部判据 + 网卡速率/错误计数 + NFS 挂载数 + 「能否 ssh 到对端」；`--throughput` 才跑 1 GiB 双向灌流。**不要用 OpenSSH 驱动**：`.188` 的 sshd 在高负载下会卡 KEX（§5 ⑨），本脚本不受影响。
 
 **带宽天花板先看网卡再怀疑 TCP**：两台都是 `Speed: 1000Mb/s, Duplex: Full`（`.188` = `enxc8a362d975e9`，`.190` = `enp211s0u1`）⇒ `~110 MB/s` 就是上限。实测 `.188→.190` 71.6 MB/s、`.190→.188` 107.1 MB/s，**是线速不是故障**。`ethtool <ifc> | grep -E 'Speed|Duplex'` 看速率，`ip -s link show <ifc>` 看 `errors`（必须 0）；`.188` 的 RX `dropped` 是自开机累计（17 天 29 万，占 0.03%），高负载机器上属正常，别单看这个数判坏线。
 
@@ -389,6 +391,8 @@ sc.exe delete UVP002Service
 
 同一张 **A5 隧道**就能到，**蓝区网关到不了**；与 `.188/.190` 靠 §7 的双实例并存。全部 openEuler 24.03 LTS-SP3 / aarch64 / 192 核 / 2261 GiB / 9 个 `/dev/davinci*`。
 
+> ⚠️ **在册状态（§12 为准）**：`177.11.25.1` / `177.11.26.1` 仍在册；**`177.2.25.1` / `177.2.26.1` 已不在用户 2026-11-13 的清单里**，按不可用处理。
+
 | 批次 | 地址 | 主机名 | `/` 占用（11-09 快照） |
 |---|---|---|---|
 | 11-09 晚 | `177.2.25.1` | localhost.localdomain | 3.5T 用 93% |
@@ -417,3 +421,59 @@ Start-Process 'C:\Program Files (x86)\UniVPN2\UVP002.exe'   # 等价：双击 Un
 ```powershell
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=accept-new root@<ip> hostname
 ```
+
+## 12. 2026-11-13 在册清单（用户口径）与共享机红线
+
+**用户 2026-11-13 给定的"当前可能可用"清单就是这 6 台。与 §0 / §11 冲突时以本节为准**：那两节的核数、内存、卡型等规格仍可参考，但"有哪些机器"只认本节。
+
+口语对照：用户说的「**蓝区A3**」= `192.168.13.x`（走蓝区网关）；「**蓝区A5**」= `177.x`（走 A5 隧道），与 §11 的 A5 批次是同一张隧道，别当成两套环境。
+
+### 在册清单
+
+| 代称 | 地址 | 账号 | 隧道 | 角色 | 规格 / 备注 |
+|---|---|---|---|---|---|
+| 蓝区A3 | `192.168.13.188` | root | 蓝区网关 | a3 默认 | Debian 10 / 256 核 / 1448 GiB / 8 NPU × 2 die = 16 `Ascend910`（65536 MB per die）/ 多租户重载机；本机连它要跳板，见 §5 ⑨ |
+| 蓝区A3 | `192.168.13.190` | root | 蓝区网关 | a3b 备用 | openEuler 22.03 SP4 / 64 核 / 1384 GiB / 16 die（64 GB）/ CANN 9.2.1 在 `/home/cann/921`；**2026-11-13 密码已更换** |
+| 蓝区A5 | `177.8.21.1` | root | A5 | a5 主 | openEuler 24.03 SP3 aarch64 / 192 核 / 2261 GiB / 8 × `Ascend950DT`（96 GB）/ CANN 9.2.0 |
+| 蓝区A5 | `177.11.25.1` | root | A5 | A5 批次 | openEuler 24.03 SP3 / 192 核 / 2261 GiB / 9 个 `/dev/davinci*` |
+| 蓝区A5 | `177.11.26.1` | root | A5 | A5 批次 | 同上 |
+| 蓝区A5 | `177.11.27.1` | root | A5 | A5 批次（**2026-11-13 新入册**） | 同上；首次入册，免密要现配（§0.1） |
+
+**不在册 = 按不可用处理**：`177.2.25.1` / `177.2.26.1`（2026-11-09 发过）已不在 2026-11-13 的清单里，别主动去连，用户重新给到再恢复。
+
+### 凭据放哪：密码不进本文件
+
+- **唯一凭据文件**：`%USERPROFILE%\.dsh\.secrets\ascend-servers.txt`，格式 `<host>  <user>  <password>`，已按这 6 台更新（`.190` 新密码在册、旧值留成注释；`177.11.27.1` 新增；`177.2.x` 两行注释留档）。
+- **不要把密码抄进 skill 正文**。`~/.dsh/skills` 会被 `skill_publish` 发布到公开仓（GitCode + GitHub `dsh-skills`），明文密码贴进来就等于公开。用户说的"内置"= 内置"**清单 + 去哪拿密码 + 怎么用**"，不是把明文贴进会被公开的文件。
+- 脚本取密码：读该文件第 3 列。密码含 `!` `$` `*` `@` `#`，**别在 PowerShell 命令行里手工拼**（双引号内 `$`、反引号会被展开），一律由 python 读文件。
+
+### 共享机红线（用户 2026-11-13 明确要求）
+
+**卡上有别人 → 整张卡不可用；判据是"有没有人"，不是"还剩多少显存"。** 不抢卡、不蹭别人的剩余显存（哪怕只跑个小评测）——会拖慢别人正在跑的**性能与精度**对比。判据与让路动作的唯一出处是 `ascend-server-layout` 文末「共享机占用铁律与断点续跑」（步骤 5 与 `ascend-vllm-serve` 步骤 1 都指向它）；长任务按其中 §3「长任务默认可断点续跑」写。
+
+### 本机 TAP 的 ifIndex 会变（2026-11-13 实测，纠正 §7.5 / §11）
+
+旧记录把 `本地连接`=13、`本地连接 2`=55 写死；本轮实测是 **14 / 15**（客户端重装或重启后会重排）。⇒ 判"哪条隧道通"只认 **网卡名 + 经该网卡的网段级路由**（`Get-NetRoute` 里 `192.168.0.0/16` → 蓝区、`177.0.0.0/8` → A5），`ifIndex` 只当打印值，**别写进脚本条件**。
+
+## 13. 2026-11-13 实测：4 台 A5 的免密、磁盘与落位约束
+
+2026-11-13 用 paramiko 逐台实登（A5 隧道已通、蓝区隧道未连，故 A3 两台本轮未测）。
+
+| 地址 | 免密（key） | 凭据 | 主机名 | `/` 占用 | 备注 |
+|---|---|---|---|---|---|
+| `177.8.21.1` | ❌ **不通**（`Permission denied (publickey,password)`，机上 `authorized_keys` 75 条里没有本机当前公钥） | 密码可用 | `ip-177-8-21-1.rev.wkve.net.br` | **100%，余 19G** | 全卡被别人的 `VLLMWorker_TP0..7` 占着，且 PID 每几分钟换一批（crash-restart 循环） |
+| `177.11.25.1` | ✅ | key | `177-11-25-1.btecdns.net.br` | 92%，余 282G | 8 卡全空 |
+| `177.11.26.1` | ✅ | key | `177-11-26-1.btecdns.net.br` | 95%，余 175G | 别人的 sglang TP8 还在跑 |
+| `177.11.27.1` | ✅ **本次新配成功** | key（密码 fallback） | `177-11-27-1.btecdns.net.br` | 70%，余 1016G | 8 卡全空；`/home` 下已有他人目录 `codex-a5-lab` |
+
+四台都是 192 核 / 2261 GiB / 9 个 `/dev/davinci*`；**`/home` 与 `/` 是同一块盘**（`df` 只有 `nvme*p4` 两行）。
+
+### 换过本机 SSH key 之后：旧免密会全部失效，逐台重配
+
+坑的原形：本机 `id_ed25519` 在 **2026-11-06 10:41 重新生成**，而 `.8.21.1` 的公钥是 2026-11-03 配的 ⇒ 公钥对不上。
+
+判读：`ssh -o BatchMode=yes -o ConnectTimeout=8 root@<ip> hostname` 失败、**但密码能登进去** ⇒ 认证层问题，不是隧道/网络问题（先 ping + tcp 22 排除网络）。修法：按 §0.1 重跑免密（**只追加**，这些机器上有 35~81 条别人的 key），配完立刻用 `BatchMode=yes` 复核 `hostname`。
+
+### A5 上的落位约束（2026-11-13 实测，替换旧"待落地/未验证"）
+
+`/home` 不是独立分区、且 `/` 已用到 70~100%（好的机器只剩 1016G，差的只剩 19G）⇒ **A5 上个人根不能想当然建真实目录**：先 `df -h /home`，要放 >10G 的权重/产物前再确认一次；个人根落位方案（软链到共享盘）**仍未验证**，别照抄 `.188` 的 `/home/vllm` 结论。

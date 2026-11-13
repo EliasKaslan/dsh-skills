@@ -18,7 +18,10 @@ import time
 import paramiko
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CRED = os.path.normpath(os.path.join(HERE, "..", "credentials.txt"))
+_LEGACY = os.path.normpath(os.path.join(HERE, "..", "credentials.txt"))
+# 2026-11-13: 本目录的 credentials.txt 已移除（发布时会被剔除），凭据统一在 .dsh/.secrets
+_SECRETS = os.path.join(os.path.expanduser("~"), ".dsh", ".secrets", "ascend-servers.txt")
+CRED = _SECRETS if os.path.exists(_SECRETS) else _LEGACY
 KEY = os.path.expanduser("~/.ssh/id_ed25519")
 PORT = 39022
 SIZE_MB = 1000

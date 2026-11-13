@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 61,
   "file_count": 240,
-  "total_bytes": 26643975,
+  "total_bytes": 26655360,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -85,16 +85,16 @@
     {
       "name": "ascend-server-access",
       "path": "skills/ascend-server-access",
-      "description": "昇腾服务器准入清单：a3/.188、a3b/.190、A5 各 IP、UniVPN、免密。适用于\"188 连不上 / 177.x 怎么连 / 该连哪个 VPN / 凭据在哪 / 新机器怎么配免密\"。",
+      "description": "昇腾服务器准入：在册 6 台（A3×2、A5×4）、双隧道、凭据与免密。适用于\"188/177.x 连不上 / 走哪个 VPN / 凭据在哪 / 新机配免密\"",
       "files": 6,
-      "bytes": 92268
+      "bytes": 99369
     },
     {
       "name": "ascend-server-layout",
       "path": "skills/ascend-server-layout",
       "description": "昇腾个人根与目录红线：环境/项目/数据放哪、模型软链、npu-smi 选卡。适用于\"新项目写哪个盘 / 环境放哪 / 磁盘满了 / 哪张 NPU 空闲 / 复用现成环境\"。",
       "files": 3,
-      "bytes": 24235
+      "bytes": 28178
     },
     {
       "name": "ascend-torch-npu",
@@ -115,7 +115,7 @@
       "path": "skills/ascend-vllm-serve",
       "description": "在昇腾上起 vllm 服务：三层自检、选空闲 die、serve/离线/sleep、运行时排障。适用于\"起 vllm 服务 / OOM / 输出乱码 / reload_weights / 该占哪张卡 / 模型太大要 TP=2\"。",
       "files": 1,
-      "bytes": 23786
+      "bytes": 24127
     },
     {
       "name": "batch-invariance-acceptance",

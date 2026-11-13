@@ -77,7 +77,7 @@ ssh -n root@192.168.13.188 "bash /tmp/init-home-layout.sh --root /home/x00886548
 |---|---|---|---|---|
 | `.188`（a3） | **软链** → `/home/vllm/x00886548` | `/home/vllm/weights`（2.8T，20 个模型） | `/mnt/dataset`（Math-500） | `/home` 在 96% 的系统盘上，**不能**建真实目录 |
 | `.190`（a3b） | **真实目录**（`/home` 6.9T） | `/home/vllm/weights`（305G）+ `/mnt/weight`（NFS 281T 公共权重农场） | `/mnt/share/dataset`（coco / imagenet / dapo-math；另有 `/mnt/share/datasets`） | `/home/vllm/x00886548` 已改为指向个人根的兼容软链 |
-| A5（177.x，4 台） | **待落地**（2026-11-10 隧道未通） | 未验证 | 未验证 | 先 `df -h /home`；`/home` 若在 `/`（3.5T 已 86–95%）则用 `--link-target` 指向 `/mnt/share/x00886548`（待验证） |
+| A5（177.x，4 台） | **待落地**（2026-11-13 已能登进去，见 `ascend-server-access` §13） | 未验证 | 未验证 | **`/home` 与 `/` 同一块盘**（2026-11-13 四台实测），`/` 已用到 70~100%、余 19G~1016G ⇒ 先 `df -h /home`；个人根落位（软链到共享盘）**仍未验证** |
 
 > `.188` 兼容软链（2026-11-10 迁入，勿删）：`/mnt/share/x00886548/miniconda3` → `env/conda3`、`/mnt/share/x00886548/cann` → `env/cann`、`/mnt/share/x00886548/workspace` → `work`。老脚本里的绝对路径仍可用，但**新内容一律写个人根**。
 
@@ -92,7 +92,7 @@ ssh -n root@192.168.13.188 "bash /tmp/init-home-layout.sh --root /home/x00886548
 | `.190` | `/home/x00886548` | `openeuler-home` | 6.9T，10%，剩 6.0T | ✅ **推荐** |
 | `.190` | `/` | `openeuler-root` | 69G，68%，剩 22G | ❌ 别放大文件 |
 | `.190` | `/mnt/share` / `/mnt/weight` | NFS `suzblue.server:/share` / `:/weight` | 285T / 281T，各剩 ~168T | ✅ 公共数据 / 权重，只读为主 |
-| A5 | `/` | 本地盘 | 3.5T，86–95% | ❌ 未验证，先 `df -h` |
+| A5 | `/`（含 `/home`） | 本地 `nvme*p4` 单盘 | 3.5T，2026-11-13 实测 70~100% | ⚠️ 与 `/home` **同盘**，已接近/打满；写之前 `df -h`，别把权重落这 |
 
 验证：`ssh -n a3 "df -h /home/x00886548 /mnt/weight"`——`.188` 上 `/mnt/weight` 必须回显 `/dev/nvme0n1p2 … 96% /`（不是独立盘）。
 
@@ -123,6 +123,9 @@ ssh -n a3 "source /home/x00886548/work/batch_inv_qwen35/env_batch_inv.sh && pyth
 - `.190` 历史工作区（2026-11-03 后）：`bi_261103/`、`bi_261104/`、`glm52bi_1026/`、`mrv2_k3/`、`smoke2620/`——都在个人根下，属历史项目，**新项目仍建 `work/`**。
 
 ### 步骤 5：看哪张 NPU 空闲
+
+> **先读文末「共享机占用铁律与断点续跑」再动手**：卡上有别人 ⇒ 整张卡不可用（含"只用剩余显存"），这是唯一判据出处，本节只给命令。
+
 ```bash
 ssh -n a3 "npu-smi info | head -14; echo ===; npu-smi info | tail -30; echo ===; uptime; who | wc -l"
 ```
@@ -171,3 +174,51 @@ export HF_ENDPOINT=https://hf-mirror.com HF_HUB_DISABLE_XET=1      # ★ 必须�
 4. `source /home/x00886548/env/env.sh` 后 `echo $XH` 为 `/home/x00886548`，`conda --version` 有输出。
 5. `.188` 上 `/` 可用空间不再被新内容消耗（写前后各跑一次 `df -h /` 对比）。
 6. 你能说出"新项目写 `work/<name>`、新环境写 `env/conda_envs/<name>`、agent 脚本写 `agent/scripts/`、权重写 `/home/vllm/weights`"。
+
+## 共享机占用铁律与断点续跑（2026-11-13）
+
+用户 2026-11-13 明确要求，适用于**所有共享昇腾机**（`.188` / `.190` / `177.8.21.1` / `177.11.25.1` / `177.11.26.1` / `177.11.27.1`）。本节是"能不能用这张卡"的唯一出处，`ascend-server-access` §12 与 `ascend-vllm-serve` 只留指针。
+
+### 1. 别人在用 → 整张卡不可碰
+
+**判据是"有没有人"，不是"还剩多少显存"。** 下面任一条成立就整卡跳过：
+
+- `npu-smi info` 的 `Process` 段出现**非本会话**的 PID（别人的进程、别人的容器、别人的评测，都算）；
+- `HBM-Usage(MB)` 明显高于驱动基线（`/ 65536` 上形如 `20000` 甚至 `60000`）而进程段看着是空的 → 按"已占用"处理（多为容器内或残留），**别去试**；
+- `AICore(%)` 有非 0 波动。
+
+**严禁**（这些都是在偷别人的公共资源）：
+
+- "反正只剩 40 G，我塞个小模型 / 跑个小评测"；
+- 靠 `--gpu-memory-utilization` / `--mem-fraction-static` 把余量吃满；
+- 改 `ASCEND_RT_VISIBLE_DEVICES` 绕开已被占用的卡去蹭剩余显存；
+- kill 别人进程、`npu-smi set ...` 重置别人的卡、`reset` 整机。
+
+理由（用户原话）：要防止影响**其他人正在跑的性能与精度**——共享卡上多一个进程，别人的 TPOT / 吞吐 / 精度复现全部作废。
+
+### 2. 挑卡前先看这三样（在目标机上执行）
+
+```bash
+npu-smi info | head -20                                   # HBM-Usage 与 AICore
+npu-smi info | tail -40                                   # Process 段：谁的 PID、在哪张卡
+who; uptime; ps -eo user,pid,pcpu,comm --sort=-pcpu | head -10   # 有几个会话、机器负载
+```
+
+判空闲：`HBM-Usage` ≈ 驱动基线 + `AICore = 0` + 进程段无该卡。**基线按卡型不同**：`.188`/`.190`（64 GB die）实测 `2900–3200 / 65536`；**A5（98304 MB 卡）实测 `4791–4833`**（2026-11-13 四台一致）——拿 3 GB 去判 A5 会把空卡误判成"有残留"；反过来 A5 上 `HBM > 4.9 GB` 就当已占用。
+
+- 判某个**物理 die** 上有没有进程，用 HBM 段的 `Bus-Id`（形如 `0000:F4:00.0`）唯一匹配最稳；`Process` 段的 `NPU` 列是 NPU id、**不是**扁平 die id，拿它判会错。
+- 全机没有空闲 die ⇒ **换机器或等**，不要"挤一点"。挑机顺序：先 A5（4 台，`ascend-server-access` §12 在册），再看 `.190`，最后 `.188`（多租户重载机，load 实测 17~800）。
+
+### 3. 长任务默认"可断点续跑"
+
+共享机随时可能被抢占 / 重启 / 隧道掉线，一次性长任务 = 大概率白跑。开跑前先确认**中断后能接着跑**：
+
+| 任务 | 要求 |
+|---|---|
+| 训练 | 每 N step `save_checkpoint`（含 optimizer / global step / rng），入口支持 `--resume <ckpt>`；**先小步验证 resume 真能接上**，再开长跑 |
+| 评测 / 精度 | 按样本写 `*.jsonl`（一行一条、带唯一 `uid`），重跑时 `--skip-done` 幂等跳过；中断只补缺的 |
+| 性能 benchmark | 每轮结果 **append** 到 CSV/JSONL，不覆盖；输出目录带时间戳 |
+| 权重下载 | `hf download --local-dir`（自带续传）或 `wget -c` / `curl -C -` |
+| 任何 > 30 min 的活 | `nohup ... > logs/<name>.log 2>&1 &` 或 `tmux new -s <name>`，日志落个人根 `agent/logs/`，别落 `/tmp` |
+
+配套：先 `source /home/<用户>/env/env.sh`（把 `TMPDIR` / `PIP_CACHE_DIR` / `HF_HOME` 指到个人根，见步骤 6）；脚本里不要 `rm -rf` 共享输出目录，只清自己的。
