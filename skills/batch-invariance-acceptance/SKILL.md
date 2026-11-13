@@ -647,3 +647,91 @@ git -C $r grep -n -A4 "def supports_batch_invariance" origin/main -- vllm_ascend
 
 - **别用 `hasattr(torch.ops, "batch_invariant_ops")` 判断装没装**：`torch.ops` 是惰性命名空间，访问任何属性都会当场造空对象，**恒为 True**；`dir(...)` 只返回 `['name']`。唯一判据是逐个 `getattr` 具体算子名。
 - **`git grep` 无命中返回退出码 1**，在 `$ErrorActionPreference='Stop'` 下会被当失败；先 `2>$null` 再判 `.Count`。浅克隆会让 `--grep` / pickaxe 给出「引入提交不可达」的假结论（本机 2026-10-11→11-01 有空洞），考古结论必须标「不可考」而不是「没做」。
+
+## DeepSeek-V4.1-Flash bf16 在 A5 跑 BI：三条硬前提与五条错误原文（2026-11-13 实测）
+
+## DeepSeek-V4.1-Flash bf16 在 A5 上做 BI：先过三条硬前提
+
+取证机：`177.11.25.1`（8×Ascend950DT 96 GiB）、镜像 `vllm-ascend:a5-openeuler-20261013-e96110a90739`（CANN 9.1.0）、
+env `/mnt/share/g00815994/dsv41_py311`（py3.11.17 / torch 2.10.0+cpu / torch_npu 2.10.0.post4 /
+vllm 0.30.1.dev0+gced6857af / vllm-ascend 0.1.dev5793+g6d4339aa1，均为 NFS editable）。
+全程未动他人容器，只在自己起的容器里跑。
+
+### 前提一：单机 8 die 装不下全量 bf16（先算再动手，别先加载）
+
+`/mnt/share/g00815994/dsv41/dsv41-flash-bf16` = 525 分片 / 48496 张量 / **1421.66 GiB**。
+**遍历全部 525 个分片头部**（`data_offsets` 求和 = 1,526,495,246,152 B，与 index `metadata.total_size` 逐位相等，HEADER_ERRORS=0）得到：
+
+| 族 | GiB |
+|---|---:|
+| 路由专家（384×3 GMM） | 1012.50 |
+| engram.embed（layer 1/14） | 366.22 |
+| MTP/nextn | 26.50 |
+| 其余（attn/shared/embed/head） | 16.44 |
+
+- engram 全量进 HBM：缺 653.66 GiB。
+- **engram `cpu_offload=true` 后 HBM 仍需 1054.85 GiB** ⇒ 8 卡每卡 131.9 GiB，**缺 286.85 GiB**。
+- 最小可行：**16 die**（EP16/TP1，关 dspark）；12 die 是零余量理论下限。
+- 官方 fp8 原生体（475 GiB）能上 8 卡，靠 **fp4 专家 + engram offload 同时成立**；bf16 版没有这两个折扣。
+- **该 bf16 目录的 `config.json` 把 `engram_layer_ids` 清成了 `[]`**（官方体与 `config.json.before-bf16-fix-*` 都是 `[1,14]`）⇒ 那 366.8 GiB 根本不加载，**但这不省 HBM**（瓶颈是非 engram 部分）。用它起的不是完整 V4.1。
+
+判据口径：写 `BLOCKED_INSUFFICIENT_DEVICES`，不要用 `--cpu-offload-gb` 硬跑（每步搬数百 GB，长序列矩阵跑不完，且 offload 本身可能引入额外非确定性）。
+
+### 前提二：A5 的 dsv41 走 packed-cache，需要镜像里的 `ops` DSL 包，而它是 py3.12 绑定
+
+调用链：`dsa_v41.py:763-764` `_device_backend = DeviceOperator.get_dsv41_packed_cache_ops()`
+→ `_uses_a5_packed_cache=True` → `dsa_v41.py:1138` 调 `mixed_quant_sparse_flash_mla_metadata`
+→ `ops/packaged_attention.py:534/26` `import_module("ops.mixed_quant_sparse_flash_mla_metadata")`。
+
+- `ops` 包只在 `quay.io/ascend/vllm-ascend:v0.32.0rc-a5` / `nightly-main-a5-openeuler` 等新镜像里有（75 MB，11 个 .py + ABI 无关 `.so`）。
+- 把它连同 `cannbotdsl` 拷到 NFS 给 py3.11 用，报
+  `ImportError: cannot import name 'ir' from 'cannbotdsl._mlir._mlir_libs._mlir' (unknown location)`
+  —— `cannbotdsl` 含 **MLIR python 绑定**（py 版本绑定），py3.11 用不了。
+- 这些镜像**都不带 vllm/vllm_ascend 实体**（只有 `vllm-0.30.0+empty.dist-info` 之类元数据桩），
+  真实 `vllm_ascend` 必须来自 NFS editable 安装。⇒ 想走 packed-cache，**整个 dsv41 环境得搬到 py3.12**。
+
+### 前提三：强制回落到"标准 cache"会撞 CANN 算子 dtype 限制
+
+绕法：让 `DeviceOperator.get_dsv41_packed_cache_ops` 返回 `None`（基类实现本就返回 None，`device_op.py:52-54`）。
+用 `sitecustomize.py` + `sys.meta_path` 包一层 loader 改类属性——**必须用 sitecustomize**，
+因为 vllm 的 mp worker 是 spawn 起的新解释器，父进程打的补丁不会继承。
+
+patch 生效后再报（8 worker 全报）：
+
+```
+RuntimeError: call aclnnScatterNdUpdateSk failed, detail:[PID: ...]
+AclNN_Parameter_Error(EZ1001): Tensor varRef not implemented for DT_UINT8,
+should be in dtype support list [DT_FLOAT,DT_FLOAT16,DT_BOOL,DT_BFLOAT16,DT_INT64,DT_INT8,DT_INT32,DT_INT16,DT_FLOAT8_E4M3FN,DT_FLOAT8_E5M2,].
+```
+
+调用点 `torch.ops._C_ascend.npu_scatter_nd_update_sk(cache, indices, updates)`，cache 是 `uint8`。
+CANN 9.1.0 的 aclnn 不支持 uint8 varRef ⇒ 与前提二是同一件事，应当合并到"换 CANN 9.2.1 镜像 + py3.12 env"一次解决。
+
+### 附：三条必踩的启动/产物错误（原文 → 修法）
+
+1. `Value error, DeepSeek V4.1 on Ascend A5 requires Model Runner V2 (VLLM_USE_V2_MODEL_RUNNER=1).`
+   ⇒ 所有阶段命令加 `VLLM_USE_V2_MODEL_RUNNER=1`（模型运行前提，非降低判据）。
+2. 自己写切片器时：`safetensors._safetensors_rust.SafetensorError: Error while deserializing header: incomplete metadata, file not fully covered`
+   ⇒ 不能只预留 8 字节头部占位再写数据（回填头部会覆盖数据区开头）。数据先落临时文件，收尾写 `<8字节长度><header><data>`，
+   并校验 `8 + len(header) + max(data_offsets[1]) == filesize`。
+3. `ERROR ... min(n): Redundant `--quantization ...` / `ModuleNotFoundError: No module named 'ops'` 之外，
+   镜像 py312 版本检查：`batch_invariant_ops_lib.cpython-312-aarch64-linux-gnu.so` 是 **cpython 版本绑定**的，
+   py3.11 env 必须自己 build（`csrc/build_batch_invariant_ops.sh ascend950` 会下载 OBS zip，
+   里面 `build_and_install.sh` 用 `python setup.py build_ext` 现编；装到独立 `--target` 目录，别改共享 venv）。
+   复核判据仍是"逐个 `getattr torch.ops.batch_invariant_ops.<名字>`"，本次 11/11 全解析，
+   `reduce_sum(末维)/softmax/log_softmax` 的行局部性 BS=1 vs BS=8/64 逐位通过。
+
+### 附二：dsv41 的 BI 覆盖是结构性缺口，不是调参能补
+
+同一 pin（va `6d4339aa1`）静态审计（`git grep -n supports_batch_invariance -- vllm_ascend/` **零命中**，
+Ascend 侧也无 `validate_configuration` 门）⇒ `VLLM_BATCH_INVARIANT=1` **不会启动失败**，只打一行
+`Enabling batch-invariant mode ...` 然后**静默不覆盖**。dsv41 主干绕开 `aten::` dispatch 的算子至少 10 类：
+`npu_sparse_flash_mla`（`dsa_v41.py:657`）、`npu_grouped_matmul`（`routed_experts.py:231/294`）、
+`npu_moe_init_routing`（`token_dispatcher.py:402/679`）、indexer top-k、`npu_add_rms_norm_bias`
+（`ops/layernorm.py:93-94`，**BI 补的是 `npu_add_rms_norm`，打错算子名**）、o_proj `npu_transpose_batchmatmul`、
+`npu_hc_pre_v3/post`、compressor Triton、`grouped_topk_router.py:269/273` 的 `topk(sorted=False)`。
+⇒ 判决只能到 `BLOCKED_OPERATOR_COVERAGE`；要"成立"必须先给这些算子补 BI 实现或证明行局部性。
+
+**切片的上限**：真权重切片（4 层、全 384 专家、剔除 engram/MTP，105.876 GiB）跑通也只能报
+`PASS_SLICE_SCOPE_ONLY`；且 dsv41 有跨层引用，砍层必须同时改
+`compress_ratios` / `kv_source_layer_ids` / `index_source_layer_ids` / `npu_nextn` / `dspark_target_layer_ids`。
