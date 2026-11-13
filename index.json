@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 61,
   "file_count": 240,
-  "total_bytes": 26700312,
+  "total_bytes": 26705311,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -122,7 +122,7 @@
       "path": "skills/batch-invariance-acceptance",
       "description": "batch 不变性验收：减层证据、算子级判据、外推六条件、昇腾 BI 白名单审计、验收成本优化（三层锚点+分派同构）。",
       "files": 8,
-      "bytes": 143099
+      "bytes": 148098
     },
     {
       "name": "batch-invariant-weekly-digest",

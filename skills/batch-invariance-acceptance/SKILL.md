@@ -735,3 +735,62 @@ Ascend 侧也无 `validate_configuration` 门）⇒ `VLLM_BATCH_INVARIANT=1` **�
 **切片的上限**：真权重切片（4 层、全 384 专家、剔除 engram/MTP，105.876 GiB）跑通也只能报
 `PASS_SLICE_SCOPE_ONLY`；且 dsv41 有跨层引用，砍层必须同时改
 `compress_ratios` / `kv_source_layer_ids` / `index_source_layer_ids` / `npu_nextn` / `dspark_target_layer_ids`。
+
+## Qwen3.5-35B-A3B(A5) 实跑：GDN 未声明 BI 的启动门、spawn 与可续跑形态
+
+## Qwen3.5-35B-A3B(A5) 实跑：GDN 声明缺口、spawn 与可续跑形态（2026-11-13 实测）
+
+**适用**：在 A5 上对 Qwen3.5 系列（`Qwen3_5MoeForConditionalGeneration`，3:1 混合 `linear_attention` + `full_attention`）开 `VLLM_BATCH_INVARIANT=1` 时引擎起不来，或要复现「三档 TP 全 PASS + 同形状负控」这一套证据。
+**不适用**：纯 decoder-only（无 GDN）模型——它们走 `AscendAttentionBackend`，早已声明 True。
+
+### 栈（本次实测）
+
+镜像 `quay.nju.edu.cn/ascend/vllm-ascend:nightly-releases-v0.32.0rc-a5-openeuler`（image id `be3d1eeee5a3`）：vllm `0.32.0` @`5df63a72`、vllm-ascend `0.19.1rc2.dev3286+gfd4be4dbc`（editable `/vllm-workspace/vllm-ascend`）、torch `2.10.0+cpu` + torch_npu `2.10.0.post7`、CANN `9.2.1`、`batch_invariant_ops 1.0.0`（含 `_npu_fused_infer_attention_score_batch_invariant*_get_max_workspace`，A5 的 FIA workspace 坑已修）。
+
+### 必踩的两个门
+
+1. **GDN 启动门（唯一必须改代码的地方）**。现象：
+   `RuntimeError: VLLM batch_invariant mode is not supported for GDN_ATTN.`
+   栈：`vllm_ascend/patch/worker/patch_model_runner.py:85` → `vllm/v1/worker/gpu/attn_utils.py:232`（MRv2 必经的门 2），
+   报错名来自 `get_name()` 常量，**不是**类名，别去找叫 GDN_ATTN 的类。
+   修法（幂等脚本即可，无需重编）：
+   ```python
+   # /vllm-workspace/vllm-ascend/vllm_ascend/ops/gdn_attn_builder.py
+   class AscendGDNAttentionBackend(GDNAttentionBackend):
+       @classmethod
+       def supports_batch_invariance(cls) -> bool:
+           return True
+   ```
+   声明 True 的依据（静态审计，四条都在本次树里核过）：backend 选择是常量 `gdn.py:407`；prefill 路径只看硬件能力位 + 一次性可用性探针 `gdn.py:827-840`；chunk 恒 64 且按 `cu_seqlens` 逐序列切 `gdn_attn_builder.py:282-300`；GDN 张量是 `[1,T,H,D]` 无 batch 轴 `gdn.py:254-256`。
+   **残留风险照旧**：`fla_npu` 内部 tiling 与总 T 的关系、MoE `npu_grouped_matmul` 的 tiling、`causal_conv1d_update` 在本镜像走 PyTorch 回退（日志有 `NPU Triton causal_conv1d_update is unavailable`），三者只有端到端证据。
+
+2. **调度证据正则（不改就永远 BLOCKED）**。`analyze_scheduler_log.py` 写死 `GPU KV cache ...`，Ascend 日志是 `NPU KV cache ...`：
+   数值已 `1 passed` 也会被判 `INCOMPLETE: no periodic scheduler statistics were found` → `BLOCKED`。
+   修法：`CAPACITY_RE` / `STATS_RE` 改 `(?:GPU|NPU|DEVICE)`。修后同一日志重跑得 `PASS / NO_EVICTION_OBSERVED`。
+
+### TP>1 必须 spawn
+
+`docker exec -e VLLM_WORKER_MULTIPROC_METHOD=spawn`，否则 `RuntimeError: Cannot re-initialize NPU in forked subprocess`。
+
+### 实测结果（A5 = 177.11.27.1，die 4-7，真实 bf16 权重 77 GiB）
+
+| 形状 | TP | BS | 结果 |
+|---|---|---|---|
+| 100:512 / T=0.6 / eager | 1 | 16 | PASS，KV 612,550/18,432（10.3%），token+logprob 0 不一致 |
+| 同上 | 2 | 16 | PASS，4,205,397/18,432（1.5%） |
+| 同上 | 4 | 16 | PASS，6,037,588/12,800（0.6%），单轮 12:40 |
+| 同上（BI=0 负控） | 2 | 16 | `NEGATIVE_CONTROL_REJECTED_AS_EXPECTED`：16 条里 7 条 token 不一致、7 条 logprob 不一致 |
+
+⇒ 同一形状只改开关，判据从「0/16 不一致」翻到「7/16 不一致」，这是三档 PASS 可信的前提。
+成本锚：BS=1 decode ≈14 tok/s、每轮引擎初始化 ≈66 s、BS=16/100:512 单轮 ≈13 min（BS=32 约翻倍）。
+
+### 可续跑形态（共享机上必备）
+
+- 一「格」= 一个 (scenario, TP, BS, prompt_len, max_tokens)，单独一次 `run_phase2_acceptance.sh` 调用；`run_phase2_acceptance.sh` 自己没有 resume，整段调用被中断就全废。
+- 外层 driver：跑前 `gate_dies.sh`（die 无进程 且 HBM ≤10%，不满足就写 `BLOCKED_FREE_DEVICE_UNAVAILABLE` 退出 42 不抢卡）；跑后把 `summary.csv` 一行 + `status.json` 落盘；**只跳过 `verdict=PASS`**，所以重跑同一条命令即续跑。
+- poller 必须能识别「进程消失」：共享机上别人 `pkill`/`docker kill` 会让 attempt 不带任何退出标记消失（本次实测容器被 `SIGKILL`，`docker inspect` 里 `ExitCode=137`、`OOMKilled=false`），只等 marker 会白等到超时。
+- 换机：run root 放 NFS（`/mnt/share/<run>`），`state.json` + append-only `state_transitions.jsonl` 记 `owner_host`/`lease`；新机 `release`+`claim` 后 `docker start` 原容器即可（补丁在容器文件系统里，`docker rm` 才会丢）。
+
+### MATH-500 在 thinking 模型上的坑
+
+`max_tokens=192` 时 500/500 都是 `finish_reason=length`（只有 78 条写出 `\boxed{}`）⇒ accuracy=0.0。BI 判据（逐轮文本逐字节相同）不受影响，但**报告里不能把 accuracy=0 写成「精度通过」**，要么提高 max_tokens，要么明确写「本阶段只证确定性」。
