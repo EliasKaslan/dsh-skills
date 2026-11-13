@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **61** 个 skill、**240** 个文件、**26637734** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **61** 个 skill、**240** 个文件、**26641182** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -42,7 +42,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 8 | [`ascend-conda-env`](skills/ascend-conda-env/SKILL.md) | 昇腾 conda 环境：共享 miniconda3、环境目录、NJU 镜像、免激活调用。适用于"建 conda 环境 / 换 python 版本 / 环境该放哪 / conda 官方源太慢 / python -V 不对"。 | 1 |
 | 9 | [`ascend-env`](skills/ascend-env/SKILL.md) | 昇腾环境入口总纲：进机器 → 目录/CANN/conda/torch/triton/vllm 的顺序与三层验收。适用于"在昇腾上装环境 / 不知先做哪步 / 该用哪个子 skill / 机器进不去或 ssh 假死"。 | 1 |
 | 10 | [`ascend-model-adaptation-recon`](skills/ascend-model-adaptation-recon/SKILL.md) | 判模型在昇腾/vllm-ascend 的适配度：全树代码、跨仓分工、镜像、缺口。适用于"H3 在昇腾能不能跑 / 适配到什么程度 / 缺口在哪 / Day-0 是真的吗 / 该用哪个镜像"。 | 1 |
-| 11 | [`ascend-moe-ep-capacity-planning`](skills/ascend-moe-ep-capacity-planning/SKILL.md) | MoE 显存与 EP/TP 几何：64GB 卡实际 56.378 GiB、EP=TP×DP×PCP。适用于"几张卡才跑得起来 / EP 设多少 / TP 怎么配 / OOM 前先估 / 按卡数选型"。 | 2 |
+| 11 | [`ascend-moe-ep-capacity-planning`](skills/ascend-moe-ep-capacity-planning/SKILL.md) | MoE 显存与 EP/TP 几何：64GB/A5 96GB 两套预算、GLM-5.2 与 K3 权重/KV 口径、EP 整除硬约束。适用于"几张卡才跑得起来 / EP 设多少 / 按卡数选型" | 2 |
 | 12 | [`ascend-server-access`](skills/ascend-server-access/SKILL.md) | 昇腾服务器准入清单：a3/.188、a3b/.190、A5 各 IP、UniVPN、免密。适用于"188 连不上 / 177.x 怎么连 / 该连哪个 VPN / 凭据在哪 / 新机器怎么配免密"。 | 6 |
 | 13 | [`ascend-server-layout`](skills/ascend-server-layout/SKILL.md) | 昇腾个人根与目录红线：环境/项目/数据放哪、模型软链、npu-smi 选卡。适用于"新项目写哪个盘 / 环境放哪 / 磁盘满了 / 哪张 NPU 空闲 / 复用现成环境"。 | 3 |
 | 14 | [`ascend-torch-npu`](skills/ascend-torch-npu/SKILL.md) | torch + torch_npu 装/验/排障：A/B 车道、版本配对、验收 True 16 253。适用于"装 torch_npu / NPU 不可用 / pip 卡死 / GLIBCXX 缺失 / 该走哪条车道"。 | 1 |

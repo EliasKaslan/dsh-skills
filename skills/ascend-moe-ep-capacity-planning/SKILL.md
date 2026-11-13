@@ -1,6 +1,6 @@
 ---
 name: ascend-moe-ep-capacity-planning
-description: MoE 显存与 EP/TP 几何：64GB 卡实际 56.378 GiB、EP=TP×DP×PCP。适用于"几张卡才跑得起来 / EP 设多少 / TP 怎么配 / OOM 前先估 / 按卡数选型"。
+description: MoE 显存与 EP/TP 几何：64GB/A5 96GB 两套预算、GLM-5.2 与 K3 权重/KV 口径、EP 整除硬约束。适用于"几张卡才跑得起来 / EP 设多少 / 按卡数选型"
 whenToUse: 起服务【之前】决定要占几张卡、EP/TP/DP 怎么配、预算够不够时用。装环境见 vllm-ascend-source-install，运行时报错见 ascend-vllm-serve，上游有没有代码见 ascend-model-adaptation-recon。模型看不到本节。
 ---
 
@@ -183,3 +183,39 @@ npu-smi 65536 MiB  --(驱动基线 2852–3105 MiB/die)-->  mem_get_info 可见 
 7. **扫描表的每一行都写明"这行的 TP/DP 是怎么从卡数 N 推出来的"**（合法 TP 必须整除 `gcd(num_attention_heads, kda.num_heads)`）；出现"固定 TP 变 EP"的行即判不合格（坑 9）。
 8. 结论里带上两条边界：**3 卡是权重硬约束下的装不下**（58.721 > 56.378，与开销假设无关）；**把无出处开销置 0 后 4 卡判定不翻转**（余量 2.740 → 9.172 GiB）。
 9. 输出的分项逐条求和与打印合计**能对上**（坑 10）。
+
+## GLM-5.2（`glm_moe_dsa`）在 A5 96 GiB 卡上的预算口径
+
+**适用**：客户问"GLM-5.2 双机 A5 能不能 bf16 起 64 batch × 24k"。**不适用**：A3 的 65536 MB die（用本文件上面的 56.378 GiB 口径，两套卡不可互套）。
+
+### 权重（以 `zai-org/GLM-5.2/config.json` 为准）
+- 参数 **753.62 B**（routed experts 737.43 B + 非专家 16.196 B），bf16 = **1403.7 GiB / 1506.7 GB**；282 个 shard 逐字节 HEAD 求和与 index `total_size` 一致。
+- 每层：注意力 **165.02 M**、MoE **9.703 B**（256 experts × 3 × 6144 × 2048）、dense MLP 226.49 M（前 3 层）、DSA indexer 26.15 M。
+- 切分：专家 / EP，非专家 / TP（`EP = TP×DP×PCP`，细则见本文件步骤 1）。
+
+### A5 预算
+- `npu-smi` 报 **98304 MiB = 96 GiB/卡**，8 卡/机；driver 开销 **未实测**（暂按 A3 的 2.75 GiB）→ 可见 93.25 GiB × 0.92 = **85.79 GiB/卡**；双机 16 卡总预算 **1372.6 GiB**。
+- 该 2.75 GiB 是**假设值**，上机后必须用 `torch.npu.mem_get_info` 换真值重算。
+
+### KV：这个模型有两个专属口径
+- MLA latent：`78 × (kv_lora_rank 512 + qk_rope_head_dim 64) × 2 B = 89,856 B/token`。
+- DSA indexer：**不是** `index_n_heads(32) × index_head_dim(128)` 个元素。vLLM 的 `k_cache` 是**单向量 `128 + 4`（fp8 e4m3 载荷 + scale）= 132 B/token/层**，且只有 **21 个 full 层**（`indexer_types` = 21 full / 57 shared，full = 层 0,1,2,6,10,…,74）→ 仅 2,772 B/token。
+  - 出处：`vllm/models/deepseek_v32/attention.py` 的 `head_dim + head_dim//128*4`、`kv_cache_interface.py` 的 `(head_size+head_size_v)*dtype_size`（MLA 的 `head_size_v=0`）。
+- 合计 bf16 KV = **90.46 KiB/token**；`fp8_ds_mla` = `78×656 + 2,772` = **52.68 KiB/token**。
+- 64 × 24576 = 1,572,864 token → bf16 KV **135.7 GiB**、fp8 KV **79.0 GiB**。
+
+### 判定（双机 16 卡 × 96 GiB）
+- 权重 1403.7 GiB > 预算 1372.6 GiB ⇒ **util=0.92 连权重都加载不了**（util 要 0.941 才装下权重，此时 KV 余量为 0）。
+- 权重 + KV = **1539.4 GiB = 100.2% 的 1536 GiB 物理显存** ⇒ **util=1.0 也不可能**；这还没算激活、HCCL buffer、框架与 graph 池。
+- util=1.0 且开销全为 0 时的上限：**1.02 M token ≈ 41.6 × 24k**（要 64 条，不够）。
+- 每卡权重（EP=16）：TP=8 → 89.62 GiB（超预算 3.83）、TP=4 → 93.39、TP=1 → 116.02；**TP=8 已是最省的一档**。
+
+### 要多少卡 / 怎么配
+- 量化：**W8A8C8 16 卡** slack +527.8 GiB；**W4A4C8-mxfp4 8 卡** slack +224.4 GiB；单机 8 卡 W8A8 不行（812.9 > 686.3）。
+- bf16 硬要：**32 卡（4 机）**。因为 `EP = TP×DP = 卡数` 且 `EP | 256` ⇒ 只有 16/32/64 合法；**24 卡（EP=24）256/24 不整除，首轮前向就报 EZ1008**。
+- A5 的量化档只有 MXFP 系（`W4A4MXFP/W4A8MXFP/W8A8MXFP`）；GLM-5.2 的 FP8 权重（W8A8FP）**未验证**。
+
+### 坑
+- **网上流传的 `v_head_dim=128` 是错的，真值 256**。用它建模得 749.2 B（低估 0.6%），每层注意力少算 24.4 M（o_proj 100.66 M 被算成 50.33 M）。以官方 config 为准，别抄博客。
+- 别把 A3 的 56.378 GiB 预算套到 A5 的 96 GiB 卡上；也别把 A5 的 96 GiB 当 96×10⁹（差 7.4%）。
+- 软件侧不是障碍：vLLM-Ascend 自 v0.30.0 官方支持 GLM-5.2，950DT/A3/A2 均有教程页与 SIT 用例——但官方给的都是量化配方，bf16 全量不在其列。

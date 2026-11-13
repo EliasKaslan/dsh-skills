@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 61,
   "file_count": 240,
-  "total_bytes": 26637734,
+  "total_bytes": 26641182,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -78,9 +78,9 @@
     {
       "name": "ascend-moe-ep-capacity-planning",
       "path": "skills/ascend-moe-ep-capacity-planning",
-      "description": "MoE 显存与 EP/TP 几何：64GB 卡实际 56.378 GiB、EP=TP×DP×PCP。适用于\"几张卡才跑得起来 / EP 设多少 / TP 怎么配 / OOM 前先估 / 按卡数选型\"。",
+      "description": "MoE 显存与 EP/TP 几何：64GB/A5 96GB 两套预算、GLM-5.2 与 K3 权重/KV 口径、EP 整除硬约束。适用于\"几张卡才跑得起来 / EP 设多少 / 按卡数选型\"",
       "files": 2,
-      "bytes": 68158
+      "bytes": 71606
     },
     {
       "name": "ascend-server-access",
