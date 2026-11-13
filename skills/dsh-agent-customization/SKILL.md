@@ -1082,3 +1082,49 @@ $env:ELECTRON_RUN_AS_NODE = "1"
 ## 值不值
 
 团队模式常开会把 team / 任务板的工具 schema 带进**每个**会话的工具面，而工具 schema 每轮都要重发（成本按轮线性付）。上游当初就是为此拒绝「默认开启」的。用户主动要求默认开可以做，但要把这笔成本讲清楚。
+
+## 回答"刚更新完变了什么"：先定差集，再核四处（实测 rc.2→rc.3）
+
+### 触发信号
+
+用户问「刚更新的这版变了什么 / 我是不是最新 / 这次更新对我有什么影响」。
+前置：本文「查当前装的是哪版 DSH、这一版改了什么（发行取证链）」一节已覆盖版本/feed/notes 的取法；本节只补它没覆盖、且本轮实际踩到的四处。全只读，不改 profile。
+
+### 1. 先定"上一版"，只分析差集
+
+用户"刚更新完"通常只跨一个小版本，把整个 0.2.x 的大改当成本次变化会严重夸大（rc.3 说明只有 2 条，大头在 rc.2）。
+
+- 上一版的权威取处：`~\.dsh\dsh-runtimes\dsh-primary-runtime\runtime.json` 的 `desktopVersion`（payload 里的记录会一直留到下一次 payload 重算，所以更新后仍是旧版本号，正好当"上一版"证据）。
+- **别用文件 mtime 推"何时更新"**：`app.asar` / `.exe` 的 LastWriteTime 是 NSIS 保留的**打包时间**（实测比 GitHub 发布早 26 分钟，且早于 npm 发布）。安装时刻看 `D:\tools\dsh` 目录与 `app.asar` 的 **CreationTime** —— 覆盖写会刷新 C、保留 M。
+- `D:\tools\dsh\version`（44.7.0）是 **Electron 版本**，不是 DSH 版本；`~\.dsh\electron\version`（43.3.0）是运行时 Electron。两个都别当 DSH 版本答。
+- DSH 版本本身：`app.asar\dsh\package.json` 的 `version`，与 `desktop-runtime.json` 的 `version` / `hostProtocolVersion` 对得上才算确认。
+
+### 2. feed yml 里还有一项值得报：灰度
+
+`<url>/<channel>.yml` 除 `version` / `releaseDate` / `sha512` 外还有 `stagingPercentage`（0.2.2-rc.3 = 30）。它说明"最新"≠"全量"，能解释"为什么同事实时收不到"。`latest.yml` / `stable.yml` 404 是正常现象，只认 `app-update.yml` 的 `channel` 指到的那份。
+
+### 3. 更新失败史：先去 updater 日志取证
+
+`%LOCALAPPDATA%\@deepseek-aidsh-desktop-updater\installer-logs\directory-failure-*.log`，原文形态：
+
+```
+Operation: MoveFileExW
+Windows error: 32 (另一个程序正在使用此文件，进程无法访问。)
+Source: D:\tools\dsh
+Destination: D:\tools\dsh.old-{GUID}
+```
+
+含义 = 旧目录被占用（DSH 进程没退干净），不是网络/签名问题。0.2.2-rc.3 的说明第 2 条修的正是"Windows 应用内更新可能失败、无法自动重新打开"；可自控的部分只有**更新前彻底退出应用（含托盘）**。
+同目录 `pending\` 存已下载待装包；`update-info.json` 只有 `fileName` / `sha512` / `isAdminRightsRequired`，**不含旧版本号**，别指望从更新器缓存反推上一版。`installer.exe` / `current.blockmap` 会被原地覆盖（改内容不改父目录 mtime），所以"缓存目录 mtime 没变"不代表没更新。
+
+### 4. 影响面体检的 3 个必查项
+
+1. **默认值翻转**：`fs-observation-policy` 行若 profile 里无覆盖，就跟随 0.2.2 起的新默认（禁用）⇒「写/改文件前必须先读过」**不再被运行时强制**，系统提示里那句话降级为软约束。要恢复硬约束就显式 enable 该行。
+2. **插件拦截力**：兼容性先读 `engines.dsh`，再读 DSH peerDependencies；两者都没有 = 升级不做任何拦截（实测 `dsh-skin-market`、`dsh-row-time` 都没有）。精确 pin 旧版 peer（如 `dsh-llm@0.2.2-rc.1`）的插件，下个大版本必失配。
+3. **会话存储**：`session.v4.jsonl.zstd` 的文件名是**日志格式版本**，不是 app 版本；旧 v3/v0 只在**打开时**按 `vN-to-vN+1` 链迁移，不开就永远不迁。
+
+### 纪律
+
+- 版本号、时间、灰度比例必须带证据（文件:行号或 URL）；"是不是最新"只认 feed，不认 npm 标签、不认 mtime。
+- 只算差集：先证明上一版是什么，再只说这次的净变化；跨版本大改单独成一节，别混进"本次更新"。
+- 未验证项单列：本机 asar 与 npm tarball 未逐字节比对；`compare/<前一版>...<本版>` 未逐 commit 读。

@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 61,
   "file_count": 240,
-  "total_bytes": 26705311,
+  "total_bytes": 26709338,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -143,7 +143,7 @@
       "path": "skills/dsh-agent-customization",
       "description": "DSH 改造入口总纲：五层生效时机、插件 bundle、上线纪律与回滚。适用于\"改 DSH 行为该改哪一层 / 插件行坏了怎么回滚 / MCP 怎么挂 / 恢复后会话打不开 / 自己写 host 插件\"。",
       "files": 2,
-      "bytes": 126301
+      "bytes": 130328
     },
     {
       "name": "dsh-agent-preset-live-verification",
