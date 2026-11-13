@@ -966,3 +966,51 @@ if (request.mode === 'navigate') {
 3. 「返回码 5 / 3」→ 公共 broker 对你的出口 IP 限流（蜂窝是 CGNAT，一个公网 IP 背后有大量用户）。
 4. 「域名解析失败」→ 当前网络 DNS 解析不了该域名。
 5. 全都换过仍不通 → 自建 443 中继，这是唯一稳定的长期解。
+
+## 远程诊断手机端：用真浏览器跑线上外壳读计数器，先分清旧代码还是真故障
+
+## 远程诊断手机端：在电脑上用真浏览器把它跑起来
+
+手机上的问题不要靠问、也不要靠猜。直接在电脑上用真浏览器（Playwright）加载**同一个线上外壳**，读它自己的计数器，"手机到底有没有收到下行帧"这类问题一次就能定性。
+
+### 打开外壳而不把房间密钥带进命令行
+1. 先开 `http://127.0.0.1:<port>/pair`（回环页）。
+2. 在**同一页面**里 `fetch('/api/v1/cloud/status')` 取 `data.url`，然后 `location.href = url`。密钥只留在页面内，不会进命令行参数或对话记录。
+
+注意 `cloud/status` 的响应里带 `qrSvg`（几十 KB 的 SVG 字符串）和完整 `url`；**直接打印整个响应会把屏幕刷满**，永远按字段取。
+
+### 读手机端的真实状态（登录前就能读）
+```js
+const r = globalThis.__POCKET_RELAY__;
+({ ready: r?.ready, stats: r?.stats, restartCount: r?.restartCount,
+   pending: r?.pending?.size, superseded: r?.superseded });
+```
+判读：
+
+- `ready===true` 且 `stats.rx` 随时间上涨 ⇒ 下行通（桌面每 8 秒一个 beat，会让它稳定增长）。
+- `stats.rx` 不涨而 `ready===true` ⇒ 壳自认为连着、实际收不到：死订阅或半死链路。
+- `restartCount` 持续增长 ⇒ 底层在反复重建，对应用户看到的「正在重连」。
+- `stats.err` 增长 ⇒ 帧到了但解不开（房间/密钥不一致）。
+- `pending` 长期不为 0 ⇒ 请求发出去了、没人回。
+
+### 先分清"跑的是旧代码"还是"真故障"
+看壳里有没有当前版本才有的标记（新加的全局对象、新加的模块）。没有 ⇒ **运行的 JS 不是线上那份**，通常是被 Service Worker 钉住：
+```js
+for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+for (const k of await caches.keys()) await caches.delete(k);
+```
+重载后再看标记：出现了 ⇒ 之前是缓存问题，不是代码问题。
+
+`fetch('./<file>?cb=' + Date.now())` 能绕过 SW 预缓存拿到**服务器上那份**，用它比对"运行时那份"与"线上那份"是否一致。注意 SW 自己的 cache 名里带构建哈希，`caches.keys()` 一眼就能看出装的是哪一版。
+
+### 一次区分"没发 / 发错房间 / 两边都在同一房间"
+在电脑上挂通配监听器订阅 `dshm/#`，把 `topic` 与 `payload.length` 记到文件：
+
+- 只看到 `/d` ⇒ 手机没发（或连不上 broker）。
+- 看到 `/u` 但房间号不是电脑那个 ⇒ 换过 broker/房间却没重新扫码。
+- `/u` 与 `/d` 都看到 ⇒ 中继层没问题，去查应用层与客户端状态。
+
+ESM 脚本放 `%TEMP%` 时 `import mqtt from 'mqtt'` 会 `ERR_MODULE_NOT_FOUND`（解析以脚本位置为准，不是 cwd）；用 `createRequire('<repo>/package.json')` 再 `require('mqtt')`。
+
+### 纪律
+这三步能立刻把范围从"整个插件"缩到"某一层"，比改代码试错便宜得多。**任何一层被证明健康，就不要再去改那一层的代码。**
