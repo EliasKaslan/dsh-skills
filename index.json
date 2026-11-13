@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 61,
   "file_count": 240,
-  "total_bytes": 26631964,
+  "total_bytes": 26637734,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -185,7 +185,7 @@
       "path": "skills/dsh-phone-remote-relay",
       "description": "手机接管电脑上的 DSH：中继丢包 / 唤醒断连 / 建联失败 / 多标签互斥 / 任务落到未分组 / 版本是否生效",
       "files": 1,
-      "bytes": 62906
+      "bytes": 66442
     },
     {
       "name": "dsh-plugin-market",
@@ -248,7 +248,7 @@
       "path": "skills/github-pr-flow",
       "description": "GitHub 上游仓提 PR：PAT/DCO/建 PR/CI 判读，blocked 逐条判定与冲突解决、force-with-lease 强推",
       "files": 1,
-      "bytes": 17948
+      "bytes": 20182
     },
     {
       "name": "korea-official-source-research",

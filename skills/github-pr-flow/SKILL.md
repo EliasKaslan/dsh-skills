@@ -211,3 +211,34 @@ git push --force-with-lease=refs/heads/<branch>:<远端当前 sha> <url> HEAD:re
 ## 五、收尾
 
 推完重新取一次 §1 的两处数据，确认 `mergeable` 变 `MERGEABLE`、阻塞只剩 approval 这一类；然后发一条 PR 评论写清：冲突根因（哪个上游 PR 挪了哪段代码）、重建方式、净 diff 是否不变、以及"请谁对哪个新 sha 重新 approve"。
+
+## push 卡住不动：先 ls-remote 复核远端，再隔离 credential helper
+
+## `git push` 卡住不返回 ≠ 没推上去：先 ls-remote，再隔离 credential helper
+
+### 现象
+
+`git push` 与 `git push --dry-run` 都能几十分钟不返回、进程零 CPU；同一时刻 `git ls-remote` 秒回；杀掉重试仍然挂。而**远端 `main` 其实已经更新了**。
+
+### 三步定位（每步都很快，能把责任分到网络 / git / 凭据）
+
+1. **远端到底有没有**——这一步才是成败判据，不是命令有没有返回：
+   - `git ls-remote <remote> main`
+   - `git ls-remote --tags <remote> 'refs/tags/<tag>*'`（tag 要比 `^{}` 那一行才是它指向的提交）
+2. **网络与端点**：绕开 git 和凭据助手，直接打 git 的 HTTP 入口：
+   - `https://<host>/<owner>/<repo>.git/info/refs?service=git-upload-pack` → 期望 200
+   - 同上 `service=git-receive-pack` → 未带凭据时 401 属正常
+   两个都秒回 ⇒ 网络与服务器都没问题，问题在本地。
+3. **凭据助手**：
+   - `git -c credential.helper= push --dry-run <remote> <branch>` —— 若 1 秒内报
+     `fatal: could not read Username for 'https://github.com': terminal prompts disabled`，
+     说明阻塞点就在 helper（本机是 `wincred`）。
+   - 再单独验一次 helper：`"protocol=https`nhost=github.com`n`n" | git credential fill`（加 25 秒超时）
+     也会挂 ⇒ 是 helper 本身阻塞，不是 git 也不是网络。
+
+### 结论与处置
+
+- 挂住的位置是**上传完成后的凭据收尾**（`store` / `erase`）：远端已经拿到数据，本地进程却不退出。**不要因为"命令挂了"就反复重推**，先去看远端。
+- 缺的可能是**局部**：本次 `main` 到了、tag 没到；单独 `git push <remote> <tag>` 再 verify 就补齐了。
+- 想彻底不挂：换 helper（`git config credential.helper manager`），或走 PAT + `GIT_ASKPASS`。**不要把令牌写进 `.git/config`，也不要放进命令行参数**（argv 会进日志与进程列表）。
+- 同一台机器上另一个远端（如 GitCode）可能完全正常：helper 是按 host 存条目的，一个坏了不代表网络坏，别据此下"网络不通"的结论。
