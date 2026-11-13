@@ -276,3 +276,71 @@ python3 -c 'import json,os,sys;D=sys.argv[1];i=json.load(open(D+"/model.safetens
 | **只看 shard0 的头部 dtype 会把 fp8 判成 bf16**（`-1017` 的 `model-00001` 头部 263 个张量全 BF16，整体 48 分片是 F8_E8M0/F8_E4M3 主体） | 头部统计必须对**全部分片求和**，或至少抽最大/中/最小三个 |
 | `du -sh /mnt/share/*` 120s 跑不完（350T） | NFS 上禁止整层 du，先 `ls` 再定点 `du -s <目标>` |
 | Windows 上 `ssh host "..."` 内联脚本里的引号/括号被 PowerShell 吞（`bash: -c: line 1: syntax error near unexpected token '('`） | 本地写脚本 → `Get-Content x.py -Raw \| ssh host python3 -`；或 base64 后远端 `base64 -d \| bash` |
+
+## 共享权重池与 ModelScope 全量下载（2026-11-13 实测）
+
+2026-11-13 实测，适用于 `177.x` 四台 A5。
+
+### 1. 四台 A5 的"共享存储"是**同一份**
+
+四台都挂 `172.27.1.1:/Weight` → `/mnt/weight`（350T，用 47T，**余 304T**）与 `172.27.1.1:/Share` → `/mnt/share`（350T，用 129T，余 222T），**root 可写**，inode 用 1%。⇒ 往 `/mnt/weight` 下一次，四台同时可见，不用重复下载。
+**别和蓝区混**：`.190` 挂的是 `suzblue.server:/share` + `:/weight`（另一套 NFS），`.188` 一个 NFS 都没挂。
+
+### 2. 权重池现状（2026-11-13 核对）
+
+| 路径 | 内容 | 判定 |
+|---|---|---|
+| `/mnt/weight/GLM-5.2` | BF16 / 1.4T（1506.7 GB）/ 282 shards | ✅ 真权重、分片齐（282/282，59585 tensors） |
+| `/mnt/weight/GLM-5.3-BF16` | BF16 / 1.4T / 282 shards | ✅ 真权重 |
+| `/mnt/weight/GLM-5.1-w4a4c8-mxfp4` | 391G / 102 shards | ⚠️ **量化件**，不是 BF16 |
+| `/mnt/weight/glm51-parity-131` | 95G，`quant_model_weights-000NN-of-00101` | ⚠️ 量化件 |
+| `/mnt/weight/GLM-5.1` | 从 ModelScope `ZhipuAI/GLM-5.1` 下的 BF16（282 shards） | 2026-11-13 起下 |
+
+### 3. 判"是不是 BF16 真权重"：**只看 config.json 必错**
+
+量化件的 `config.json` 同样写 `"dtype": "bfloat16"`（实测 `GLM-5.1-w4a4c8-mxfp4/config.json` 就这么写）⇒ 391G 的 MXFP4 会被误判成 BF16。三步定死：
+
+```bash
+grep -m1 '"dtype"' <dir>/config.json                    # 只能参考，不能当证据
+head -c 200 <dir>/<任一>.safetensors | grep -c git-lfs   # 必须 0（1 = LFS 指针，不是权重）
+python - <<'PY'                                        # 真证据：读 safetensors header 的张量 dtype
+import json,struct,sys
+p=sys.argv[1] if len(sys.argv)>1 else None
+PY
+```
+
+更省事的判法：`head -c 8 <shard>` 读到前 8 字节是 header 长度，再 `strings` / 读 JSON 看 `"dtype":"BF16"`；出现 `F8_E4M3` / `U8` / `I8` 就是量化。另对分片数：`ls <dir>/model.safetensors.index.json` 里 `weight_map` 的 shard 集合数 必须等于目录里实际 `*.safetensors` 数。
+
+### 4. 从 ModelScope 下全量权重（实测跑通）
+
+```bash
+ssh root@<A5> 'MODELSCOPE_CACHE=/mnt/weight/.cache-modelscope setsid nohup \
+  /root/miniconda3/envs/dxq_swift/bin/modelscope download <org>/<repo> \
+  --local-dir /mnt/weight/<repo> --cache-dir /mnt/weight/.cache-modelscope \
+  --max-workers 8 --continue-on-error --tracker-path /mnt/weight/.download-logs/<repo>-tracker.json \
+  >> /mnt/weight/.download-logs/<repo>-$(date +%Y%m%d-%H%M%S).log 2>&1 < /dev/null &'
+```
+
+要点：
+- **`--local-dir` 直接落盘，绕过 `~/.cache/modelscope`**：不显式指 `--cache-dir` / `MODELSCOPE_CACHE` 到 NFS，1.5T 的活会把本地 `/`（`/home` 同盘）撑爆。
+- `setsid nohup … < /dev/null &`：ssh 一断就死的下载没有意义；PID 与日志路径当场记下。
+- `--max-workers 8`（该版本默认 4）；公共 NFS + 别人也在跑，别上 16+。
+- 实测 8 并发 ≈ **55 MB/s**（单流 15 MB/s），1.5T 约 **7–10 h**。
+- 出口：`modelscope.cn` 通（可用）、`hf-mirror.com` 慢（~4 MB/s）、`huggingface.co` / `github.com` 直接不通 ⇒ 优先 ModelScope；`modelscope` 在 `/root/miniconda3/envs/dxq_swift/bin/`（不是 `/root/miniconda3/bin`）。
+
+### 5. 坑：DEFERRED 会静默漏 shard，完成判据不是退出码
+
+- 现象：日志 `[E1020] File recovery budget exhausted`，该 shard 被标 **DEFERRED**（并发抢占让连接快速失败、单文件恢复预算耗尽即放弃）。进程**不会自己重试**，结束时退出码 **3 = PARTIAL**。
+- 修法：跑完再跑一轮补漏（**必须带 `--retry-failed`**，否则 DEFERRED 的 shard 会被跳过；可能要连补 2–3 轮）：
+
+```bash
+ssh root@<A5> 'MODELSCOPE_CACHE=/mnt/weight/.cache-modelscope setsid nohup \
+  /root/miniconda3/envs/dxq_swift/bin/modelscope download <org>/<repo> \
+  --local-dir /mnt/weight/<repo> --cache-dir /mnt/weight/.cache-modelscope \
+  --max-workers 8 --continue-on-error --retry-failed \
+  --tracker-path /mnt/weight/.download-logs/<repo>-tracker.json \
+  >> /mnt/weight/.download-logs/<repo>-retry-$(date +%Y%m%d-%H%M%S).log 2>&1 < /dev/null &'
+```
+
+- **完成判据**：`ls /mnt/weight/<repo>/*.safetensors | wc -l` = `index.json` 的 282，且 `model.safetensors.index.json` 存在。**不要看 exit code**——`modelscope` 退出时还会 `Segmentation fault (core dumped)`（`--version`/`--help` 也复现），属退出期崩溃，不影响产物。
+- 续传本身是自动的（`Range` + `.incomplete`），中断后重跑同一条命令即可接着下。

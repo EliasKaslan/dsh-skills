@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 61,
   "file_count": 240,
-  "total_bytes": 26664673,
+  "total_bytes": 26669319,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -94,7 +94,7 @@
       "path": "skills/ascend-server-layout",
       "description": "昇腾个人根与目录红线：环境/项目/数据放哪、模型软链、npu-smi 选卡。适用于\"新项目写哪个盘 / 环境放哪 / 磁盘满了 / 哪张 NPU 空闲 / 复用现成环境\"。",
       "files": 3,
-      "bytes": 32259
+      "bytes": 36905
     },
     {
       "name": "ascend-torch-npu",
