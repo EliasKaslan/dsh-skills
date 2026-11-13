@@ -344,3 +344,43 @@ ssh root@<A5> 'MODELSCOPE_CACHE=/mnt/weight/.cache-modelscope setsid nohup \
 
 - **完成判据**：`ls /mnt/weight/<repo>/*.safetensors | wc -l` = `index.json` 的 282，且 `model.safetensors.index.json` 存在。**不要看 exit code**——`modelscope` 退出时还会 `Segmentation fault (core dumped)`（`--version`/`--help` 也复现），属退出期崩溃，不影响产物。
 - 续传本身是自动的（`Range` + `.incomplete`），中断后重跑同一条命令即可接着下。
+
+## A5 上判空卡的实操修正（npu-smi 25.1.rc3，2026-11-13 四台实测）
+
+## A5 上判空卡的实操修正（npu-smi 25.1.rc3，2026-11-13 四台实测）
+
+本节**推翻/修正**文末「共享机占用铁律」里两条对 A5 不适用的判法。适用：`177.8.21.1` / `177.11.25.1` / `177.11.26.1` / `177.11.27.1`。
+
+### 1. A5 不打印 Bus-Id ⇒ 用 `NPU ID` 列，别找 Bus-Id
+
+`npu-smi info` 里 8 张 `Ascend950DT` 的 Bus-Id 全是 `NA`（四台一致），**「用 HBM 段的 Bus-Id 唯一匹配 die」在 A5 上做不到**。
+A5 是 **1 个 NPU = 1 个 die**（不是 910 的双 chip）：`npu-smi info | grep -cE 'Ascend950DT'` = **8**，`ls /dev/davinci*` = **9**（davinci0–7 + davinci_manager）⇒ Process 段的 `NPU ID` 列 0–7 **就是卡号**，无需换算。
+
+### 2. 列名是 `NPU Util(%)`，且单次采样会假掉 0
+
+A5 表头是 `Power(W) / Temp(C) / Hugepages-Usage / NPU Util(%) / Memory-Usage(MB) / HBM-Usage(MB)`，**没有 `AICore(%)`**。
+实测：HBM 已 12 120~91 099 MB、Process 段有活着的 worker PID，但该卡 `NPU Util(%)` 仍显示 **0** ⇒ **不能只凭 Util=0 判空**，必须 `HBM 绝对值 + Process PID` 交叉。
+
+### 3. `-t usages` 的百分比与 `info` 的 MB 口径不一致
+
+`npu-smi info -t usages -i <id>` 的 `HBM Usage Rate(%)` 实测 43%，而 `info` 里同卡 20876/98304 = 21%（**约 2 倍差**）⇒ 判空闲**只用 `npu-smi info` 的 MB 绝对值**，别用任何百分比。
+空卡基线仍是 **4791~4833 MB / 98304**（本文原有数字，本轮复测一致）；`HBM > 6000 MB` 就当已占用。
+
+### 4. 从 Windows 采：两个 PowerShell 5.1 坑
+
+```powershell
+ssh -n -o BatchMode=yes -o ConnectTimeout=10 root@<ip> "npu-smi info 2>/dev/null | grep -oE '[0-9]+ / 98304'"   # 逐卡 HBM
+ssh -n -o BatchMode=yes -o ConnectTimeout=10 root@<ip> "npu-smi info 2>/dev/null | grep -E 'VLLM::|ray::'"      # 谁在占
+```
+- `2>&1` 收 ssh 的 stderr 会在 stdout 里**插入一行字面量 `System.Management.Automation.RemoteException`**（登录横幅走 stderr）⇒ 落盘文件首行就是它，解析要跳过；改 `2>$null` 只取 stdout 才干净。
+- 远端**别用双引号**（PS 5.1 会吞掉内层双引号）：`grep -Ei "vllm|ray"` 到远端变成 `grep -Ei vllm|ray` → `bash: ray: command not found`；`awk '{print $1}'` 同理报 `awk: option requires an argument -- F`。用 `\|` 转义或单引号。
+
+### 5. `ps` 的 comm 带双冒号，和 npu-smi 显示名对不上
+
+`ps -eo comm` 是 `VLLM::Worker_TP` / `VLLM::Worker_DP` / `ray::WorkerDict`，`npu-smi info` 的 Process 段却显示 `VLLMWorker_TP` / `rayWorkerDict`（冒号被去掉）。
+按 `VLLMWorker` grep `ps` 会**假报「进程已消失」**（本轮两次被误导）⇒ 查 ps 用 `grep -E 'VLLM::|ray::'`，或直接查 `/proc/<pid>/status`。
+
+### 6. 卡状态是分钟级变量，必须当场采
+
+同一台 `177.11.25.1` 在 2026-11-13 20:35→20:36 的 **50 秒内 HBM 从 33.9 G 爬到 65.0 G**（ray worker 正在装权重）；同日上午记为「八卡全空」的 `177.11.27.1`，当晚已被别人的 vLLM DP8 占满（HBM 12 G→43 G 边跑边涨）。
+⇒ **「有没有空卡」只能以当场 `npu-smi info` 为准**，当天早先的快照、甚至 10 分钟前的结论都不算数。
