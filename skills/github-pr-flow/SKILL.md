@@ -1,6 +1,6 @@
 ---
 name: github-pr-flow
-description: GitHub 上游仓提 PR：PAT/DCO/建 PR/CI 判读，blocked 逐条判定与冲突解决、force-with-lease 强推
+description: GitHub 上游仓提 PR：PAT/DCO/建 PR/CI 判读、AI 评审意见处理与回帖、blocked 逐条判定、force-with-lease 强推
 whenToUse: 要在 GitHub 上游仓库（尤其 vllm-project/vllm-ascend）提交 / 关闭 / 重开 PR、往 fork 推分支、判断 token 权限，或做 DCO 签名提交时使用。
 ---
 
@@ -242,3 +242,45 @@ git push --force-with-lease=refs/heads/<branch>:<远端当前 sha> <url> HEAD:re
 - 缺的可能是**局部**：本次 `main` 到了、tag 没到；单独 `git push <remote> <tag>` 再 verify 就补齐了。
 - 想彻底不挂：换 helper（`git config credential.helper manager`），或走 PAT + `GIT_ASKPASS`。**不要把令牌写进 `.git/config`，也不要放进命令行参数**（argv 会进日志与进程列表）。
 - 同一台机器上另一个远端（如 GitCode）可能完全正常：helper 是按 host 存条目的，一个坏了不代表网络坏，别据此下"网络不通"的结论。
+
+## 处理 AI 代码评审意见（bot 评审）
+
+## 处理 AI 代码评审意见（bot 评审）
+
+### 先一次把意见收全：三处投放，只查一处会漏
+
+| 端点 | 内容 |
+|---|---|
+| `GET /repos/{o}/{r}/pulls/{n}/reviews` | 总评。常含"建议的 PR 标题 / 摘要"这类非阻塞项 |
+| `GET /repos/{o}/{r}/pulls/{n}/comments` | 逐行 inline 意见。**真正的代码问题通常在这里** |
+| `GET /repos/{o}/{r}/issues/{n}/comments` | bot 的变更摘要、社区欢迎语（噪声多） |
+
+同一个 bot 会同时往三处发，**不要用某一个端点的条数判断"只有一条意见"**。
+
+### 判定：是回归，还是既有问题
+
+改之前先把**改动前的代码在同样输入下的行为**读出来。若旧代码走的是同一分支（例：旧守卫 `shape[0] < 65536` 对 0 也成立，同样会把空张量送进算子），这条意见就是**防御性改进**，不是本次引入的回归。
+
+回复里必须写明这一点，否则会被读成"作者引入了 bug"。反过来，如果旧代码确实不会走到，那就是真回归，别说成防御。
+
+### 改法与补测
+
+- 接受意见后，要补**"删掉守卫就红"**的测试：把被保护的调用替换成"一调用就抛异常"的桩，再断言返回的形状 / dtype。只补正向用例挡不住回归。
+- 空张量边界直接返回：`x.new_empty(0, x.shape[1], w.shape[-1])`，保持 dtype 与 device，不要手搓 `torch.empty`。
+- **非阻塞项（标题 / 摘要措辞）先查仓库现状再决定**：`GET /repos/{o}/{r}/pulls?state=closed&per_page=12` 看最近合入的标题风格。标题已经过了 CI 的标题校验时，纯顺序调整不值得冒险（两种前缀顺序往往都在用）。
+- bot 的"建议 PR 摘要"不要照抄：它会把 "A review comment points out ..." 这类自述写进正文，贴进去很怪；只把实质信息并进现有描述。
+
+### 回帖：走线程回复，不要另起评论
+
+```
+POST /repos/{o}/{r}/pulls/{n}/comments/{comment_id}/replies
+body: {"body": "..."}          # 含中文必须 UTF-8 字节发送
+```
+
+201 会返回新评论 id 与 `html_url`。**必须回读校验**：`GET /pulls/{n}/comments`，确认新评论的 `in_reply_to_id` 等于被回复那条的 id，才算挂对了线程。
+
+### 收尾
+
+1. 更新 PR 描述（`PATCH /pulls/{n}`，UTF-8 字节）：把新增的守卫与测试写进 "What this PR does" 与 "How was this patch tested"，测试条数要与实际一致。
+2. 用**新 head sha** 重查 `commits/{sha}/check-runs`，确认 pre-commit / DCO 仍绿（改完代码后旧结论作废）。
+3. 本地跑不了真测试时（例如无 torch），用桩件把被改函数跑一遍：切片尺寸、行序、边界早返回。**只做 `py_compile` 不算验证**。

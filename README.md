@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **61** 个 skill、**240** 个文件、**26641182** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **61** 个 skill、**240** 个文件、**26643975** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -66,7 +66,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 32 | [`git-tag-diff-audit`](skills/git-tag-diff-audit/SKILL.md) | 两个 git tag 之间做实质变更审计——两 tag 无共同祖先时 merge-base 静默返回空、git log A...B 静默给出两段历史之和，取数一律改两点 git diff A B；用 name-status 的 A/M/D/... | 1 |
 | 33 | [`gitcode-pr-flow`](skills/gitcode-pr-flow/SKILL.md) | GitCode 仓提 PR：compile 门禁、双 CI、标签审计、OpenAPI、backport。适用于"向 GitCode 提 PR / 冲突 rebase / 补门禁 / pre-commit 抖动"。 | 4 |
 | 34 | [`github-org-delta-watch`](skills/github-org-delta-watch/SKILL.md) | GitHub 组织增量 + 发行差集：pushed_at、releases、compare 取证。适用于"基线日后谁在动 / 主线有哪些没发版 / 这仓是不是死仓"。 | 1 |
-| 35 | [`github-pr-flow`](skills/github-pr-flow/SKILL.md) | GitHub 上游仓提 PR：PAT/DCO/建 PR/CI 判读，blocked 逐条判定与冲突解决、force-with-lease 强推 | 1 |
+| 35 | [`github-pr-flow`](skills/github-pr-flow/SKILL.md) | GitHub 上游仓提 PR：PAT/DCO/建 PR/CI 判读、AI 评审意见处理与回帖、blocked 逐条判定、force-with-lease 强推 | 1 |
 | 36 | [`korea-official-source-research`](skills/korea-official-source-research/SKILL.md) | 韩国（济州）官方一手信息源抓取与端点配方——web_fetch 对韩国站点普遍不可用，python urllib 按站点分档，pwsh 直连最稳；含出入境/入境申告官方源结构（e-AC 的 bbsId=文章id / flId=附件id、列表... | 3 |
 | 37 | [`login-credential-autofill`](skills/login-credential-autofill/SKILL.md) | 登录凭据自动填充的本地凭据库与防封号护栏——页面要登录时按账号取凭据填入、先复用已有登录态、每账号24小时最多1次密码提交、遇验证码/2FA/风控页立刻停手交人；凭据库里没有该站时，先在本机浏览器密码库与邮箱里反查账号身份，附字段读取与额度... | 5 |
 | 38 | [`lora-weekly-report`](skills/lora-weekly-report/SKILL.md) | LoRA 周报：vLLM/vLLM-Ascend/SGLang 近 7 天已合入 PR，四节 Markdown 发黄区。适用于"跑这周 LoRA 周报 / LoRA 特性跟踪 / SGLang 的 LoRA 进展"。 | 4 |
