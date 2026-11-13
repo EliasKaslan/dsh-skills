@@ -1028,3 +1028,57 @@ subprocess.run([EXE, script] + extra, env=env, capture_output=True)  # EXE = D:\
 5. 团队面板是否有成员实时态与空态
 
 0.2.2-rc.2 实测基准：`TeamId` = 根 SessionId（`dsh-agent-team/src/types.ts:7-17`）、`maxDepth` 默认 1、`maxActiveSubagents` 默认 8（`dsh-subagent/src/index.ts:195-198`）、`defaultEnabled` 默认 false（`dsh-agent-team/src/index.ts:51`）、standard preset 里 `interrupt: false`（`presets/standard.patch.yml:95-98`）。结论：2 层星型可用，团队协作未闭环 — 升版后按上面 5 条重跑即可定级。
+
+## 让「智能体团队协作」默认开启（agent-team 行配置覆盖）
+
+## 何时用
+
+用户说「团队模式默认关着 / 帮我默认开启 / 每个会话都要手动点」时。这是**插件行 config 覆盖**，不是新层、不新增插件行。
+
+## 事实（0.2.2-rc.2 实测）
+
+- 行 id 是 **`agent-team`**（不是包名），`name: '@deepseek-ai/dsh-agent-team'`，由 `@deepseek-ai/dsh-base/cordis.patch.yml:366-372` 内置插入 → desktop / headless 都带 `dsh-base`，两个 profile 都有这一行。
+- `dsh-agent-team/src/index.ts:49-51` 的 `Config` **只有两个字段**：`maxTasks`（默认 256）、`defaultEnabled`（`z.boolean().default(false)`）。
+- 全树只有一处消费它：`Service.init` 里注册 `agent/created`，条件为 `source === 'startup'` 且 `header.origin !== 'subagent'` 且该会话没有既有选择，然后 `session.append('team/mode', { enabled })`。
+- ⇒ **只影响新建会话**：已存在会话不会被改（早退），团队状态落在会话日志的事件里、不写 header。想让某个旧会话开，只能在会话菜单里单独点。
+- `settings.yaml` 没有等价开关（`dsh-settings` 的 `LEGACY_SECTION_ENTRIES` 只有 ui-developer-tools / ui-onboarding / shell）。
+
+## 写法（可直接抄）
+
+追加到**机器级** `~/.dsh/cordis.patch.yml`（后应用、优先级高于 profile 层，对全部 profile 生效）：
+
+```yaml
+- id: agent-team
+  name: '@deepseek-ai/dsh-agent-team'
+  config:
+    maxTasks: 256
+    defaultEnabled: true
+```
+
+- 只给桌面端时放 `~/.dsh/profiles/desktop/cordis.patch.yml`。放机器级后 profile 层**盖不回 false**（home 层后应用），所以想留「按 profile 关」的余地就放 profile 级。
+- 顶层是数组，此项**与已有的 `- insert:` 项并列**，别缩进进 `insert:` 列表。
+
+## 两个必踩的坑
+
+1. **写成 `insert:`** → 变成第二行重复挂载（两条 `agent-team`），不是覆盖。id 定位靠「有 `id`、无 `insert`」。
+2. **只写 `defaultEnabled: true`** → 漏 `maxTasks` 会被 schema 默认值顶回来。`composition-reference.md:10-11` 逐字：`A patch with an id and no insert targets the existing row with that id. ... config is replaced wholesale, never deep-merged, so restate every field the row needs.` ⇒ **config 必须写全**。
+
+## 验证（不用起 host）
+
+```powershell
+$env:ELECTRON_RUN_AS_NODE = "1"
+& $env:DSH_NODE_EXECUTABLE "$env:DSH_INSTALL_DIR\lib\bin.js" --profile headless --dump-config
+```
+
+- 判据：输出里 `- id: agent-team` **恰好 1 条**、其 config 同时有 `maxTasks` 与 `defaultEnabled: true`。多一条 = 走成了 insert。
+- `--profile desktop` 会被直接拒绝，原文：`error: profile "desktop" is managed exclusively by the Electron application`。desktop 侧只能靠「新建会话看开关」验证。
+- 这条同时充当**冷启动组合校验**（YAML 解析 + 行合并都在内），不会创立会话、不碰正在跑的 host。
+
+## 生效与回滚
+
+- 生效：新建会话即开启；已在跑的会话不受影响。config 在构造期读取，所以**只对之后创建/重建的实例**有效——没看到变化就重启一次宿主。
+- 回滚：删掉这段（或从 `.bak-*` 还原）。前提是**先备份**原 patch，且别覆盖已有备份。
+
+## 值不值
+
+团队模式常开会把 team / 任务板的工具 schema 带进**每个**会话的工具面，而工具 schema 每轮都要重发（成本按轮线性付）。上游当初就是为此拒绝「默认开启」的。用户主动要求默认开可以做，但要把这笔成本讲清楚。
