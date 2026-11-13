@@ -426,3 +426,37 @@ docker run --rm -it --privileged --network host \
 ### 什么时候才需要重建镜像
 
 只有这三种情况：① 底座镜像在目标机上没有且拉不到；② 要换 ATK 版本；③ 要把仓换到别的 commit（如 master）。重建用 `rebuild/Dockerfile`，`docker build --network host -t <新 tag> .`；底座 17.2GB 是本地镜像层，重建只加薄薄几层，几分钟完成。
+
+## 12.12 三个真缺陷的精确边界、仓内先例与提 PR 的两个硬坑
+
+### 12.12 三个真缺陷的精确边界（2026-11-13 最小复现实验，含被证伪的旧归因）
+
+在 `Ascend950DT` 上对 26.2.0 的三个「真失败」做了变量隔离，**其中两条我最初的归因是错的**：
+
+| 缺陷 | 最初归因（错） | 实测真实触发条件 | 可用的规避 |
+|---|---|---|---|
+| `arch35/triton/gdn/cumsum.py` UB 溢出 | "H=32 太大" | **4-D 输入 `(B,T,H,K)`**：`H*K` 被压平成「头数」走进 scalar kernel，`4×BLOCK_T×NH×4B` 超 UB。3-D 输入（T 256–2048 / H 8–248 / chunk_size 16~128 / fp32+fp16 / reverse+head_first）**全部通过** | **已验证**：4-D 改投 `chunk_local_cumsum_vector`（fp32 maxdiff 3.8e-06、fp16 0）。**master 的 `api/triton/cumsum.py` 已有这条 3 行路由**，26.2.0 只是没带上 → 想修就 backport，不要重写 kernel |
+| `chunk_gated_delta_rule_fwd_h.py` MLIR 校验 | "gk=True 不支持" | **dtype=fp32**：bf16/fp16 全过；fp32+gk 必挂；**fp32 无 gk 反而通过**（K==128 专化 kernel）；T=512/1024/2048、chunk_size=128、h0、exp2、transpose_state、save_new_value、BV/BT、num_warps/num_stages、blockdim64 共 12 组变体全挂 | **无代码级规避**（属 BiShengIR fp32 侧编译缺陷）。bf16 训练路径不受影响，只挡 fp32 精度用例 |
+| `prepare_wy_repr_bwd.py` bf16 autotune 全灭 | "bf16 有 bug" | 在 **19a603c 上直调未复现**（12 组 bf16/fp16/fp32、含 UT 同名形状全过） | 需按测试的精确入参再收敛；顺带发现 api 缺 dtype 校验：`g` 传 bf16 报 `Expected dtype ['fp16','fp32']`、`A` 与 `k/v` dtype 不一致报 `Both operands must be same dtype` |
+
+**连坐陷阱**：`test_chunk_kda_fwd_intra` 的 3 个失败不是该算子的问题——该算子在 arch35 是门控的，那 3 个用例在 `_make_inputs` 里先调 cumsum 才炸。判读时先看栈帧，别按测试文件名定罪。
+
+### 12.13 这三个问题在仓里已有先例（照着抄，别自己发明）
+
+| 手法 | 已合入先例 | 适用 |
+|---|---|---|
+| 降 tile 解 UB | `!242` / `!244`（`BV=128→64`，正文给 UB 峰值证据）、`!195`（`BV 64→32`） | cumsum / prepare_wy_repr_bwd 的 UB 溢出 |
+| 关自动子块绑定 | `!254` / `!255`（launcher 加 `enable_auto_bind_sub_block=False`，不改 kernel 表达式） | 编译期 pipeline 报错，先试这个 |
+| 去 autotune 改表驱动 + clamp | `!119`（`_FWD_BLOCK/_BWD_BLOCK` 查表）、`!62`（`_select_*`，注释写明 "Replaces the original autotune over …"） | autotune 全灭 / 配置搜索不稳定 |
+| arch35 专用 tile cap | `!180`（`_A5_FWD_BT_CAP=_A5_BWD_BT_CAP=8`，arch32 仍 256） | 同算法、不同 tile 上限 |
+| 模块级 raise → 惰性 import | `!189`（`mhc_post`） | 让 UT 能 collect，同时保留门控语义 |
+| conftest 平台 marker | `!120`（`tests/unit_tests/triton/test_causal_conv1d/conftest.py` 里注册 `arch35` marker + `pytest_collection_modifyitems`） | 整目录/整文件按平台 skip |
+| dtype/能力 skip | `!62` 的 `pytest.skip("Shape is over ubsize.")`、`!237` 的 `skipif(not hasattr(torch.ops...))` | 单用例表达平台/构建限制 |
+
+**关键事实**：仓里**没有任何已合入 PR** 把 `NotImplementedError` 改成 `pytest.skip`；上游偏好的两条路是「补 arch35 实现后删门控」(`!180`/`!186`/`!189`) 或「验证可复用后直接删门控」(`!122`)。⇒ 提「机制类」PR 时，**惰性 import + 局部 marker 比"全局异常改写插件"更容易被接受**。
+
+### 12.14 给 MindSpeed-Ops 提 PR 的两个硬坑（这次真踩）
+
+1. **CLA 按「提交作者邮箱」判定，不是账号**。用 `git -c user.email="agent@local"` 提交 → PR 立刻 `ascend-cla/no` 并阻断合入。正确做法：`git config user.email eliaskaslan@outlook.com`（与历史已签提交一致），作者与提交者**都要改**：`git rebase origin/master --exec 'git commit --amend --no-edit --reset-author'`；改完断言 `git log --format='%T'` 的 tree OID 逐字不变（证明只动身份）。改身份后强推，CLA 秒级回填 `ascend-cla/yes`。
+2. **SCA（开源片段检查）是本仓最容易凭空红的门禁**：日志必须登录才能看（`actions/runs/<id>/job/<id>` 页面写「登录后可查看日志」），机器人也不发原因评论。判读只能靠 `pipeline-dag-job--failed` 的 CSS 类定位到**哪个子任务**红（用浏览器 `document.querySelectorAll('button')` 抓 `className`）。本次 Antipoison / pre-commit / API_SCAN 全过、**只有 SCA 红**，UT 因前置失败没跑。
+3. **提交前先在本地把 pre-commit 的 hook 全跑一遍**，别赌 CI：`ruff check`/`ruff format --check`（**`--config pre-commit/pyproject.toml`**，我第一轮就挂在新文件没格式化）、`pylint --rcfile=pre-commit/pyproject.toml`（会抓 `inconsistent-return-statements`、`ungrouped-imports`、`used-before-assignment`——`except PlatformNotSupported` 里用到的名字**必须在 try 之前 import**）、`bandit --config=...`、`codespell`（注意 hook 的 `--skip` 跳过 `*.py`，只有非 py 文件会被查）。

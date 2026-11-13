@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 61,
   "file_count": 240,
-  "total_bytes": 26688505,
+  "total_bytes": 26693692,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -283,7 +283,7 @@
       "path": "skills/mindspeed-ops-smoke",
       "description": "MindSpeed-Ops 冒烟：按版本矩阵建环境、UT + ATK 精度双读判绿。适用于\"跑 26.2.0 冒烟 / ATK 精度怎么判 / 冒烟全绿了吗 / CI 镜像配套对不对\"。",
       "files": 1,
-      "bytes": 35534
+      "bytes": 40721
     },
     {
       "name": "mindspeed-ops-whl-build",
