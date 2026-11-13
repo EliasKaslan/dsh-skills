@@ -202,3 +202,22 @@ try {
 写反了会得到一句误导性错误：`$ index URL {"source":"..."} must be an absolute URL`。
 
 **索引源与 package.json 的 `engines.dsh` 下界必须一致**：市场按索引里的范围放行，装完 profile 却按包自己的 `engines.dsh` 复检——索引放宽成 `>=0.2.2-rc.1` 就等于把插件推给未验证的宿主，装完在 profile 那步才失败。市场侧可以带上界（`>=0.2.2-rc.2 <0.3.0-0`），包侧通常只写下界，取两者交集后**下界相同**即可。
+
+## 确认当前运行时版本：profile 常常没有 version 字段（0.2.2-rc.2 实测）
+
+## 确认当前运行时版本：profile 常常没有 `version` 字段
+
+本文开头写的「profile bundle 的 `version` 字段即当前 DSH 版本」在本机不成立（0.2.2-rc.2 实测）：
+`~/.dsh/profiles/<name>/package.json` 只有 `dependencies` 与 `dsh.profile.bundles`，**没有** `version`，按该说法去读会拿到空值。
+
+真正的版本在运行时清单里，用 read 工具直接读这个**已知绝对路径**（asar 内 glob/grep/ls 仍全部失败，read 已知路径可用）：
+
+`D:\tools\dsh\resources\app.asar\dsh\package.json`
+
+- `name` 是 `@deepseek-ai/dsh-desktop-runtime`，`version` 就是当前 DSH 版本（实测 `0.2.2-rc.2`）；
+- 同文件 `dependencies` 里所有 `@deepseek-ai/dsh*` 应为同号，可交叉核对；
+- 拿这个版本号去判 `engines.dsh`，记得 `includePrerelease: true`（`^0.2.2` 匹配不到 `0.2.2-rc.2`）。
+
+本机 profile 里正在用的索引源（`cordis.patch.yml` → `- id: plugin-market` → `config.indexes`）：
+`https://cdn.dsh.so/market/index.json`、`https://dsh-plugin-lab.github.io/market/index.json`，
+另有一条自建索引（git 源指向已发布提交）。未验证：这两份公共索引当前的收录量与新鲜度本轮没有亲自统计。
