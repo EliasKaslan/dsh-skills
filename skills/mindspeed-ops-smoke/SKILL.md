@@ -11,6 +11,7 @@ description: MindSpeed-Ops 冒烟：按版本矩阵建环境、UT + ATK 精度�
 
 **加载本 skill 当：**
 - 用户说"跑一遍 26.2.0 的商发配套冒烟""看看 MindSpeed-Ops 最新代码有没有问题""冒烟是不是全绿"。
+- **要跑 26.2.0 商发冒烟：不要重建环境，直接用现成镜像**——`mindspeed-ops-smoke:2620-950` 已做好并验证（§12.11 给了位置、校验和、load/run 命令；判读基线见 §12.9）。
 - 需要知道某分支的**配套版本矩阵**（CANN / PyTorch / TorchNPU / Triton-Ascend）从仓库哪个文件读。
 - ATK 报 `Invalid exchange name: '127.0.0.1:9090@...'`、`Address already in use`（端口 8881）、`acc_pass_result: Failed` 但 `failed: 0`。
 - UT 或 ATK 在共享机上出现随机 NaN/Inf、`NPU out of memory`，怀疑被别人抢卡。
@@ -381,3 +382,47 @@ A5 常被多人共占，实测出现过 8 卡全被同一个人容器里的 `VLL
 2. **`ls test_*.py` 会漏两个目录型用例**：26.2.0 的 `tests/unit_tests/triton/` 下 `test_causal_conv1d/`、`test_rmsnormgated/` 是**目录**（内含 `test_forward.py` 等），必须 `pytest <dir>` 单独跑（实测补上 3 passed/115 skipped 与 88 passed/27 skipped）。
 3. **`bash -lc` 里别嵌套带引号的 `git log --format`**：在 paramiko `bash -lc` 的双引号转义里会把格式串打断，报 `fatal: invalid --pretty format`。要打 commit 就单独一行、用单引号。
 4. **UT/ATK 并发时给 ATK 留卡**：ATK 固定用 `--devices 0`，UT 分片跑在 1..7 卡上互不影响；但 `docker run --rm` 的容器一退出，还在里面 `docker exec` 跑着的补充用例会被一起杀掉（本轮 `test_rmsnormgated/` 就死在 62%），补跑要另起容器。
+
+## 12.11 跑 26.2.0 商发 = 直接用现成镜像（位置 / 校验和 / 三条命令）
+
+**用户口径（2026-11-13）**：以后说「跑 26.2.0 商发冒烟」= **直接用这张镜像**，不要重新铺环境、不要再建 venv/conda。这条是唯一入口。
+
+### 现成镜像
+
+| 项 | 值 |
+|---|---|
+| tag | `mindspeed-ops-smoke:2620-950`（镜像 ID `6055738fecd8`，17.5GB） |
+| 存放（共享 NFS，同批 A5 均挂 `/mnt/share`） | `/mnt/share/a5_smoke_image/` |
+| 未压缩导出 | `mindspeed-ops-smoke_2620-950.tar`，17,603,497,984 B，`sha256 ce21dad32e1f3a66767d695b6ec3d5b524cf427ed663538b3dc912feb47a6c91` |
+| 压缩导出 | `mindspeed-ops-smoke_2620-950.tar.gz`，6,092,786,431 B，`sha256 c05f4948f7fcd5ae573ee12730e79e5dd9c22d5156cbf2e9e63a54ab18037eda` |
+| 自建小包 | `/mnt/share/a5_smoke_image/rebuild/`（Dockerfile + smoke 脚本 + `atk-26.9.24-cp312-cp312-linux_aarch64.whl`） |
+| 历史报告 | `/mnt/share/a5_smoke_image/reports/20261113-2620-a5/`（UT/ATK 全量日志 + 报告 md） |
+| 底座 | `swr.cn-south-1.myhuaweicloud.com/ascendhub/mindspeed-ops:26.2.0-cann9.2.0-torch_npu2.10.0.post7-950-openeuler24.03-py3.12` |
+
+**重要**：这是 **aarch64 / Ascend950DT** 专用镜像，A3（x86_64/910B）不能用。
+
+内容 = 底座(官方 950 配套) + ATK 26.9.24（钉 kombu 5.6.2 / amqp 5.4.1 / billiard 4.3.1）+ 仓钉 `26.2.0 @ 19a603c`（已删底座旧 `.so`，避免源码/二进制不一致）+ `/opt/a5smoke/` 脚本。
+
+### 三条命令（已在 177.11.27.1 实测）
+
+```bash
+docker load -i /mnt/share/a5_smoke_image/mindspeed-ops-smoke_2620-950.tar   # 实测 2m27s
+bash /mnt/share/a5_smoke_image/rebuild/smoke/verify_image.sh                # 只验栈不占卡：期望 npu True/8 卡，UT collect 21/3
+docker run --rm -it --privileged --network host \
+  -v /usr/local/Ascend/driver:/usr/local/Ascend/driver \
+  -v /usr/local/dcmi:/usr/local/dcmi \
+  -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \
+  -v /etc/ascend_install.info:/etc/ascend_install.info \
+  -v /etc/hccn.conf:/etc/hccn.conf \
+  -v /root/a5smoke_run:/opt/a5smoke/work \
+  mindspeed-ops-smoke:2620-950 bash /opt/a5smoke/run_smoke.sh
+```
+
+- 卡被占：加 `-e WAIT_FREE_SEC=3600`（每 60s 检查，8 卡全无进程才开跑）。
+- 无 `ascend` docker runtime（本批 A5 都是 docker 18.09）：用 `--privileged`，或逐个 `--device /dev/davinci0..7 --device /dev/davinci_manager --device /dev/devmm_svm --device /dev/hisi_hdc`。
+- **前置检查**：`/var/lib/docker` 所在的 `/` 至少留 20GB（177.8.21.1 只剩 19G，装不下；177.11.27.1 有 1TB，首选）。
+- 跑完判读直接用 §12.9 的基线对照；**`--rm` 会让 ATK 的 xlsx 报告一起消失**，要留报告就别用 `--rm` 或先拷出（坑见 §12.10）。
+
+### 什么时候才需要重建镜像
+
+只有这三种情况：① 底座镜像在目标机上没有且拉不到；② 要换 ATK 版本；③ 要把仓换到别的 commit（如 master）。重建用 `rebuild/Dockerfile`，`docker build --network host -t <新 tag> .`；底座 17.2GB 是本地镜像层，重建只加薄薄几层，几分钟完成。
