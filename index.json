@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 61,
   "file_count": 240,
-  "total_bytes": 26655360,
+  "total_bytes": 26655631,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -87,7 +87,7 @@
       "path": "skills/ascend-server-access",
       "description": "昇腾服务器准入：在册 6 台（A3×2、A5×4）、双隧道、凭据与免密。适用于\"188/177.x 连不上 / 走哪个 VPN / 凭据在哪 / 新机配免密\"",
       "files": 6,
-      "bytes": 99369
+      "bytes": 99640
     },
     {
       "name": "ascend-server-layout",

@@ -437,7 +437,7 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=accept-new root@<ip> hostname
 | 蓝区A5 | `177.8.21.1` | root | A5 | a5 主 | openEuler 24.03 SP3 aarch64 / 192 核 / 2261 GiB / 8 × `Ascend950DT`（96 GB）/ CANN 9.2.0 |
 | 蓝区A5 | `177.11.25.1` | root | A5 | A5 批次 | openEuler 24.03 SP3 / 192 核 / 2261 GiB / 9 个 `/dev/davinci*` |
 | 蓝区A5 | `177.11.26.1` | root | A5 | A5 批次 | 同上 |
-| 蓝区A5 | `177.11.27.1` | root | A5 | A5 批次（**2026-11-13 新入册**） | 同上；首次入册，免密要现配（§0.1） |
+| 蓝区A5 | `177.11.27.1` | root | A5 | A5 批次（**2026-11-13 新入册**） | 同上；免密已于当日配好（§13） |
 
 **不在册 = 按不可用处理**：`177.2.25.1` / `177.2.26.1`（2026-11-09 发过）已不在 2026-11-13 的清单里，别主动去连，用户重新给到再恢复。
 
@@ -461,10 +461,10 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=accept-new root@<ip> hostname
 
 | 地址 | 免密（key） | 凭据 | 主机名 | `/` 占用 | 备注 |
 |---|---|---|---|---|---|
-| `177.8.21.1` | ❌ **不通**（`Permission denied (publickey,password)`，机上 `authorized_keys` 75 条里没有本机当前公钥） | 密码可用 | `ip-177-8-21-1.rev.wkve.net.br` | **100%，余 19G** | 全卡被别人的 `VLLMWorker_TP0..7` 占着，且 PID 每几分钟换一批（crash-restart 循环） |
-| `177.11.25.1` | ✅ | key | `177-11-25-1.btecdns.net.br` | 92%，余 282G | 8 卡全空 |
-| `177.11.26.1` | ✅ | key | `177-11-26-1.btecdns.net.br` | 95%，余 175G | 别人的 sglang TP8 还在跑 |
-| `177.11.27.1` | ✅ **本次新配成功** | key（密码 fallback） | `177-11-27-1.btecdns.net.br` | 70%，余 1016G | 8 卡全空；`/home` 下已有他人目录 `codex-a5-lab` |
+| `177.8.21.1` | ⚠️ **当日不通 → 当天已修好**（初测 `Permission denied (publickey,password)`，机上 75 条 key 里没有本机当前公钥；追加后 76 条、`BatchMode=yes` 复核 exit=0） | key（密码 fallback） | `ip-177-8-21-1.rev.wkve.net.br` | **100%，余 19G** | 当日快照：整卡曾被别人的 `VLLMWorker_TP0..7` 占着且分钟级 crash-restart，随后自行全部退出（只剩 NPU1 上一个 `attn_demo`）⇒ **卡状态是分钟级变量，动手前必须重采 `npu-smi`**；报错先查盘满 |
+| `177.11.25.1` | ✅ | key | `177-11-25-1.btecdns.net.br` | 92%，余 282G | 8 卡全空（当日快照） |
+| `177.11.26.1` | ✅ | key | `177-11-26-1.btecdns.net.br` | 95%，余 175G | 别人的 sglang TP8 在跑（当日快照） |
+| `177.11.27.1` | ✅ **2026-11-13 新配** | key（密码 fallback） | `177-11-27-1.btecdns.net.br` | 70%，余 1016G | 8 卡全空（当日快照）；`/home` 下已有他人目录 `codex-a5-lab` |
 
 四台都是 192 核 / 2261 GiB / 9 个 `/dev/davinci*`；**`/home` 与 `/` 是同一块盘**（`df` 只有 `nvme*p4` 两行）。
 
