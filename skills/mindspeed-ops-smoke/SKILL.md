@@ -258,3 +258,94 @@ python -c "import sys,torch,torch_npu,importlib.metadata as m;print(sys.version.
 
 - **2026-11-09 建立**：在 `root@192.168.13.190`（openEuler 22.03 LTS-SP4，8×Ascend910/16 die）上，对 `Ascend/MindSpeed-Ops` 26.2.0 @ `7ccec74` 跑通 UT（24 文件）+ ATK（27 算子）全流程；坑 1/2/3/4/5/6 均为当次实测。
 - **2026-11-12 增补 §10**：按今日远端（`master=ac671f24`、`26.2.0=19a603c0`）复验 ci/ 与 docker/ 的漂移、SWR cn-south-1 的 9.2.0 镜像与 3.6.0 wheel 可得性、PR !261 状态；§9 的可得性三查以 §10.5 为准。
+
+## 12. A5（Ascend950DT / arch35）冒烟与换机镜像
+
+A5 与 A3 的差别不在"换台机器"，而在**芯片架构换了**：A5 = `Ascend950DT`（`soc_version=260`，`get_device_name()` 返回 `Ascend950DT_9582`），仓里用 `is_arch35()` 走另一套 kernel 分支。照 A3 的口径直接套会得到一堆"看着是回归、其实是平台不支持"的结论。
+
+### 12.1 先确认是 A5（两条命令）
+
+```bash
+npu-smi info -t board -i 0 | grep -E 'Chip Name|Chip Version|Firmware'   # Ascend950DT / V120
+python -c "import torch,torch_npu;print(torch.npu.device_count(),torch.npu.get_soc_version(),torch_npu.npu.get_device_name())"
+# 期望 8 260 Ascend950DT_9582
+```
+
+A5 的实测规格（177.8.21.1，2026-11-13）：openEuler 24.03 LTS-SP3 **aarch64**、192 核 / 2261GiB、8×950DT（98304MB/卡，**一卡一 die**，所以 `ASCEND_RT_VISIBLE_DEVICES` 就是 0..7）、`npu-smi 25.1.rc3`。
+
+### 12.2 配套版本：认 26.2.0 + 950，而不是 master
+
+- 26.2.0 的 `docker/OVERVIEW.zh.md` 里**明确有 950 行**：`26.2.0-cann9.2.0-torch_npu2.10.0.post7-950-openeuler24.03-py3.12`；`requirements.txt` 钉 `triton-ascend==3.6.0`。
+- **master 的 `requirements.txt` 仍是 `triton-ascend==3.2.2`**（早于 950 支持），A5 上按 master 的 pin 装会踩栈不匹配。要跑 master 就得显式覆盖成 3.6.x，并在报告里说明偏离了 pin。
+- 最省事的"权威反查"：本机跑着 A5 容器时直接问容器，比自己猜版本快得多：
+  ```bash
+  docker exec <容器> python -c "import sys,torch,torch_npu,importlib.metadata as m;print(sys.version.split()[0],torch.__version__,torch_npu.__version__,m.version('triton-ascend'),torch.npu.get_soc_version())"
+  ```
+
+### 12.3 CANN 入口（A5 的路径与 A3 不同）
+
+```bash
+export ASCEND_TOOLKIT_HOME=/home/cann/920_b111/ascend-toolkit/latest    # -> /home/cann/920_b111/cann
+. /home/cann/920_b111/ascend-toolkit/set_env.sh                          # asc_toolkit_home 必须预设
+. /home/cann/920_b111/nnal/atb/set_env.sh
+```
+
+- `/home/cann/920_b111/set_env.sh` **不存在**；`cann-9.2.0/` 与 `ascend-toolkit/` 是两个并存的目录树，`ascend-toolkit/latest` 是指向 `cann` 的软链。
+- 不预设 `ASCEND_TOOLKIT_HOME` 直接 source，`ASCEND_HOME_PATH` 会是**空的**，随后 `import torch_npu` 报 `ImportError: libhccl.so: cannot open shared object file`。验收只看 `echo $ASCEND_HOME_PATH` 有值 + `torch.npu.is_available()` 为 True。
+
+### 12.4 arch35 门控：判读时先分"平台不支持"和"真失败"
+
+`mindspeed_ops/utils.py` 的 `is_arch35()` 判 `"Ascend910_95" in device_name or "Ascend950" in device_name`。26.2.0 里**部分算子没有 arch35 实现**，在 A5 上走 `raise NotImplementedError("this op is not supported in this platform")`：
+
+| 层 | 实测结果（26.2.0 @ 19a603c，A5） |
+|---|---|
+| UT collect | **ok=21 / err=3 / 629 用例**；err 的是 `test_mhc_post`、`test_mhc_pre_bmm`、`test_mhc_pre_only`（import 期即报错，不是 skip） |
+| ATK | 静态预判约 8 个算子被同一门控拦：`chunk_kda_fwd_intra`、`chunk_local_cumsum`、`chunk_scaled_dot_kkt`、`l2norm`、`mhc_pre_bmm`、`mhc_pre_only`、`recompute_w_u_fwd`、`wy_fast`；其余走 arch35 或通用实现 |
+
+- 快速分类（不占显存，几秒钟一个文件）：`pytest -q -p no:cacheprovider --collect-only <file>`。
+- 报告的结论必须把 `NotImplementedError: this op is not supported in this platform` 单列成"平台不支持"，**不要并进失败数**；否则 A5 上的"全绿"永远不可达。
+- 顺带一个仓内测试卫生问题：这些被门控的算子在 UT 里是 module-level import，于是 collect 阶段就 error，而不是 skip（对比 `catlass` 用了 `skipif not hasattr(torch.ops.mindspeed_ops, ...)` 的写法）。
+
+### 12.5 换机镜像：别从零建，先找官方 950 底座
+
+A5 机器上通常**已经有人拉过官方 950 配套镜像**，直接当底座，增量只加"冒烟需要但底座没有的"：
+
+```bash
+docker images | grep -iE 'mindspeed-ops.*950'
+# swr.cn-south-1.myhuaweicloud.com/ascendhub/mindspeed-ops:26.2.0-cann9.2.0-torch_npu2.10.0.post7-950-openeuler24.03-py3.12   17.2GB
+# swr.cn-southwest-2.myhuaweicloud.com/atlas-release/mindspeed-ops:26.2.0-...-950-ubuntu22.04-py3.12                        16.7GB
+```
+
+底座实测（2026-11-13）：openEuler 24.03 LTS-SP4 / py3.12.15 / CANN 9.2.0 / torch 2.10.0+cpu / post7 / TA 3.6.0 / numpy 1.26.4 / pytest 8.4.2 / **`mindspeed_ops 26.2.0` 已装** / 仓在 `/workspace/MindSpeed-Ops`；**缺 ATK，且无 clang**。
+
+**派生镜像要做的四件事**（`mindspeed-ops-smoke:2620-950`，17.5GB）：
+
+1. 装 ATK：`pip install atk-26.9.24-cp312-cp312-linux_aarch64.whl` + `kombu==5.6.2 amqp==5.4.1 billiard==4.3.1`。
+2. **仓钉 commit 并删掉底座里的旧 `.so`**：底座仓可能是几天前的 commit（实测 `451e094`，而远端 26.2.0 已是 `19a603c`），`.so` 由旧源码编出，源码/二进制不一致会污染 aclnn/atb/catlass 类用例。`git fetch && git reset --hard <commit> && rm -f mindspeed_ops/mindspeed_ops_C*.so`。
+3. 把冒烟脚本拷进镜像 `/opt/a5smoke/`（见 §12.6）。
+4. `docker save` 出 tar + `.sha256`；顺手 `pigz -p32` 出一份 gz（17.6GB → 6.09GB，换机不走共享盘时用）。
+
+**导出/交接用共享盘**：A5 批次的机器共用 `172.27.1.1:/Share`（`/mnt/share`，350T），把 tar 放那里，目标机 `docker load -i` 即可，省一次 17GB 传输。目标机不共用 NFS 时才走 gz + scp。
+
+**验证导出件**（比 `sha256sum` 更硬的证据）：同机上 `docker load -i <tar>` 回灌，镜像 ID 不变（实测 8s、`Loaded image: ...`、`IMAGE_ID_UNCHANGED_OK`），说明 tar 29 层完整可载。
+
+### 12.6 容器内跑冒烟的两个必要动作
+
+1. **必须 source 一个 `activate.sh` 设 `PYTHONPATH=$REPO`**。底座的 `PYTHONPATH` 只有 CANN 路径，缺了它 UT 里 `from tests.utils import ...` 直接失败——实测 24 个文件里 **22 个 collect error**，极易误判成"镜像坏了"。
+2. **NPU 透传**：本机 docker 18.09 **没有 `ascend` runtime**（`docker run --runtime=ascend` → `Unknown runtime specified ascend`）。现有容器两种写法都能用：
+   - `--privileged --network host`；或
+   - 逐个 `--device /dev/davinci0..7 --device /dev/davinci_manager --device /dev/devmm_svm --device /dev/hisi_hdc`
+   另外必须挂宿主机驱动（驱动不在镜像里）：`-v /usr/local/Ascend/driver:/usr/local/Ascend/driver -v /usr/local/dcmi:/usr/local/dcmi -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi -v /etc/ascend_install.info:/etc/ascend_install.info -v /etc/hccn.conf:/etc/hccn.conf`。
+
+### 12.7 建环境时的三个坑（这轮全踩了）
+
+1. **脚本没上传就 source → pip 装进了 base conda，污染共享 base**。`pip install` 前的 `. $WD/activate.sh` 一旦因文件不存在失败，后面的 `pip` 会落到 `/root/miniconda3`（实测把 `atk` 装进去、`kombu 5.7.0→5.6.2`、`amqp 5.4.2→5.4.1`）。修法：`pip uninstall -y atk` + `pip install kombu==5.7.0 amqp==5.4.2` 复原，并把"脚本上传"做成独立一步（sftp put 后再执行）。
+2. **`conda create` 卡 repodata**：`Collecting package metadata (repodata.json)` 十几分钟不动（conda-forge + defaults 双源）。修法：`/root/miniconda3/bin/python -m venv <dir>`，直接用 base 的 3.12，cp312 wheel 全兼容。
+3. **`docker save` 前先看 docker 根盘**：该机 `/var/lib/docker` 在 `/` 上，只剩 27G；`save` 目标是 `/mnt/share`（共享盘）而不是 `/data`，否则会和镜像层抢空间。
+
+### 12.8 共享机排队纪律（A5 上很常见）
+
+A5 常被多人共占，实测出现过 8 卡全被同一个人容器里的 `VLLMWorker_TP` 占满（**每卡 84.7G/96G 驻留、util 0%** —— 服务在等请求，不是空闲）。判"能不能跑"只看 `npu-smi info -t proc-mem -i <i>` 有没有 `Process id`，不看 util。
+
+- 不要 `pkill`/`docker stop` 别人的任务；要么等，要么换机器（同批 `177.2.25.1` / `177.2.26.1` / `177.11.25.1` / `177.11.26.1` 同一张 A5 隧道可达）。
+- 要等就挂一个"空卡即开跑"的驱动（`WAIT_FREE_SEC` + 每 60s 检查），但**记得在切去做别的事时把它停掉**，否则它会在任意时刻抢卡、和你的其他验证互相干扰。
