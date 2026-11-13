@@ -349,3 +349,35 @@ A5 常被多人共占，实测出现过 8 卡全被同一个人容器里的 `VLL
 
 - 不要 `pkill`/`docker stop` 别人的任务；要么等，要么换机器（同批 `177.2.25.1` / `177.2.26.1` / `177.11.25.1` / `177.11.26.1` 同一张 A5 隧道可达）。
 - 要等就挂一个"空卡即开跑"的驱动（`WAIT_FREE_SEC` + 每 60s 检查），但**记得在切去做别的事时把它停掉**，否则它会在任意时刻抢卡、和你的其他验证互相干扰。
+
+## 12.9 26.2.0 在 A5（950/arch35）的判读基线与四个操作坑
+
+### 12.9 26.2.0 在 950 上的基线（2026-11-13 在 177.11.27.1 全量实跑，可直接对照）
+
+配套：CANN 9.2.0 / py3.12.15 / torch 2.10.0+cpu / post7 / TA 3.6.0 / numpy 1.26.4 / ATK 26.9.24；仓 = 26.2.0 @ `19a603c`。UT 约 12 min、ATK 27 算子约 26 min（总计 36 min）。
+
+**UT（`tests/unit_tests/triton`）**：862 用例 → passed 531 / failed 106 / skipped 225，另 3 个文件 collect 即 ERROR。
+- 96 个失败 = 平台门控（`l2norm` 76、`chunk_gated_delta_rule` 20，报 `this op is not supported in this platform`）。
+- 10 个失败 = 真缺陷：`kda_fwd_intra` 3、`chunk_gated_delta_rule_fwd_h` 4、`wy_fast` 3。
+
+**ATK（27 算子）**：Pass 18 / Failed 9；1122 用例通过 879（78.3%）。失败里 225 用例是「根本没执行」（门控），15 例是 wy_fast 的 bf16 编译/调优失败，只有 **3 例是真·精度超阈值**（bwd_dhu `[4,1024,32,128]` fp32 max_abs 6.2e-5/max_rel 4.4e-5；rmsnormgated `[4,8192,2048]` fp32 max_abs 6.7e-5/7.7e-5、max_rel 2.99e-5）。
+
+**三处可直接开 issue 的真缺陷（都能定位到行）**
+1. `arch35/triton/gdn/cumsum.py:426`（`chunk_local_cumsum_scalar`）→ `error: ub overflow, requires 33554432 bits while 2031616 bits available`，触发 `B1-T2048-H32`。**会连坐**：`test_chunk_kda_fwd_intra` 的 3 个失败其实是它——该算子在 arch35 是门控的，但那 3 个用例在 `_make_inputs` 里先调了这个 cumsum。
+2. `arch35/triton/gdn/chunk_gated_delta_rule_fwd_h.py:680` → `error: operand #1 does not dominate this use` + `verification failed after sinking copy chain` + `Failed to run BiShengHIR pipeline`，触发 `B1-T1024/T32768, H32 D128, gk=True`。
+3. `arch35/triton/gdn/prepare_wy_repr_bwd.py:225` → `RuntimeError: No valid triton configs. NoneType: None`（autotuner.py:2599），只挂 bf16；底层异常被吞，建议顺手修异常传递。
+
+**归因两条硬结论（别把锅扣错）**
+- 换 TA `3.6.0.post2` 复跑上面 3 个文件：`3/4/3` 失败数**完全一致** ⇒ 不是 TA 补丁版本问题。
+- 用 master 同配套交叉：`l2norm` 94/94、`chunk_kda_fwd_intra` 3/3、`mhc_post` 48/48 都过 ⇒ 这些是**26.2.0 没带 arch35 实现**，不是 950 硬件不支持；而 `fwd_h`、`wy_fast` 在 master 上也复现 ⇒ 两分支共有缺陷。
+- `is_arch35()` 本身判定正确（恒 True，`Ascend950DT_9582`），不要往门控函数上怀疑。
+
+**`recompute_w_u_fwd` 是「半支持」**：`api/triton/gdn_recompute_w_u_fwd.py:23` 在 arch35 只在 `gk is not None` 时抛 `NotImplementedError("gk is not supported on arch35 ...")`，其余走 arch35 实现。所以 UT 6 passed/4 skipped、ATK 5 例全挂——差别只在 gk。
+
+### 12.10 跑这套冒烟的四个操作坑（本轮实踩）
+
+1. **`--rm` 会把 ATK 的 xlsx 报告一起删掉**：报告写在容器内 `<repo>/tests/atk_tests/triton/<op>/atk_output/.../report/*.xlsx`，只有 `/opt/a5smoke/work` 是挂载出来的。跑完（或 `docker run` 结束）再看报告就没了。⇒ 要么别用 `--rm`，要么在收尾前把 `atk_output/` 拷到挂载目录。
+   替代判读：**逐算子表格就在日志里**，`sed 's/\x1b\[[0-9;]*m//g' atk_<op>.log | grep -E '^\| *cpu_0 *\|'` 能拿到「总用例/执行成功/执行失败/通过/通过率/精度是否达标」。
+2. **`ls test_*.py` 会漏两个目录型用例**：26.2.0 的 `tests/unit_tests/triton/` 下 `test_causal_conv1d/`、`test_rmsnormgated/` 是**目录**（内含 `test_forward.py` 等），必须 `pytest <dir>` 单独跑（实测补上 3 passed/115 skipped 与 88 passed/27 skipped）。
+3. **`bash -lc` 里别嵌套带引号的 `git log --format`**：在 paramiko `bash -lc` 的双引号转义里会把格式串打断，报 `fatal: invalid --pretty format`。要打 commit 就单独一行、用单引号。
+4. **UT/ATK 并发时给 ATK 留卡**：ATK 固定用 `--devices 0`，UT 分片跑在 1..7 卡上互不影响；但 `docker run --rm` 的容器一退出，还在里面 `docker exec` 跑着的补充用例会被一起杀掉（本轮 `test_rmsnormgated/` 就死在 62%），补跑要另起容器。
