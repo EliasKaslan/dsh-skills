@@ -222,3 +222,57 @@ who; uptime; ps -eo user,pid,pcpu,comm --sort=-pcpu | head -10   # 有几个会�
 | 任何 > 30 min 的活 | `nohup ... > logs/<name>.log 2>&1 &` 或 `tmux new -s <name>`，日志落个人根 `agent/logs/`，别落 `/tmp` |
 
 配套：先 `source /home/<用户>/env/env.sh`（把 `TMPDIR` / `PIP_CACHE_DIR` / `HF_HOME` 指到个人根，见步骤 6）；脚本里不要 `rm -rf` 共享输出目录，只清自己的。
+
+## A5 上的权重农场与 dsv4.1flash 权重落位（2026-11-13 实测）
+
+## A5 上的权重农场与 dsv4.1flash 权重落位（2026-11-13 实测，替换旧"未验证"）
+
+**A5 四台（`177.8.21.1` / `177.11.25.1` / `.26.1` / `.27.1`）的本机盘都没有大模型权重**，权重全在共享 NFS（同一台 `172.27.1.1`，两个导出）：
+
+```bash
+findmnt -no TARGET,SOURCE,FSTYPE,USE% | grep -E '/mnt/(share|weight)'
+# /mnt/share  <- 172.27.1.1:/Share    公共盘（含 ds_weights/ 与各人目录）
+# /mnt/weight <- 172.27.1.1:/Weight   权重农场（147 个条目，含各模型各精度）
+```
+
+### DeepSeek-V4.1-Flash（dsv4.1flash）的精度谱
+
+| 路径 | 体积 | 分片 | 性质 |
+|---|---|---|---|
+| `/mnt/share/g00815994/dsv41/dsv41-flash-bf16` | 1.39 TiB | 525 | **唯一完整 bf16**，反量化产物（非官方） |
+| `/mnt/share/g00815994/dsv41/DeepSeek-V4.1-Flash-top32-bf16` | 493 GiB | 505 | bf16 但裁剪到 32 专家（`n_routed_experts: 32`） |
+| `/mnt/weight/DeepSeek-V4.1-Flash-1017` | 475 GiB | 48 | **官方本体**：`quant_method: fp8` + `expert_dtype: fp4` |
+| `/mnt/share/ds_weights/DeepSeek-V4.1-Flash` | 381 GiB | 48 | 官方本体副本（同 fp8/fp4 配置） |
+| `/mnt/weight/DeepSeek-V4.1-Flash-1017-BF16-msmodelslim` | 52 GiB | 52 | msModelSlim 量化（`quant_model_weights-*`） |
+| `/mnt/share/ds_weights/DeepSeek-V4.1-Flash-1017-w4a8` | — | 87 | w4a8 量化 |
+
+- **官方从未发 bf16**：V4.1-Flash 发布即 fp8 稠密 + fp4 专家。bf16 是 2026-10-30 由他人（`g00815994`）从 fp4/fp8 反量化来的，体积 ≈ 官方的 **2.99×**（fp4 专家×4 + fp8 稠密×2），数值继承量化误差，**不能当精度基线**。
+- 分片权限 `-rw------- root root` ⇒ 只有 root 能读；目录属他人，只读使用。
+- V4（非 4.1）Flash 的 bf16 现成：`/mnt/weight/DeepSeek-V4-Flash-BF16`（543 GiB / 46 分片）。
+
+### 空壳陷阱：目录名会骗人
+
+`/mnt/weight/DeepSeek-V4.1-Flash-1017-BF16`（**空目录 4.0K / 0 分片**）、`/mnt/weight/DeepSeek-V4.1-Flash`（空）、`/mnt/weight/Deepseekv4.1_weight_hg_bf16`（只有 config + index，无权重）。**判"有没有权重"必须落到分片数 + 体积 + 头部 dtype，不能看目录名或 config 字段。**
+
+### 判权重精度的固定取证顺序
+
+```bash
+D=<目录>
+ls $D/*.safetensors | wc -l                     # 分片数，0 = 空壳
+du -chs $D/*.safetensors | tail -1              # 体积
+grep -oE '"(dtype|torch_dtype|expert_dtype)"[^,]*' $D/config.json
+grep -c quantization_config $D/config.json      # 0 = 未量化
+# 头部 dtype：至少抽最大/中/最小三个分片，别只看 shard0
+python3 -c 'import json,struct,sys,collections;f=open(sys.argv[1],"rb");n=struct.unpack("<Q",f.read(8))[0];h=json.loads(f.read(n));print(collections.Counter(v.get("dtype") for k,v in h.items() if k!="__metadata__"))' $D/$(ls -S $D/*.safetensors | head -1 | xargs -n1 basename)
+# index 一致性
+python3 -c 'import json,os,sys;D=sys.argv[1];i=json.load(open(D+"/model.safetensors.index.json"));s=set(i["weight_map"].values());print(len(s),"shards; missing",[x for x in s if not os.path.exists(D+"/"+x)][:3])' $D
+```
+
+### 坑
+
+| 现象 | 修法 |
+|---|---|
+| `-iname '*deepseek*'` 命中一堆源码树（`vllm_ascend/models/deepseek_v41`、`csrc/*flash_attention`） | 反查：`find /mnt/weight /mnt/share -maxdepth 3 -name '*.safetensors' -printf '%h\n' \| sort \| uniq -c \| sort -rn \| head` |
+| **只看 shard0 的头部 dtype 会把 fp8 判成 bf16**（`-1017` 的 `model-00001` 头部 263 个张量全 BF16，整体 48 分片是 F8_E8M0/F8_E4M3 主体） | 头部统计必须对**全部分片求和**，或至少抽最大/中/最小三个 |
+| `du -sh /mnt/share/*` 120s 跑不完（350T） | NFS 上禁止整层 du，先 `ls` 再定点 `du -s <目标>` |
+| Windows 上 `ssh host "..."` 内联脚本里的引号/括号被 PowerShell 吞（`bash: -c: line 1: syntax error near unexpected token '('`） | 本地写脚本 → `Get-Content x.py -Raw \| ssh host python3 -`；或 base64 后远端 `base64 -d \| bash` |
