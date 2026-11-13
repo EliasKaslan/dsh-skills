@@ -38,6 +38,8 @@ python -m pip wheel . --no-deps --no-build-isolation -w dist -v
 | `c10/util/C++17.h:14: #error "You're trying to build PyTorch with a too old version of GCC. We need GCC 9 or later."` | 系统 gcc 只有 8.3 | 用 `/usr/bin/clang-11`：该守卫是 `#if !defined(__clang__) && __GNUC__ < 9`，clang 分支只要求 `__clang_major__ >= 9` ⇒ 只在**根工程**那次 configure 注入 `-DCMAKE_C_COMPILER=clang-11 -DCMAKE_CXX_COMPILER=clang++-11` |
 | 包装脚本完全没被用上，仍走 `/usr/bin/cmake` | `setup.py:113-128` `_find_cmake_binary()` 会跳过「前 128 字节以 `#!` 开头且含 `python`」的 cmake，判为 pip 的 wrapper | 包装脚本前 128 字节里**不要出现字面量 python**，改用 `$WORK/bin/py3` 这类间接路径 |
 
+- 还有一类**不报错**的构建缺陷（下载第三方依赖时静默不校验证书 / 哈希加错分支）：见下方「第三方依赖下载（ExternalProject_Add）：TLS 校验与 URL_HASH」节——**别以为"删掉 `TLS_VERIFY OFF` 就修好了"**。
+
 ## 3. 验收矩阵（八项，缺一项都不算"能用"）
 
 1. **静态审计**：zip 完整性、成员数、`mindspeed_ops_C*.so` 在、`lib/libmindspeed_catlass_*.so` 两枚在、`_cann_ops_custom/` 48 个文件在（含 `libcust_opapi.so`）、`csrc/atb/*.cpp` 在、`pyc`=0、`Requires-Dist` 空、`Tag` 是什么。
@@ -88,3 +90,34 @@ docker inspect --format '{{.Architecture}}' <image>   # 必须 arm64
 ```
 
 `ci/build.sh` 的默认 tag 用 `uname -m` 推架构，但 `-i` 显式给镜像名会**绕过**这层保护 → 在 x86_64 机器上能产出"名字写 aarch64、内容其实 x86_64"的镜像；推到 SWR 后门禁 runner 拉下来跑不起来，且从 tag 上看不出问题。
+
+## 第三方依赖下载（ExternalProject_Add）：TLS 校验与 URL_HASH（实测）
+
+**① 不写 `TLS_VERIFY` ≠ 会校验证书。** 官方文档 `TLS_VERIFY <bool>` 原文：`If this option is not provided, the value of the CMAKE_TLS_VERIFY variable or the CMAKE_TLS_VERIFY environment variable will be used instead (see file(DOWNLOAD)). If neither of those is set, certificate verification will not be performed.`；而 `CMAKE_TLS_VERIFY` 自己的文档写着 `Changed in version 3.31: The default is on. Previously, the default was off.`
+
+⇒ **"删掉 `TLS_VERIFY OFF`" 在 3.31 之前的 CMake 上是无效修复**（什么都不填=默认不校验），必须**显式写 `TLS_VERIFY ON`**。本仓 `pyproject.toml:4` 只要求 `cmake>=3.26`，**不能依赖 3.31 才有的新默认值**。
+- 实例：`mindspeed_ops/csrc/cmake/third_party/json.cmake` 的 `ExternalProject_Add(third_party_json ... URL <gitcode 的 include.zip> TLS_VERIFY OFF)`。
+- **同目录已有正确范式**：`third_party/makeself-fetch.cmake` 里 `URL_HASH SHA256=...` → 证明"加校验/加哈希"在本仓可行，删掉 `TLS_VERIFY OFF` 是**局部疏漏**而非技术不可行。
+
+**② `URL_HASH` 只对"同一个制品"成立，别无差别加。** 本仓 `ascend_protobuf.cmake` 有 3 条地址分支：本地随包 `.../protobuf/protobuf-all-25.1.tar.gz`、`.../pkg/${PROTOBUF_VERSION_PKG}`，远端 `.../releases/download/v25.1/protobuf-25.1.tar.gz`——**文件名都不同，是不同文件**；给所有分支加同一个哈希会让**本地构建直接失败**（本地随包存在时走 file:// 分支）。
+⇒ 只给**远程下载分支**注入哈希，用一个空的 list 变量拼接（空变量在 CMake 参数列表里展开为 **0 个参数**，已实测）：
+
+```cmake
+set(HASH_ARGS)                                    # 默认空
+if(<该 PR 走远程下载>)
+    list(APPEND HASH_ARGS URL_HASH SHA256=<hash>)
+endif()
+ExternalProject_Add(<name> URL ${REQ_URL} ${HASH_ARGS} ...)   # 引用时不要加引号
+```
+
+- **坑**：写成 `"${HASH_ARGS}"` 会塞进 **1 个空参数**（不是 0 个）→ 参数错位报错。只要空值就**不加引号**。
+
+**③ 判"该不该加"用对照法，不靠推测**：一条命令列出同目录现状（实测输出只有 `json.cmake:51: TLS_VERIFY OFF`、`makeself-fetch.cmake:23: URL_HASH SHA256=...`）：
+
+```bash
+git grep -n -E 'URL_HASH|TLS_VERIFY' -- mindspeed_ops/csrc/cmake/third_party/
+```
+
+- 同目录有正确范式 = 疏漏（要求统一修复）；一处都没有，才需要论证可行性。
+- 漏洞报告侧的定级口径（无 hash / TLS 关掉该维持高危还是降级）→ `vuln-scan-report-verification` §5，本节不重复。
+

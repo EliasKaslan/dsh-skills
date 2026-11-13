@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 61,
   "file_count": 240,
-  "total_bytes": 26682389,
+  "total_bytes": 26688505,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -234,7 +234,7 @@
       "path": "skills/gitcode-pr-flow",
       "description": "GitCode 仓提 PR：compile 门禁、双 CI、标签审计、OpenAPI、backport。适用于\"向 GitCode 提 PR / 冲突 rebase / 补门禁 / pre-commit 抖动\"。",
       "files": 4,
-      "bytes": 131791
+      "bytes": 134475
     },
     {
       "name": "github-org-delta-watch",
@@ -290,7 +290,7 @@
       "path": "skills/mindspeed-ops-whl-build",
       "description": "打 MindSpeed-Ops whl 并验收：cmake/clang、SOC_VERSION、CATLASS。适用于\"打 ops 的 whl / cmake 版本报错 / GCC 太旧 / 验证 whl\"。",
       "files": 1,
-      "bytes": 9239
+      "bytes": 12223
     },
     {
       "name": "minimax-ai-musume-4k-art",
@@ -409,7 +409,7 @@
       "path": "skills/vuln-scan-report-verification",
       "description": "核实第三方漏洞扫描报告：锁 commit、回溯可达性、张冠李戴、定级。适用于\"这个高危是真的吗 / 行号对不对 / 注入能不能用 / 定级高不高 / 有没有漏报\"。",
       "files": 1,
-      "bytes": 11240
+      "bytes": 11688
     },
     {
       "name": "web-ui-contrast-audit",

@@ -329,9 +329,12 @@ git push --dry-run --force-with-lease=refs/heads/<br>:<旧sha> upstream HEAD:ref
 > **先分流**：若 job 的 `message` 里带 `DEV-CODECI-35002`（平台抖动）→ 见 §6.1，发 `retry` 即可，**别改代码**。本节讲 message **不给真因**（如「点击任务查看详情」）时怎么定位。
 > **适用范围**：本节只对 `.gitcode/workflows/*.yml` 定义的 **GitCode 原生 actions 流水线**成立。§6.1 那套 openlibing `pipeline-run/detail` 只覆盖 **openlibing 托管的文档门禁**，对原生 actions 拿不到 stage/job 结构，**别混用**。
 
-**① 任务级状态匿名可读（无需 token）**。`run_id` = PR 评论里 `https://gitcode.com/<owner>/<repo>/actions/runs/<32hex>` 的那串：
+**① 任务级状态匿名可读（无需 token），但必须带浏览器 UA**。`run_id` = PR 评论里 `https://gitcode.com/<owner>/<repo>/actions/runs/<32hex>` 的那串。
+- **不带浏览器 UA 会 418（WAF 拦）**：用 `Net.WebClient` 默认 UA、或 Python `urllib` 默认 UA 请求 → **418**，看着像"接口挂了/流水线没跑"，其实只是 UA 被拦。**带浏览器 `User-Agent` + `Accept` 即 200**（实测）。可抄的就是这两行：
 ```powershell
-$w = New-Object Net.WebClient; $w.Headers.Add('User-Agent','ps')
+$w = New-Object Net.WebClient
+$w.Headers.Add('User-Agent','Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
+$w.Headers.Add('Accept','text/html,application/json')
 $u = 'https://web-api.gitcode.com/api/v2/projects/Ascend%2FMindSpeed-Ops/actions/workflow-runs/<run_id>'
 $r = [Text.Encoding]::UTF8.GetString($w.DownloadData($u)) | ConvertFrom-Json
 "{0} #{1} head={2} by={3}" -f $r.status, $r.run_number, $r.head_sha, $r.actor_user.username
@@ -384,6 +387,25 @@ codespell -L <抄 .pre-commit-config.yaml 里那串白名单> --skip "*.toml,*.p
 - **只 lint 本 PR 改到的文件**：`docs/zh/_menu.md` 有同样空链接却不报（本轮没改它）；反过来只要 PR 碰了某文件（哪怕只改一行 `[FAQ]`→`[FAQs]`），就**整文件**重新 lint（hook 收整文件不是 diff，同 ⑤）。
 - **有效修法（实测一次通过）**：在该 md 的 H1 与列表之间插**独立一行** `<!-- markdownlint-disable MD042 -->`（H1 仍是首行、列表不被拆断），提交 `b3d54ec` 后文档门禁四项全 ✅；平台配置与仓内配置下均 0 告警。**别写** `<!-- markdownlint-disable MD042: 说明文字 -->`（规则名后带说明，可能解析不成 MD042）；`disable-line` 需 markdownlint ≥0.28，平台版本未知，不推荐。
 - **本地复现（要绕过仓内 ignore 才看得见真告警）**：`node <markdownlint-cli 0.47.0>\markdownlint.js -c <平台 markdownlint.config.json> -p <空的 ignore 文件> <改动 md>`。`-p` 显式给出 ignore 文件后就不再自动加载仓内 `.markdownlintignore`，传空文件才是平台口径（否则被仓内 ignore 跳过 = 假绿）。
+
+### 6.9 门禁长时间停在 UT 阶段：先排除"自己这批 PR 互挤 NPU runner"（实测）
+
+**现象**：标签停在 `ci-pipeline-running`，`UT_MindSpeed_1~4` 长时间 queued，单看某一个 job 像是卡死。
+
+**机理**：本仓 `ci/access_control_test.py` 的 `filter_exec_ut()` 只在**全部改动文件都落在 `tests/unit_tests` 下、或都是 markdown** 时才算「只跑改动用例」；只要有**一个**改动文件不属于这两类，就返回 False → 打印 `no UT/MD changes, will run all unit_tests`，**跑整套 UT 并切成 4 个分片**（`GROUP_COUNT = 4`），即 4 个 `runs-on: [self-hosted, mindspeed_ops, npu=1]` job。**N 个 PR 同时跑 = 4N 个 job 抢同一批 runner**，等待时间不是线性而是成倍。
+
+**判据（先量再下结论，别先怀疑平台）**：用匿名接口数「全仓 open PR 里有多少个挂着 `ci-pipeline-running`」，**减掉自己这批**：
+```powershell
+# 匿名拉全仓 open PR（本次实测用 state=opened；api/v5 同接口写 state=open），带浏览器 UA（§6.7 ①）
+$all = Get-GitCodeJson 'https://web-api.gitcode.com/api/v2/projects/Ascend%2FMindSpeed-Ops/pulls?state=opened&per_page=100'
+# labels 可能是对象数组也可能已展开成字符串；按 .name 取，再 .Trim()（标签名有前导空格，§6.3）
+($all | Where-Object { ($_.labels.name -join ',').Trim() -match 'ci-pipeline-running' }).Count
+```
+- 结果 ≈ 自己这批数量（实测：44 个 open PR，除自己的 4 个外**无他人** running）→ 就是**自挤**，不是平台故障、也不是代码问题，**别去改代码/别找平台报障**。
+- 数量明显大于自己这批 → 有别人在跑，一起排队；只能等或分批。
+- 实测对照（同一时段）：4 个 PR 并发时 `UT_MindSpeed_1` / `UT_MindSpeed_3` 排队近 **80 分钟**才消化完；单独一个 PR 独跑约 **20 分钟**。
+
+**处置**：**分批提 PR（一次 1~2 个）**。已经一起提了，就**接受长等待，不要贸然 `stop` 重启**——重启只是把 4 个分片重新排一次队，已跑完的分片白丢。
 
 ## 7. OpenAPI v5 自动化路径（有 token 时优先）
 
@@ -613,7 +635,7 @@ git push --force-with-lease origin HEAD:refs/heads/<branch>
 | 导出的 diff 被 read 工具判为 binary | 本机 PowerShell 的 `>` 写 UTF-16（见 `pwsh-on-windows`）；**改用 `cmd /c "git grep ... > out.txt 2>&1"` 拿原始 UTF-8 字节**（`\| Out-File -Encoding utf8` 仍带 BOM） |
 | 内容已改却用 `git commit --amend --no-edit` 提交 | message 会留在旧内容上、与实际 diff 矛盾（实测：提交标题仍写"新增英文版OVERVIEW.md"，而该提交已不新增任何英文文件）；内容一变必须 `git commit --amend -m "<新 message>"`，再用 `git rev-parse 'HEAD^{tree}'` 确认 tree OID 未变，然后 `--force-with-lease` + 补发 `compile`（§9.1） |
 | 已直推过的版本分支要回退，想 force-push 抹掉那个直推提交 | **不要改写共享版本分支的历史**：基于它**叠加一个回退提交**再推（实测 `fb09350..05a911c`、exit 0、无需 `--force`）；force-push 会让已 fetch 的人分叉。master 侧未合入的特性分支才可以 `amend` + `--force-with-lease`（强推代价见 §9）；版本分支的既有先例也是叠加修正提交（§12.5） |
-| code-ci 某 job 挂了，message 只写「步骤pre-commit执行失败，错误信息：点击任务查看详情」，想去翻 CI 日志 | 原生 actions 的 **step 日志拿不到**：匿名 401、带 token 418（WAF）、GET 405。改用匿名 `web-api.gitcode.com/api/v2/projects/<owner>%2F<repo>/actions/workflow-runs/<run_id>` 定位到 stage/job/step，再本地按同版本 hook 逐条复现（§6.7） |
+| code-ci 某 job 挂了，message 只写「步骤pre-commit执行失败，错误信息：点击任务查看详情」，想去翻 CI 日志 | 原生 actions 的 **step 日志拿不到**：匿名 401、带 token 418（WAF）、GET 405。改用匿名 `web-api.gitcode.com/api/v2/projects/<owner>%2F<repo>/actions/workflow-runs/<run_id>` 定位到 stage/job/step（**匿名但要带浏览器 UA，否则 418**，§6.7 ①），再本地按同版本 hook 逐条复现（§6.7） |
 | 前几轮 compile 都绿、这次突然红，且原本 IGNORED 的阶段突然真跑 | 多半不是抖动：`need_ut` 由 `paths-changes-filter(non-doc)` 决定，纯文档变更里混进 1 个 `.py` 就会让 CodeCheck + UT 全部解除 IGNORED（§6.7） |
 | markdownlint / trailing-whitespace 挂在「我没改的那几行」上 | hook 收的是**整个文件**不是 diff：master 上既有违规只要本 PR 碰到该文件就一起算账 → 一起修或把那几处改动拆走；本地复现先取该文件 master 版本做基线（§6.7） |
 
@@ -820,7 +842,7 @@ GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never \
 
 ### 两个点（下次先复查，别照抄旧结论）
 
-1. **`web-api.gitcode.com/api/v2/projects/<owner>%2F<repo>/actions/workflow-runs/<run_id>` 本次三个 UA（curl / 浏览器 / ps）全返回 418**，取不到 stage/job 明细。§6.7 描述的匿名 200 至少不再是稳定行为 → 先当"可能不可用"，不要据此断定"流水线没跑"；退路是用 PR 标签（`ci-pipeline-running/passed/failed`）与 `AtlasAccount` 评论判读。
+1. **`web-api.gitcode.com/api/v2/projects/<owner>%2F<repo>/actions/workflow-runs/<run_id>` 曾一次三个 UA（curl / 浏览器 / ps）全 418**，当场取不到 stage/job 明细。**后已定位：418 是 UA 被 WAF 拦**——按 §6.7 ① 那两行 header（浏览器 UA + `Accept`）可稳定拿到 JSON。所以**418 时先换 header，不要据此断定"流水线没跑"**；真要读不到，退路仍是用 PR 标签（`ci-pipeline-running/passed/failed`）与 `AtlasAccount` 评论判读。
 2. **把 workflow 里的 `container.image` 指向一个尚不存在的镜像，不会让该 PR 自己的门禁立刻失败**（观测：改完推上去 + 发 `compile`，7 分钟内 UT 仍是 running，没有容器拉取错误）。这与"门禁按目标分支的 workflow 执行"一致，**但未等到全绿，属未验证**。实操含义：同一 PR 里改配方 + 切镜像是可行的，只要在合入前把镜像推上去；要留后路就把切换单独放一个提交，可单独 drop。
 
 ### 交付纪律
