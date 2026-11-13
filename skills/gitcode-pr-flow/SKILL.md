@@ -879,3 +879,33 @@ GET /repos/<o>/<r>/commits?path=<相对路径>&sha=<ref>&per_page=20
 - 这能一句话解释"为什么现网镜像的版本与仓库默认值不一致"——通常是**构建时用了非默认参数**，而后默认值又被别处改过。
 
 汇报时把这条推理写出来，比单纯说"镜像落后"有说服力。
+
+## bandit 的 exclude_dirs 是子串匹配：`*_test.py` 会被整份漏扫
+
+## bandit 的 `exclude_dirs` 是子串匹配：`*_test.py` 会被整份漏扫
+
+`bandit/core/manager.py` 判排除用的是 `any(x in path for x in excluded_paths)`——**纯子串匹配**，不是目录前缀匹配。所以在 `exclude_dirs` 里写裸 `"test"`，会排除文件名含 `test` 的所有源码；写裸 `"build"`，会排除 `*build*.py`。
+
+后果很隐蔽：被排除的文件 bandit 报 `Total lines of code: 0` 而不是报错，看起来像"扫过了没问题"。本仓的 `ci/access_control_test.py` 就是这样长期没被扫描过，它的 `os.system` 命令注入一直没被这道门禁发现。
+
+### 判断某个文件是否真被扫到
+
+```powershell
+python -m bandit -f txt <file>                     # 默认配置
+python -m bandit --configfile <cfg> -f txt <file>  # 仓库配置
+```
+
+两次的 `Total lines of code` 若前者非 0、后者为 0，就是被 `exclude_dirs` 吃掉了。想进一步确认是**文件名**而非目录触发的排除，把该文件复制成不含可疑词的副本再跑一次。
+
+### 修改前先量化，改的时候一起修
+
+1. 用改前/改后两份配置各跑一次全仓（`-r . -f json`），比较**扫描文件数**与 **issues 数**。量级通常是个位数到十位数，不会雪崩——但必须自己量，不要凭猜。
+2. 扩面后暴露的告警**必须在同一次改动里修掉**，否则等于把红留给下一个碰这些文件的人。
+3. 只删会误伤文件名的裸词，保留真正代表目录的那一项（`"tests"` 作为子串仍能匹配 `tests/` 目录，不必删）。
+
+### 两个易错点
+
+- **pre-commit 的 bandit 在 PR 场景只扫本次变更的文件**，所以收紧排除规则后，全仓残留的告警**不会立刻**让 CI 变红，但它会在下一个人改到那些文件时爆出来。别把"CI 现在还是绿的"当成"新规则没生效"。
+- 排除规则（`exclude_dirs`）与启用规则集（`tests = [...]`）是两回事，不要在同一处混改。
+
+**不适用**：想调整启用哪些 bandit 检查规则 → 那是 `tests` 列表，与本节无关。
