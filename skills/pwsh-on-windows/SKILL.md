@@ -218,3 +218,43 @@ exit $process.ExitCode
 - 判成功**不要看退出码**，看落盘：`Test-Path <dir>\.git` 为真即成功（再顺手 `Get-ChildItem <dir>` 确认工作树非空）。
 - 需要区分「真失败」时，把目录存在性当主判据，`$LASTEXITCODE` 只作辅助；不要因为看到 `[exit code: 1]` 就重试或改用别的方式下载。
 - 同理适用于其它把进度/警告写 stderr 的原生命令（`npm`、`pnpm`、`curl` 的部分子命令）：退出码不可靠时，用产物是否落盘来判定。
+
+## 原生命令成功也可能报 exit 1：git push 走 stderr、管道 + stderr 触发 EPIPE
+
+## 原生命令的成功也可能报 `[exit code: 1]`：不要用退出码判定成败
+
+PowerShell 5.1 会把原生命令写到 **stderr** 的每一个字节包成 `NativeCommandError`，工具层于是报 `[exit code: 1]`，而命令其实**完全成功**。git 把进度/摘要写 stderr，所以几乎每次 `git push` / `git clone` 都会命中。
+
+逐字错误原文：
+
+```text
+git : To https://github.com/<owner>/<repo>.git
+所在位置 行:1 字符: 309
++ ... === push origin ==="; git push origin main --follow-tags 2>&1 | Selec ...
++                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (To https://gith...cket-plugin.git:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+   c6c63ce..0dcd9bc  main -> main
+ * [new tag]         v1.0.1 -> v1.0.1
+```
+
+（就在同一段输出里已经写着 `main -> main` 和 `[new tag]` —— 那是成功，不是失败。）
+
+**判据改成"取外部事实"，不要取退出码：**
+
+- git：`git ls-remote <remote> <ref>` 拿远端真实 sha 与本地 `git rev-parse HEAD` 比；tag 要比 `<ref>^{}` 才是它指向的提交。
+- 发布到静态托管的产物：抓线上那份，与本地构建产物的哈希/标志串逐位比（例如 `const BUILD = '…'`），再对**新增的每一个被 import 的模块**单独发一次 HEAD 请求确认 200 —— 只验入口页会漏掉"模块 404 白屏"。
+
+## 同一个坑的另一面：管道 + stderr 会让成功的命令变成 exit 1
+
+`<cmd> 2>&1 | Select-Object -Last N` 会在读够 N 行后提前关闭管道，原生命令继续写 stderr 就拿到 EPIPE，退出码变 1。实测：
+
+```powershell
+& npm.cmd pack --dry-run 2>&1 | Select-Object -Last 50   # → [exit code: 1]，但 tarball 名与 notice 全打出来了
+& npm.cmd pack --dry-run 2>&1 | Out-Null; $LASTEXITCODE  # → 0
+```
+
+所以「命令红了」先分清是哪一类：`NativeCommandError` / EPIPE 都是假红；真失败会带非零退出码**且没有产物**，或者报 `fatal:` / `error:`。要判断就把输出落盘再读，或用 `Out-Null` 后单独看 `$LASTEXITCODE`。
+
+复发面很广：任何把进度/警告写 stderr 的原生程序（git、npm、pnpm、python 的 warnings、ssh）都会这样。
