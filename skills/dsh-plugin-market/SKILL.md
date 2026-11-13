@@ -155,3 +155,50 @@ peer 判断：bundle 只要求 `@deepseek-ai/cordis ~4.1.0`，运行时 `app.asa
 ## 边界
 
 只审计，不安装、不跑 `npm install` / `npm test`、不执行插件本体。不代替用户做合规判断，只把「上游条款禁止 + 风险落在用户」这一事实摆出来。
+
+## 语言键必须小写、本地化字段只在 plugin 级、用宿主自带校验器离线验索引
+
+## 语言键必须全小写（一条就能让整份索引失效）
+
+`localizedText()` 用 `LANGUAGE_ID = /^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/u` 校验键名（`src/index.ts`，`fail(... 'must be keyed by a lowercase language id')`）。**`zh-CN` 不合法**，`zh-cn` 才合法——地区子标签也必须小写。
+
+失败是**整份索引被拒**，不是「这一条不显示」：`title`、plugin 级 `title`/`description` 任一处写 `zh-CN`，整份索引解析抛 `MarketIndexError`，插件在市场里根本不出现（Discover 只显示索引错误）。写索引时把语言键当 npm 包名的 scope 那类硬约束对待。
+
+## 本地化字段只在 plugin 级，version 级写了会被静默丢弃
+
+- **plugin 级**（`plugins[].`）：`title`、`description`、`icon`（相对索引 URL 解析）、`author`（纯字符串）、`homepage`、`repository`、`metadata`、`versions`。
+- **version 级**（`versions[].`）：只有 `version`、`publishTimestamp`、`source`、`engines`。
+
+`marketVersion()` 只挑这四个字段，多写的 `description` **不报错、直接丢掉**。想让它显示就把 `description` 放到 plugin 级（对象形式，需要同时给 `en` + `zh-cn`）。
+
+## 离线用宿主自带的校验器验索引（不是对着文档数格式）
+
+`app.asar` 里的 `@deepseek-ai/dsh-plugin-market-index` 就是宿主真正用的那份校验器，解出来直接 import，比手写格式检查可靠（且能拿到第一条违规的精确 JSON 路径）。
+
+asar 头部的偏移是个坑，实测这套值可用：
+
+```python
+f.seek(0); head = f.read(16)
+hdr_json_len = int.from_bytes(head[8:12], 'little')   # JSON 长度
+base = 8 + int.from_bytes(head[4:8], 'little')         # 文件数据起点
+f.seek(0); blob = f.read(base)
+header = json.loads(blob[16:16 + hdr_json_len].decode('utf-8'))   # JSON 从 16 开始
+# 每个文件: 绝对偏移 = base + int(entry["offset"]), 长度 = int(entry["size"])
+```
+
+（`16 + hdr_json_len` 当数据起点会**早 3 字节**，解出来的 `package.json` 前面多一个 `};\n`、`ERR_INVALID_PACKAGE_CONFIG`——这个错位很难看出来，所以照抄上面 `base` 那行。）
+
+把 `@deepseek-ai/dsh-plugin-market-index`、`@deepseek-ai/dsh-package-manifest`、`node_modules/semver` 三棵子树按 `node_modules/<name>/` 还原到临时目录即可 `import`：
+
+```js
+import { parseMarketIndex } from '@deepseek-ai/dsh-plugin-market-index';
+// 第二个参数必须是**绝对 URL**，不是 {source}：签名是 (value, indexUrl: string)
+try {
+  const out = parseMarketIndex(raw, 'https://raw.githubusercontent.com/<owner>/<repo>/main/market/index.json');
+  console.log('PASS', out.plugins[0].versions.map((v) => v.version));
+} catch (e) { console.log('FAIL', e?.name, '|', e?.message); }
+```
+
+写反了会得到一句误导性错误：`$ index URL {"source":"..."} must be an absolute URL`。
+
+**索引源与 package.json 的 `engines.dsh` 下界必须一致**：市场按索引里的范围放行，装完 profile 却按包自己的 `engines.dsh` 复检——索引放宽成 `>=0.2.2-rc.1` 就等于把插件推给未验证的宿主，装完在 profile 那步才失败。市场侧可以带上界（`>=0.2.2-rc.2 <0.3.0-0`），包侧通常只写下界，取两者交集后**下界相同**即可。

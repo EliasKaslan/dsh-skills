@@ -1,6 +1,6 @@
 ---
 name: github-pr-flow
-description: 向 GitHub 上游仓提 PR 全 API 流程：PAT、DCO、REST 创建与回读、CI 判读。适用于"提 PR / fork 推分支 / 403 没权限 / DCO 不过 / CI 挂的是不是我 / run_id 怎么拿"。
+description: GitHub 上游仓提 PR：PAT/DCO/建 PR/CI 判读，blocked 逐条判定与冲突解决、force-with-lease 强推
 whenToUse: 要在 GitHub 上游仓库（尤其 vllm-project/vllm-ascend）提交 / 关闭 / 重开 PR、往 fork 推分支、判断 token 权限，或做 DCO 签名提交时使用。
 ---
 
@@ -151,3 +151,63 @@ Invoke-RestMethod "https://api.github.com/repos/<owner>/<repo>/actions/runs/<run
 - **2026-09-29 完善**：① 修掉 §4 创建 PR 用 `-Body $payload`（字符串）——中文标题/正文会被按 ASCII 发出、在网线上变成 `??` 且**本地不报错**，改为 `UTF8.GetBytes` + `charset=utf-8`，并补**回读校验**；② §6 补 `actions/runs?head_sha=`（匿名实测 200、`total_count=12`）以说明悬空的 `<run_id>` 从哪来；③ §0 与 §4 关于"能否用创建做探测"的张力改为显式交叉引用（零副作用只因空 body 得 422）；④ description 的 GitCode 交叉引用由"仅 MindSpeed-Ops"扩为"任意仓（含 MindSpeed-Agent）"，并补 DCO / 标题前缀 / 引号提交等触发词；⑤ §2 的通用 PowerShell 说明改为指向 `pwsh-on-windows`（单一归属）。
 - **2026-09-29 完善（第二轮）**：⑥ 修掉 §2 的 P0——`$msg | git commit -F -` **也会写进 BOM**（实测 stdin 注入字节 `ef bb bf 41 42 43 0d 0a`），且原自检 `(git log -1 --format=%s)[0]` **对已损坏的提交恒报 100（假 OK）**，故删去该自检、改为按原始字节查；解法换成 `[IO.File]::WriteAllText(..., UTF8Encoding $false)` + `git commit -F 文件`（实测通过）；⑦ §5 补「改 PR 标题/描述」的 PATCH（含中文必须走 UTF-8 字节）；⑧ §2 补 `--depth 1` 的 ahead/behind 代价；⑨ 勘误：那组 PR 号在引言而非 §0。
 - **2026-09-29 凭据迁移（用户决策：允许缓存 / 移出 skill 目录 / 加 .gitignore）**：`skills\github-pr-flow\token.txt` → **`~\.dsh\.secrets\github-pr-flow.token`**。SHA256 搬运前后一致（41 B 未变），旧路径已删除；新建 `~\.dsh\.gitignore`（`.secrets/`）与 `.secrets\.gitignore`（`*` + `!.gitignore` 自忽略）。§0 已改为凭据策略的单一出处，`gitcode-pr-flow` / `dsh-skill-authoring` / `dsh-skill-self-audit` 改为指向此处。
+
+## PR 卡在 Merging is blocked 或合入冲突时怎么定位与解决
+
+## 何时调用（本节触发）
+
+PR 页面显示 "Merging is blocked"、`mergeable_state` 为 `DIRTY`/`CONFLICTING`、或 rebase 后工作树冒出成片 `AA` 文件时读本节。
+
+## 一、先把 blocked 的成分逐条取出来，再动手
+
+不要凭"哪个 job 红了"猜。权威取数两处：
+
+- GraphQL：`mergeable`、`mergeStateStatus`、`reviewDecision`、`commits(last:1).statusCheckRollup.state`、`reviewThreads(first:60){isResolved}`。
+- **Rulesets**（新版仓库用 Rulesets，`GET /repos/<o>/<r>/branches/main/protection` 可能返回空数组，别据此判断"没有保护"）：
+  `GET /repos/<o>/<r>/rulesets` → `GET /repos/<o>/<r>/rulesets/<id>`，读
+  `required_status_checks`（`required_status_checks[].context`，如 `DCO`、`ci-gate`）与
+  `pull_request`（`required_approving_review_count`、`required_review_thread_resolution`、`dismiss_stale_reviews_on_push`）。
+
+实测踩过的误判：同一 head 上 `ci-gate` 可能已有**两条** check-run（旧 failure + 新 success，维护者加标签后重跑），`statusCheckRollup=SUCCESS` 就已满足必需检查；此时真正缺的是 approval。**先枚举规则，再动手。**
+
+## 二、冲突：不要在"多次 `--depth` fetch 拼出来的浅克隆"里 rebase
+
+症状（逐字）：`git status` 刷出成片的 `AA` / `A ` 文件（上千行），rebase 把整棵树当新增文件。
+
+原因：仓是浅克隆、历史由多次不同 `--depth` 的 fetch 拼成，git 取不到 merge base。
+
+修法（实测 5 秒级）：
+
+1. `git rebase --abort` 复原；
+2. `git clone --depth 1 --branch main <upstream-url> <新目录>`（只取目标树，无浅历史畸形）；
+3. 在新克隆里**按目标文件当前结构重建改动**——评审往返多（七八个提交）时直接压成 1–2 个干净提交，比逐个 `git am` 重放省事且避开冲突密集区；
+4. 用显式 lease 强推（见 §3），并在 PR 里说明"旧 head 的 9 个提交已压成 2 个、净 diff 不变"。
+
+重建后必查：`git diff --stat origin/main..HEAD` 的净增删要**与冲突前一致**，否则说明漂移。
+
+## 三、强推：`--force-with-lease` 需要本地有远端引用
+
+没 fetch 过 fork 分支时，`git push --force-with-lease <url> HEAD:<branch>` 会：
+
+```
+ ! [rejected]  HEAD -> <branch> (stale info)
+```
+
+修法：把期望值写进参数——
+
+```
+git push --force-with-lease=refs/heads/<branch>:<远端当前 sha> <url> HEAD:refs/heads/<branch>
+```
+
+远端当前 sha 从 `GET /repos/<owner>/<repo>/pulls/<n>` 的 `head.sha` 取。
+
+## 四、fork 作者的权限边界（提前说清，别反复试）
+
+- **不能自 approve**（GitHub 禁止作者批准自己的 PR）。
+- `POST /pulls/<n>/requested_reviewers` 对无写权限账号返回 **404**（不是 403）——"请求评审"这个动作本身就要写权限。
+- **可以**关闭 review 会话：GraphQL `mutation resolveReviewThread(input:{threadId:$id}) { thread { isResolved } }`（fork 作者身份实测成功），先把已处理的线程全部 resolve 掉。
+- 仓库若开 `dismiss_stale_reviews_on_push`：**任何推送都会作废已有 approval**，包括用 "Update branch" 按钮解冲突（它也是往分支写 submit）。所以解冲突前先看 `reviewDecision` 是不是 `APPROVED`，若是，在 PR 里提前说明"approval 会被作废、请重批"，别让审批人莫名其妙。
+
+## 五、收尾
+
+推完重新取一次 §1 的两处数据，确认 `mergeable` 变 `MERGEABLE`、阻塞只剩 approval 这一类；然后发一条 PR 评论写清：冲突根因（哪个上游 PR 挪了哪段代码）、重建方式、净 diff 是否不变、以及"请谁对哪个新 sha 重新 approve"。
