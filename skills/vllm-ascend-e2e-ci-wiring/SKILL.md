@@ -155,3 +155,45 @@ git push "https://x-access-token:$(cat <token-file>)@github.com/<user>/<fork>.gi
 ```
 
 改完跑 `ruff check` / `ruff format --check`（本仓 line-length=120），再确认 `git ls-files --eol` 里 index 是 `lf`（Windows 工作区 CRLF 是 autocrlf 正常现象）。
+
+## 合并前的门禁：ci-gate 的 label 规则、/e2e 结果读取与「真模型优于切片」
+
+## 合并前的门禁：ci-gate 的 label 规则与结果读取
+
+**适用**：PR 在 vllm-ascend 上已经跑过 `/e2e`，但 `ci-gate` 仍红；或想知道一条 PR 到底还差什么才能合。
+
+### 1. `ci-gate` 不是「CI 都绿了」的意思
+
+`.github/workflows/pr_test.yaml` 里的 `ci-gate` 汇总 `pre-commit` / `cpu-ut` / `select-tests` / `run-selected-tests*`，规则分两类：
+
+- PR **只改测试/文档/CI**：`select-tests` 因没有触发 label 而 skipped，gate 直接放行（不需要 e2e）。
+- PR **触碰源码**（哪怕只在测试 PR 里加了一个 backend 声明）：`has_tests=true`，gate 要求 `ready-precise` / `ready-all` / `main2main` 之一；没 label 就报
+  `This PR touches source code (test selection source: ...), so precision/full tests are required before merge`。
+  **手工 `/e2e` 不能替代它**——gate 读的是本 run 的 `run-selected-tests`，不是 dispatch 出来的 e2e job。
+
+推论：把「驱动测试的源码修复」塞进 test-only PR，会同时得到「e2e 能跑」和「gate 必须有 label」两个结果。要么让维护者加 label，要么把源码改动拆成独立 `fix:` PR（它自己也要 label）。
+
+### 2. 触发与判读
+
+- 硬件 e2e 只能由评论 `/e2e <tests/e2e/pull_request/... 路径>` 触发；PR 作者或有 triage+ 权限者可发。路由按路径：`four_card` → A3 4 卡，`two_card` → A3 2 卡，`one_card` → A2 单卡，`_310p` 优先。
+- `/e2e` 一次跑两条 vLLM 车道（verified main 与 release tag）。**两条都绿才算数**，只看一条容易漏。
+- job 结论里 `cancelled` 不等于失败：常见是节点级基础设施错误（例如 `HCCL function error: hcclCommInitRootInfoConfig ... code 7 (resource unavailable)`）把 4 个 rank 全打挂，case 挂到超时被 runner 取消。此时结论是「无判定」，重跑一次，不要据此改代码。
+
+### 3. 不点网页也能拿到 pytest 输出
+
+```bash
+# 1) 取 job id：GET /repos/{o}/{r}/actions/runs/{run_id}/jobs
+# 2) 取日志：GET /repos/{o}/{r}/actions/jobs/{job_id}/logs
+#    -H "Authorization: Bearer <PAT>"，不要自动跟随跳转，先读 302 的 Location
+# 3) 再 GET 那个签名 URL（不带 auth），响应体就是纯文本日志（不是 zip）
+```
+
+然后 grep `collected|passed|failed|PASSED|Running target` 就能确认「真的跑了这条用例、真的过了」，而不是只有 job 绿。
+
+### 4. BI 的 e2e 用例：能用真模型就别只用切片
+
+- 切片（`hf_overrides` 减层 + `load_format=dummy`）只能证伪，不能证真：它只覆盖被切到的层与形状。
+- 先查同目录是否已有该模型的四卡用例（真权重在 runner 上已缓存），有缓存就直接服务完整模型；显存按 **workspace = KV cache / full-attention 层数** 估：层数多时 0.9 的 utilization 也能放下，只有单层 full attention 的切片才需要把 cache 装两遍（那时才要压到 ~0.45）。
+- 用例里把模型形状钉死（层数、GDN/full 的条数、experts/top-k），否则上游 interleave 变化时会「静默换个模型还绿」。
+
+未验证：不同 checkpoint 的真实权重体积/加载耗时差异较大，显存预算仍要以启动日志的 `Available KV cache memory` 为准。
