@@ -551,3 +551,99 @@ git grep -n "init_attn_backend" -- <repo>
 4. PCP/DP 等并行维 >1 时存在跨 rank 归约，行局部性默认不成立。
 
 未验证：CUDA GDN 在 H100 上 18/32 不一致的数值机制为推断（未取证到 kernel 级）；Ascend `npu_grouped_matmul` 的 tiling 与 M 无关未取直接证据。
+
+## vLLM-Ascend BI 实现层解剖：五层堆栈、注册表三分支、FIA workspace 断裂（Qwen3.5-35B-A3B 取证）
+
+## vLLM-Ascend BI 实现层解剖（2026-11 取证）
+
+**适用**：要回答「vllm-ascend 到底为 BI 改了哪些代码」「这个模型的 BI 是怎么成立的」「为什么开了 BI 还是漂」，或要给某个混合注意力/MoE 模型做 BI 适配评估。
+
+**基线**：vllm-ascend `origin/main @ 124b477`（2026-11-06），vllm `24420b7a3`（2026-10-30）。行号只对这两个 commit 成立。
+
+### 一、五层堆栈（只有第 3、4 层是 ascend 新增的）
+
+| 层 | 内容 | 关键位置 |
+|---|---|---|
+| L1 上游契约 | `VLLM_BATCH_INVARIANT` 唯一注入点在 worker 分布式初始化；`supports_batch_invariance()` 基类默认 False | `vllm/v1/worker/gpu_worker.py:1702` → `determinism/batch_invariant.py:1433`；`v1/attention/backend.py:213` |
+| L2 ascend 注入 | 同一时机调自己的 init | `vllm_ascend/worker/worker.py:1384` → `init_batch_invariance()`（`batch_invariant.py:166-189`） |
+| L3 注册表 | `torch.library.Library("aten","IMPL")` + 自建 `"NPU"` key | `vllm_ascend/batch_invariant.py:124-163` |
+| L4 算子 | AscendC wheel（仓外）+ Triton 兜底 | `csrc/build_batch_invariant_ops.sh`；`vllm_ascend/ops/triton/batch_invariant/{matmul,softmax,mean,rmsnorm}.py` |
+| L5 模型图 | 只是把调用导向 L3 已 patch 的名字 | 无独立模型文件，走上游模型类 + `patch/worker/*` |
+
+**别搞错路径**：`vllm_ascend/ops/batch_invariant/` **不存在**；真实位置是 `ops/triton/batch_invariant/`。`mean.py` / `rmsnorm.py` 写好了但**没接进注册表**（死代码，只被 UT 直接调）。`softmax.py` 没有 Triton kernel，是 `amax/exp/sum` 组合。
+
+### 二、注册表 13 项 + 三条分支（静默失效的根源）
+
+分支结构（原文 `:134/141/157`）：先 `if HAS_TRITON`（addmm/bmm/softmax/_softmax），再 `if HAS_ASCENDC`（mm/matmul + 4 处 monkey patch）`elif HAS_TRITON`（mm/matmul/linear）。**①② 不互斥，②③ 互斥。**
+
+生效矩阵（这是最容易误判的地方）：
+
+| 探测结果 | 实际生效 | 后果 |
+|---|---|---|
+| Triton ✓ + AscendC ✓ | 10 项 + 4 patch | 生产形态 |
+| Triton ✓ + AscendC ✗ | 7 项 | **FIA / sum / add_rms_norm 全裸奔，但日志照样打印「Enabling batch-invariant mode」** |
+| Triton ✗ + AscendC ✓ | 6 处 patch | addmm/bmm/softmax 未替换 |
+| 都 ✗ | 0 | 只打 warning（原文有拼写错误：`...not available.skipping...`） |
+
+4 处必须 monkey patch 的原因写在源码注释里（`:144-145`）：`torch_npu.npu_fused_infer_attention_score` 是普通 Python 函数不是 `torch.ops.Operator`，挂不上 dispatch key；`torch.sum` 同理。**代价是这些替换对已存下函数引用的调用点无效** —— 这就是下面 workspace bug 的成因。
+
+`add_rms_norm` 拆分（`:50-62`）：`x_ = x + residual; x_, _ = torch_npu.npu_rms_norm(x_, weight, eps); return x_, None, residual_` —— **rstd 被丢弃**，需要 rstd 做残差重算的下游会拿到 `None`。
+`reduce_sum`（`:68-99`）：只有末维（`dim == -1` 或 `x.dim()-1`）、NPU 张量、受支持 dtype 才走 `npu_reduce_sum_batch_invariant`，其余回退 `torch_sum`（`:28` 保存的原始引用，防递归）。非末维会抛 `AclNN_Parameter_Error(EZ1001, "Provided dim only support last dim")`。
+
+### 三、FIA workspace 断裂链（唯一「不改就跑不起来」的坑）
+
+`batch_invariant.py:146-148` 换掉了 `torch_npu.npu_fused_infer_attention_score`，但**没换 `_npu_fused_infer_attention_score_get_max_workspace`**。4 个 v1 调用点仍在按原算子量尺寸：
+
+`attention_v1.py:724`（`full_graph_fia` 里 `get_capture_resource(_FIA_WORKSPACE_KEY, ...)`）、`mm_encoder_attention.py:189/267`、`attention/context_parallel/attention_cp.py:441`。紧随其后的 `register_task(torch_npu.npu_fused_infer_attention_score.out, ...)`（`attention_v1.py:744`）用的是同一份 workspace。
+
+后果：FULL 图首桶报 `EZ1010: Value ... for parameter workspaceSize is invalid ... does not meet the minimum workspace size`，末尾却是 `capture_end ... task group status error` / `error code is 107033`（**报错与真因错位**）。越线幅度 A3+CANN9.2/9.3 约 3.49×、A5 约 2.4×、A3+CANN9.1.0 恰好不越线 → 同一份代码在不同 CANN 上表现不同，最容易被误判成环境问题。
+
+修法：把 `_npu_fused_infer_attention_score_get_max_workspace` 一起重绑（库内应落在 `batch_invariant.py` 的 FIA 补丁旁；应用层只能一行 monkey patch 临时救）。另注意 `full_graph_fia_v2`（`:775`）走 `npu_fused_infer_attention_score_v2`，**注册表只换 v1，v2 无 BI 版**。
+
+### 四、混合批：attention 里唯一的 BI 分支
+
+`git grep VLLM_BATCH_INVARIANT -- vllm_ascend/attention/` **只有 1 行命中**：`attention_v1.py:1058`。语义是 BI 下把混合批（`num_decodes>0 and num_prefills>0`）强制拆成 decode FIA + prefill FIA 两次调用（`_forward_fia_chunked_prefill_split`），A5 靠硬件能力位 `CHUNKED_PREFILL_PHASE_SPLIT` 在非 BI 下也拆。**这不是优化而是语义要求**：合并 FIA 的 tiling 由整批拼出来的 `actual_seq_lengths` 决定，违反「同一条请求的计算结构与邻居无关」。
+
+### 五、GDN 为什么"没有 BI 算子也能逐位一致"
+
+线性注意力的所有 kernel 都按 `[1, T, H, D]` 组织（`ops/gdn.py:327` 注释 "batch size is always 1 here"）——**模型层面没有 batch 维**，N 条请求被拼成一条长 T。BI 于是退化成「打包后的 T 变了，每条请求被切的位置会不会变」：`_GDN_CHUNK_SIZE = 64`（`gdn_attn_builder.py:45`），先按 `cu_seqlens` 分段、再在段内以 64 切，**不跨请求** ⇒ 同一条请求的 chunk 序列只取决于自身长度。
+
+- 三条 prefill 实现，同一模型在不同镜像上可能走不同一条：`gdn.py:814-830` 选择 → A `fla_npu chunk_gated_delta_rule_fwd`（`:831`，A2/A3/A5 默认）/ B `torch_npu.npu_chunk_gated_delta_rule`（`:853`，显式 `.to(bfloat16)` state）/ C 仓库 Triton（`:895`）。
+- 另一个形状阈值：`_GDN_SOLVE_TRIL_LARGE_BLOCK_SIZE = 1216`（`:47`）。
+- **唯一没闭合的环**：chunk 内 kernel 的 tiling 是否也与总 T 无关。`fla_npu` 源码不在仓库内，只能靠单算子实测。
+
+### 六、其余「按批换实现」的高危点（按危险度）
+
+1. **MoE 通信算法按 token 数选**：`ascend_forward_context.py:161-181` + `select_moe_comm_method`（`:393`），`num_tokens <= mc2_tokens_capacity → MC2`，否则 `ALLTOALL/ALLGATHER`。BS=1 与 BS=64 走完全不同的通信+GEMM 组合。**全仓最脆一环。**
+2. **`pa_shape_list` 显式按 batch size 选 kernel**：`attention/utils.py:281-282`（`runtime_shape in pa_shape_list`），配置在 `ascend_config.py:444`（默认空）。填了值 ⇒ PA 与 FIA 混用，**BI 静默失效且无告警**。BI 下应断言该列表为空。
+3. GDN 混合批才拆 decode 段走 `causal_conv1d_update`（`gdn.py:550-555/610-628` vs `:634-646`）；三种输出布局（`:678-693`）；单 token 续写 chunk 被重标成 decode（`gdn_attn_builder.py:103-126`）。
+4. **绕过 dispatch 的融合算子 BI 管不到**：`sfa_v1.py` 的 `TRANSPOSE_BMM_MAX_SUPPORTED_DIM = 65536` 常量在 `:331`，分支在 **`:1311-1334`**（`_q_proj_and_k_up_proj`）。⚠ 更正本 skill §五之三 的注解：else 侧是 `torch.bmm`（**不是**直接调 `bmm_batch_invariant`，它是靠 `aten::bmm` 的 dispatch 注册被动 BI 化），if 侧 `npu_transpose_batchmatmul` 绕过 aten dispatch ⇒ 不受 BI 约束。`mla_v1.py:1230-1241` 有同构分支。
+
+### 七、声明体系：11 处全 True，但那只管启动门
+
+`git grep -A4 "def supports_batch_invariance" -- vllm_ascend/` = **11 处，全部 `return True`**（`attention_v1.py:85`、`mla_v1.py:116`、`sfa_v1.py:366`、`dsa_v1.py:301`、`dsa_v41.py:1746`、`fa3_v1.py:20`、`indexer.py:146`、`indexer_kpool.py:575/738`、`models/minimax_m3/msa_m3.py:209/712`），注释统一援引 vLLM #60271。注意 `AscendAttentionBackend.get_name()` 返回 `"CUSTOM"` —— 被门拦时的报错会写成 `not supported for CUSTOM.`，别据此去找一个叫 CUSTOM 的类。
+
+MoE 另有**带下划线**的 `_supports_batch_invariance()`（`fused_moe/modular_kernel.py:716`，默认 False）：只实现不带下划线的那个会静默回落非 BI kernel。
+
+配套的 4 处「不叫 BI 但为 BI 服务」的接入点：`utils.py:554-558`（BI 下关自定义算子，注释原文 *"There are some customed operators which aren't implemented with batch invariant in vllm-ascend, we need to disable them."* —— 这是仓库对「部分覆盖」的官方声明）、`sample/sampler.py:96`（退回原生采样）、`platform.py:1720`（FA backend 只服务 A5 的 GLM draft，Qwen3.5 天然走 dense FIA）、`override_envs_for_invariance()`（`:102-113`：`weight_nz_mode=0`、`HCCL_DETERMINISTIC=strict`、`LCCL_DETERMINISTIC=1`、`torch.use_deterministic_algorithms(True, warn_only=True)`）。
+
+### 八、Qwen3.5-35B-A3B 的具体结论（可迁移的判断方法）
+
+- 结构：40 层、`layer_types` 3:1 ⇒ **30 层 GDN + 10 层全注意力**；每层 MoE **256 专家 top-8 + 1 shared**；hidden 2048；bf16 无量化；`attn_output_gate=true`；mrope interleaved `[11,11,10]`；MTP 1 层；ViT 27 层（不参与文本 BI）。
+- **点名这个模型的改动只有 3 条**：PR #21176（workspace 重绑，15 行零删除，**未合 main**）、PR #19442（e2e 覆盖，+148/−34 纯测试，4 层切片 + `load_format=dummy`）、PR #18449+#18570（docs Tested Models 加行）。**没有任何为它新写的 BI kernel。**
+- 结论强度：A3/TP4/图模式 `FULL_AND_PIECEWISE`/桶{1,2,4,8}/BS≤8/32 步/256 token → token+chosen logprob+top-5 **三项逐位**、3 轮独立引擎复现；同形状负控暴露 6 token+10 logprob ⇒ 有牙。TP=8/BS=16 阶段封顶 `PASS_PARTIAL`。
+- 覆盖缺口：GDN 全链、MoE 路由全链、FIA v2、MoE comm 选择，**四者都无 BI 替身** ⇒ 只能报「实测域内成立」，不能报「算子级已证明」。
+
+### 九、取证命令与两个坑
+
+```powershell
+$r = '<vllm-ascend 克隆>'
+git -C $r log -1 --date=short --format='%H %cd %s' origin/main      # 先锁 commit
+git -C $r show origin/main:vllm_ascend/batch_invariant.py | Select-Object -Skip 120 -First 45
+git -C $r grep -n "_get_max_workspace" origin/main -- vllm_ascend/
+git -C $r grep -n "VLLM_BATCH_INVARIANT" origin/main -- vllm_ascend/attention/
+git -C $r grep -n -A4 "def supports_batch_invariance" origin/main -- vllm_ascend/
+```
+
+- **别用 `hasattr(torch.ops, "batch_invariant_ops")` 判断装没装**：`torch.ops` 是惰性命名空间，访问任何属性都会当场造空对象，**恒为 True**；`dir(...)` 只返回 `['name']`。唯一判据是逐个 `getattr` 具体算子名。
+- **`git grep` 无命中返回退出码 1**，在 `$ErrorActionPreference='Stop'` 下会被当失败；先 `2>$null` 再判 `.Count`。浅克隆会让 `--grep` / pickaxe 给出「引入提交不可达」的假结论（本机 2026-10-11→11-01 有空洞），考古结论必须标「不可考」而不是「没做」。
