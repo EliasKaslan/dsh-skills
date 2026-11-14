@@ -1,10 +1,17 @@
 {
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
-  "skill_count": 63,
-  "file_count": 243,
-  "total_bytes": 26799925,
+  "skill_count": 64,
+  "file_count": 244,
+  "total_bytes": 26803729,
   "skills": [
+    {
+      "name": "ace-step-music-gen-on-ascend",
+      "path": "skills/ace-step-music-gen-on-ascend",
+      "description": "用 ACE-Step 1.5 turbo 在 192.168.13.190 上 CPU 出整首歌：权重补齐、批量生成、母带。",
+      "files": 1,
+      "bytes": 3804
+    },
     {
       "name": "ai-musume-4k-art",
       "path": "skills/ai-musume-4k-art",

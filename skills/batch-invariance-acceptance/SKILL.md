@@ -881,3 +881,25 @@ git -C $B/FSDPTurbo status --porcelain                # 5 处，正是实际在�
 **命名能否被认领（静态证据）**：`vllm_ascend/models/deepseek_v41/model.py` 的 `load_weights` 改名表命中切片键族：`.w1/.w2/.w3 → gate_proj/down_proj/up_proj`、`.ffn. → .mlp.`、`.attn. → .self_attn.`、`.attn_norm. → .input_layernorm.`、`.ffn_norm. → .post_attention_layernorm.`、`.gate.bias → .gate.e_score_correction_bias`；`gate.bias_vl` 与 `attn_sink` 有专门特判；`aligner./vision./image_/mtp.` 走 `_DEFERRED_WEIGHT_PREFIXES`。
 
 **未验证**：真实 vllm 加载/前向（P2 blocker 仍是 `No module named 'ops'` + `aclnnScatterNdUpdateSk DT_UINT8`）。CPU 上实例化 V4.1 走不通：nvidia 实现断言 `DeepseekV4 attention requires a CUDA device`，Ascend 实现要平台解析成 npu ⇒ 要拿「模型参数名 − 切片键」差集，只能上空闲 die + `load_format=dummy` 跑同一脚本。
+
+## dummy 权重与 BI：只影响证据强度，不影响性质
+
+**结论**：`load_format=dummy` 不在 BI 的自变量里（BI 判据是「算子实现 × 形状域 × kernel 分派」），所以它**不会**让 BI 失效；但 dummy 下的 PASS 只能算 `SAMPLED_PASS`。
+
+**代码证据（vllm `ffcabb8c`，2026-10-26；三棵 vllm-ascend 树同结论）**
+- `vllm/model_executor/determinism/` 三文件里 `load_format` / `dummy` **0 命中**；`dummy.*batch_invarian` 类组合正则在 `vllm/` + `tests/` 全树 **0 命中**。
+- BI 唯一入口 `init_batch_invariance()`（`model_executor/determinism/batch_invariant.py:1433`），在 `v1/worker/gpu_worker.py:1690/1699-1701` 的 `init_worker_distributed_environment()` 内、**权重加载之前**调用；实现是 `torch.library.Library("aten","IMPL")` 覆写 `mm/addmm/mm.out/addmm.out/matmul/linear/mean.dim/softmax/_softmax`（:1314-1367）——只看算子 + 形状，看不到权重来源。
+- vllm-ascend 侧 `enable_batch_invariant_mode()` 同样 0 命中（0.26 / main / PR 分支均如此）。
+- dummy 初值：`initialize_single_dummy_weight`（`model_executor/model_loader/weight_utils.py:1631-1719`）seed 恒 `1234`、浮点默认 ±1e-3、<16bit 浮点 ±1.0、E8M0 scale 固定字节 120、int8/uint8/FP4 用 `random_`；注释明说设计目标是 dequant 后 finite（:1623-1628）⇒ **不会出 NaN**，`torch.empty` 只作 fp16 临时缓冲（:1715-1719）。
+
+**三处真实副作用（这才是"影响"所在）**
+1. **非浮点、非 int8/uint8/FP4 的参数直接不写**（:1673-1679，仅 ROCm `zero_()`）→ 保留 `torch.empty` 内容，**跨进程不确定**；有整型 buffer/索引进前向的模型要单独核。
+2. **MoE 路由形状域变了**：top-k 由 gate 权重决定，dummy 下专家负载分布 ≠ 真权重，送进 grouped_matmul 的每专家形形状不同；BI 是形状域性质 ⇒ dummy 改的是"被测域"。
+3. 附带（代码可推、未实跑）：每次调用都新建 `Generator` 并 seed 1234 ⇒ 同 device/同 shape/同 dtype 的参数拿到**完全相同**的一串值，分布比"随机"更退化。
+
+**证据链现状**
+- 上游文档 `docs/features/batch_invariance.md` 对 `weight|dummy|random|load_format` **0 命中**（既不背书也不禁止）。
+- 上游 BI 测试全用真权重：`tests/v1/determinism/utils.py:43`（`DEFAULT_MODEL="Qwen/Qwen3-1.7B"`）、`test_batch_invariance.py:180-190`（`LLM(model=TEST_MODEL)`，无 `load_format`）；`tests/v1/determinism/` 里唯一 dummy 在 `test_xpu_batch_invariant_ut.py:67`，只做"量化 + BI"的配置拒绝断言。
+- 反例：vllm-ascend main 的 BI e2e 硬编码 `load_format="dummy"` + `num_hidden_layers=2`（`tests/e2e/pull_request/four_card/rlhf/consistency/test_batch_invariant_tp4.py:123-125`），而 `docs/source/user_guide/feature_guide/batch_invariance.md:200-206` 把 Qwen3-30B-A3B 写成 "tested and verified" 且未披露该证据是 2 层随机权重——这就是"dummy 当证据"的实例。
+
+**判据**：dummy 只用于链路/性能/shape 冒烟；dummy 下的 BI 结果报 `SAMPLED_PASS` 并注明「N 层切片 + 随机权重 + 无判别力证据」；要"成立"必须真权重 × 同形状负控（证明尺子有牙），或算子级行局部性 + 分派同构 diff。
