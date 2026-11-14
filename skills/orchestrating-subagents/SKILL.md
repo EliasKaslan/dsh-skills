@@ -120,3 +120,37 @@ ss -ltnp | grep :<你选的端口> || echo "PORT RELEASED"
 2. 收尾断言写成"**我那个端口 / pid 没了**"（`ss -ltnp | grep :<port>` 为空、`ps -p <pid>` 无输出），**不要**写成"没多出别的进程"。
 3. 共享机上多个子代理并行时这条尤其致命：**你看到的"新"进程很可能正是别人的活**。
 4. 真要按模式杀，用不自匹配的写法（`pkill -f "[t]est_x"`，机制见 `ascend-vllm-serve` 坑 16）；但 `pkill -f` 仍可能命中别人的命令行——能精确到 pid 就别用模式。
+
+## 大页面不进上下文：先落盘、再切片
+
+## 大页面不进上下文：先落盘、再切片
+
+**判据**：预计单次抓取结果 >8KB（或 >200 行）时，不要用会把整页回灌上下文的抓取工具，也不要用 web_fetch 直接抓——一万行的页面会把上下文吃光，而且你只需要其中几处数字。
+
+**三步法（真跑通过）**
+
+1. **抓字节落盘**，用 Python urllib，不要用 PowerShell 的 Invoke-WebRequest（编码与内容编码易错）：
+   ```python
+   req = urllib.request.Request(url, headers={'User-Agent': UA,
+           'Accept-Encoding': 'gzip, deflate'})
+   data = r.read()
+   if r.headers.get('Content-Encoding') == 'gzip':
+       data = gzip.decompress(data)
+   elif ... == 'deflate':
+       data = zlib.decompress(data, -zlib.MAX_WBITS)
+   open(path, 'wb').write(data)          # 原始件留着，可复核
+   ```
+2. **落盘后转文本**：先整段删掉 `(script|style|noscript)`，再去标签、折叠空白。实测 400KB–2.5MB 的文档页可压到 15K–110K 字符，足够做关键词定位。
+3. **只把关键词窗口打进上下文**：定位关键词索引后打印 `[i-200, i+500]`，每次 ≤1KB。比读整页便宜 1–2 个数量级，且能精确定位到"哪一句"。
+
+**SPA 空壳的判别（省下大量重试时间）**
+
+转文本后若正文字符数 <200（例如整页只剩 40 字符），说明内容在 JS 里，**立刻换源而不是重试**：
+
+- 找服务端渲染的镜像站/文档站（云厂商的 `cloud.google.com/...`、`platform.openai.com/docs/...`、`docs.anthropic.com/...` 通常可抓）；
+- 找纯文本变体（部分文档站支持 URL 加 `.md` / `.md.txt`）；
+- 换权威第三方聚合（但要标注口径）。
+
+**反例（本轮实际踩到）**：1.8MB 的榜单页若直接 web_fetch，整页回灌且仍拿不到结构化字段；改成"落盘 → 转义还原 → JSON 解析"后，同一页稳定拿到数百条结构化记录。
+
+**与子代理的分工**：抓取与解析放在子代理或脚本里跑，只把"关键数字 + URL + 抓取日"带回主上下文；主上下文里不留超过 200 行的文件内容。

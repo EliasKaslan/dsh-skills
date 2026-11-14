@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
-  "skill_count": 62,
-  "file_count": 241,
-  "total_bytes": 26725581,
+  "skill_count": 63,
+  "file_count": 242,
+  "total_bytes": 26739851,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -258,6 +258,13 @@
       "bytes": 52906
     },
     {
+      "name": "llm-landscape-recon",
+      "path": "skills/llm-landscape-recon",
+      "description": "核查 OpenAI/Anthropic/Google 最新模型能力：官方定价直取、AA 榜单 JSON 解析、版本口径",
+      "files": 1,
+      "bytes": 6101
+    },
+    {
       "name": "login-credential-autofill",
       "path": "skills/login-credential-autofill",
       "description": "登录凭据自动填充的本地凭据库与防封号护栏——页面要登录时按账号取凭据填入、先复用已有登录态、每账号24小时最多1次密码提交、遇验证码/2FA/风控页立刻停手交人；凭据库里没有该站时，先在本机浏览器密码库与邮箱里反查账号身份，附字段读取与额度记账脚本。适用于\"帮我登录一下 / 用我的账号登进去 / 要输密码了 / 这个站点要登录 / 微软和 GitHub 账号密码在哪 / 我的密码存在哪台机器上 / 不知道要登的是哪个账号 / 浏览器里存过这个站的登录吗 / 找回旧账号先从哪查 / 填完要不要帮我点提交 / 登录失败了还能不能重试 / 会不会把号登封\"。不适用：GitHub API 或 PAT 提 PR → 用 `github-pr-flow`；读 Outlook 邮件 → 用 `outlook-mailbox-control`；过滑块验证码 → 用 `dingxiang-slider-captcha`；本机 pwsh 编码坑 → 用 `pwsh-on-windows`。",
@@ -318,7 +325,7 @@
       "path": "skills/orchestrating-subagents",
       "description": "子代理编排手册：拆解、并行下发、校验结论、上下文预算。适用于\"任务太大一次读不完 / 该不该派子代理 / 帮我并行跑几件事 / 子代理答错了要不要重派 / 上下文快满了\"。",
       "files": 1,
-      "bytes": 8527
+      "bytes": 10575
     },
     {
       "name": "outlook-mailbox-control",
@@ -330,9 +337,9 @@
     {
       "name": "overseas-ai-service-cn-availability",
       "path": "skills/overseas-ai-service-cn-availability",
-      "description": "判境外 AI 服务能否在大陆当生产力工具：网络/账号地区/付费三道门 + 合规与隐性成本",
+      "description": "判境外 AI 服务能否在大陆当生产力工具：三道门、境外手机号可行路径、合规红线",
       "files": 1,
-      "bytes": 4817
+      "bytes": 10938
     },
     {
       "name": "pr-change-equivalence-audit",
