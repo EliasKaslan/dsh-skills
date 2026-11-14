@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **61** 个 skill、**240** 个文件、**26720764** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **62** 个 skill、**241** 个文件、**26725581** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -78,18 +78,19 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 44 | [`node-test-false-green-audit`](skills/node-test-false-green-audit/SKILL.md) | Node 测试与 CI 的「假绿」排查——六类会让你以为跑过其实没跑的陷阱：CI 里写死测试目录或空 glob 静默跳过、await 一个 unref 定时器让 Node 22 把整个文件判 cancelledByParent（fail 仍... | 1 |
 | 45 | [`orchestrating-subagents`](skills/orchestrating-subagents/SKILL.md) | 子代理编排手册：拆解、并行下发、校验结论、上下文预算。适用于"任务太大一次读不完 / 该不该派子代理 / 帮我并行跑几件事 / 子代理答错了要不要重派 / 上下文快满了"。 | 1 |
 | 46 | [`outlook-mailbox-control`](skills/outlook-mailbox-control/SKILL.md) | Outlook.com 邮箱接管（MS365 MCP）：登录、搜读、回信、草稿。适用于"接管 outlook 邮箱 / 查收件箱 / 读附件 / 以我的名义回信 / outlook 工具报错"。 | 1 |
-| 47 | [`pr-change-equivalence-audit`](skills/pr-change-equivalence-audit/SKILL.md) | 审计「这个 PR 是否只是等价改写、功能/精度/性能是否不变」——先锁 diff 与 dtype 链，再按 IEEE 穷举 ±0/NaN/FTZ，证明有效区逐位等价与掩码区差异，最后给出「代码可证 / PR 自述 / 未验证」三级证据表。适... | 1 |
-| 48 | [`prior-agent-artifact-audit`](skills/prior-agent-artifact-audit/SKILL.md) | 前代 agent 产物目录（「上一轮交付」）的真实完成度取证——证据分四层标注【自测/落盘/文档/复核】，部署/工作区现实分开判（线上入口与本地候选逐字节比对、判装没装看运行时清单与包目录而非源码），档案行号自证矛盾即降为线索，产品化完成度... | 1 |
-| 49 | [`pwsh-on-windows`](skills/pwsh-on-windows/SKILL.md) | 本机 pwsh 实为 Windows PowerShell 5.1：GBK 解码、BOM、PS7 语法静默坑。适用于"中文乱码 / 行数或 CR 数不对 / 计数总是 0 / 执行策略拦 / PS7 语法报错"。 | 1 |
-| 50 | [`qq-mail-control`](skills/qq-mail-control/SKILL.md) | QQ 邮箱接管（IMAP/SMTP）：发信、搜读、归档、黄区/私人别名。适用于"发 QQ 邮件 / 查收件箱 / 搜邮件 / 读某封 / 建夹归档 / 只能读不能发"。 | 1 |
-| 51 | [`sedimenting-skills`](skills/sedimenting-skills/SKILL.md) | skill 沉淀协议：三段决策（融合/总纲/新建）、单一归属、目录成本预算。适用于"这条经验要不要写成 skill / 该并进哪个已有 skill / 怎么防重复 / 什么该做成总纲 / 目录预算怎么算"。 | 1 |
-| 52 | [`skill-archive`](skills/skill-archive/SKILL.md) | 冷备 skill 索引：读 skills-archive/INDEX.json 找不在目录里的能力。适用于"目录里没有对应的专门流程 / 生图 / 长尾调研 / PR 审计 / 想找旧 skill"。 | 1 |
-| 53 | [`subagent-toolset-precheck`](skills/subagent-toolset-precheck/SKILL.md) | 子代理工具集预检——子代理说没有 web_fetch、工具受限怎么办：派活前先让它如实回报函数清单，避免把联网调研或要求落盘的任务派给工具受限的 `explore` 子代理（实测只拿到 glob/grep/list_subagent_mod... | 1 |
-| 54 | [`tilelang-op-generator`](skills/tilelang-op-generator/SKILL.md) | 写/迁移 TileLang 算子到昇腾：kernel + 分层 golden + Triton-Ascend 同卡对比。适用于"用 TileLang 写算子 / 生成 softmax kernel / 把算子迁到 NPU / 修精度"。 | 16 |
-| 55 | [`upstream-docs-refresh-audit`](skills/upstream-docs-refresh-audit/SKILL.md) | 上游 docs 刷新审计：需求/转测文档 → 存在性普查 → 六节清单。适用于"这批需求 docs 里能查到吗 / 要刷新吗 / 内部代号叫什么 / 启动参数主线有没有"。 | 5 |
-| 56 | [`vllm-ascend-e2e-ci-wiring`](skills/vllm-ascend-e2e-ci-wiring/SKILL.md) | vllm-ascend e2e 进 CI：estimated_times 登记、coverage 门禁、目录归属。适用于"新增 e2e / CI 报 MISSING / 本地全 MISSING"。 | 1 |
-| 57 | [`vllm-ascend-source-install`](skills/vllm-ascend-source-install/SKILL.md) | 源码装 vllm + vllm-ascend 配对版本：读 verified commit、注释 pin 复用 torch。适用于"重装 vllm-ascend / 按 commit 配 vllm / build deps 不满足"。 | 2 |
-| 58 | [`vuln-scan-report-verification`](skills/vuln-scan-report-verification/SKILL.md) | 核实第三方漏洞扫描报告：锁 commit、回溯可达性、张冠李戴、定级。适用于"这个高危是真的吗 / 行号对不对 / 注入能不能用 / 定级高不高 / 有没有漏报"。 | 1 |
-| 59 | [`web-ui-contrast-audit`](skills/web-ui-contrast-audit/SKILL.md) | 网页字看不清/浅色主题对比度：真浏览器逐节点算 WCAG 比值，避开渐变与半透明误报，先修继承根。 | 1 |
-| 60 | [`win-scheduled-task-forensics`](skills/win-scheduled-task-forensics/SKILL.md) | Windows 计划任务/持久化项取证与安全退役——谁给我装了每日定时程序、把每日签到任务停掉、这个定时任务是谁加的：五处侦察面（计划任务全量、schtasks 旁证、Run 键、两个启动文件夹、WMI 事件订阅）缺一处就漏；退役顺序固定为... | 1 |
-| 61 | [`yb-blue`](skills/yb-blue/SKILL.md) | 蓝区主控端（YB-Bridge）——把活拆成黄区弱模型能照做的任务包，经私有 GitHub 仓下发，轮询取回报告并按四要素验收；黄→蓝单次≤100KB 自动分块，蓝→黄不限。适用于"给黄区派活 / 收黄区报告 / 黄蓝协同 / 跨区接力 /... | 3 |
+| 47 | [`overseas-ai-service-cn-availability`](skills/overseas-ai-service-cn-availability/SKILL.md) | 判境外 AI 服务能否在大陆当生产力工具：网络/账号地区/付费三道门 + 合规与隐性成本 | 1 |
+| 48 | [`pr-change-equivalence-audit`](skills/pr-change-equivalence-audit/SKILL.md) | 审计「这个 PR 是否只是等价改写、功能/精度/性能是否不变」——先锁 diff 与 dtype 链，再按 IEEE 穷举 ±0/NaN/FTZ，证明有效区逐位等价与掩码区差异，最后给出「代码可证 / PR 自述 / 未验证」三级证据表。适... | 1 |
+| 49 | [`prior-agent-artifact-audit`](skills/prior-agent-artifact-audit/SKILL.md) | 前代 agent 产物目录（「上一轮交付」）的真实完成度取证——证据分四层标注【自测/落盘/文档/复核】，部署/工作区现实分开判（线上入口与本地候选逐字节比对、判装没装看运行时清单与包目录而非源码），档案行号自证矛盾即降为线索，产品化完成度... | 1 |
+| 50 | [`pwsh-on-windows`](skills/pwsh-on-windows/SKILL.md) | 本机 pwsh 实为 Windows PowerShell 5.1：GBK 解码、BOM、PS7 语法静默坑。适用于"中文乱码 / 行数或 CR 数不对 / 计数总是 0 / 执行策略拦 / PS7 语法报错"。 | 1 |
+| 51 | [`qq-mail-control`](skills/qq-mail-control/SKILL.md) | QQ 邮箱接管（IMAP/SMTP）：发信、搜读、归档、黄区/私人别名。适用于"发 QQ 邮件 / 查收件箱 / 搜邮件 / 读某封 / 建夹归档 / 只能读不能发"。 | 1 |
+| 52 | [`sedimenting-skills`](skills/sedimenting-skills/SKILL.md) | skill 沉淀协议：三段决策（融合/总纲/新建）、单一归属、目录成本预算。适用于"这条经验要不要写成 skill / 该并进哪个已有 skill / 怎么防重复 / 什么该做成总纲 / 目录预算怎么算"。 | 1 |
+| 53 | [`skill-archive`](skills/skill-archive/SKILL.md) | 冷备 skill 索引：读 skills-archive/INDEX.json 找不在目录里的能力。适用于"目录里没有对应的专门流程 / 生图 / 长尾调研 / PR 审计 / 想找旧 skill"。 | 1 |
+| 54 | [`subagent-toolset-precheck`](skills/subagent-toolset-precheck/SKILL.md) | 子代理工具集预检——子代理说没有 web_fetch、工具受限怎么办：派活前先让它如实回报函数清单，避免把联网调研或要求落盘的任务派给工具受限的 `explore` 子代理（实测只拿到 glob/grep/list_subagent_mod... | 1 |
+| 55 | [`tilelang-op-generator`](skills/tilelang-op-generator/SKILL.md) | 写/迁移 TileLang 算子到昇腾：kernel + 分层 golden + Triton-Ascend 同卡对比。适用于"用 TileLang 写算子 / 生成 softmax kernel / 把算子迁到 NPU / 修精度"。 | 16 |
+| 56 | [`upstream-docs-refresh-audit`](skills/upstream-docs-refresh-audit/SKILL.md) | 上游 docs 刷新审计：需求/转测文档 → 存在性普查 → 六节清单。适用于"这批需求 docs 里能查到吗 / 要刷新吗 / 内部代号叫什么 / 启动参数主线有没有"。 | 5 |
+| 57 | [`vllm-ascend-e2e-ci-wiring`](skills/vllm-ascend-e2e-ci-wiring/SKILL.md) | vllm-ascend e2e 进 CI：estimated_times 登记、coverage 门禁、目录归属。适用于"新增 e2e / CI 报 MISSING / 本地全 MISSING"。 | 1 |
+| 58 | [`vllm-ascend-source-install`](skills/vllm-ascend-source-install/SKILL.md) | 源码装 vllm + vllm-ascend 配对版本：读 verified commit、注释 pin 复用 torch。适用于"重装 vllm-ascend / 按 commit 配 vllm / build deps 不满足"。 | 2 |
+| 59 | [`vuln-scan-report-verification`](skills/vuln-scan-report-verification/SKILL.md) | 核实第三方漏洞扫描报告：锁 commit、回溯可达性、张冠李戴、定级。适用于"这个高危是真的吗 / 行号对不对 / 注入能不能用 / 定级高不高 / 有没有漏报"。 | 1 |
+| 60 | [`web-ui-contrast-audit`](skills/web-ui-contrast-audit/SKILL.md) | 网页字看不清/浅色主题对比度：真浏览器逐节点算 WCAG 比值，避开渐变与半透明误报，先修继承根。 | 1 |
+| 61 | [`win-scheduled-task-forensics`](skills/win-scheduled-task-forensics/SKILL.md) | Windows 计划任务/持久化项取证与安全退役——谁给我装了每日定时程序、把每日签到任务停掉、这个定时任务是谁加的：五处侦察面（计划任务全量、schtasks 旁证、Run 键、两个启动文件夹、WMI 事件订阅）缺一处就漏；退役顺序固定为... | 1 |
+| 62 | [`yb-blue`](skills/yb-blue/SKILL.md) | 蓝区主控端（YB-Bridge）——把活拆成黄区弱模型能照做的任务包，经私有 GitHub 仓下发，轮询取回报告并按四要素验收；黄→蓝单次≤100KB 自动分块，蓝→黄不限。适用于"给黄区派活 / 收黄区报告 / 黄蓝协同 / 跨区接力 /... | 3 |

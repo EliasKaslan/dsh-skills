@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
-  "skill_count": 61,
-  "file_count": 240,
-  "total_bytes": 26720764,
+  "skill_count": 62,
+  "file_count": 241,
+  "total_bytes": 26725581,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -326,6 +326,13 @@
       "description": "Outlook.com 邮箱接管（MS365 MCP）：登录、搜读、回信、草稿。适用于\"接管 outlook 邮箱 / 查收件箱 / 读附件 / 以我的名义回信 / outlook 工具报错\"。",
       "files": 1,
       "bytes": 26640
+    },
+    {
+      "name": "overseas-ai-service-cn-availability",
+      "path": "skills/overseas-ai-service-cn-availability",
+      "description": "判境外 AI 服务能否在大陆当生产力工具：网络/账号地区/付费三道门 + 合规与隐性成本",
+      "files": 1,
+      "bytes": 4817
     },
     {
       "name": "pr-change-equivalence-audit",
