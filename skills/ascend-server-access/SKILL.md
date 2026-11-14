@@ -477,3 +477,52 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=accept-new root@<ip> hostname
 ### A5 上的落位约束（2026-11-13 实测，替换旧"待落地/未验证"）
 
 `/home` 不是独立分区、且 `/` 已用到 70~100%（好的机器只剩 1016G，差的只剩 19G）⇒ **A5 上个人根不能想当然建真实目录**：先 `df -h /home`，要放 >10G 的权重/产物前再确认一次；个人根落位方案（软链到共享盘）**仍未验证**，别照抄 `.188` 的 `/home/vllm` 结论。
+
+## 14. 190 的出网限制：github.com 不可达，GitHub 仓必须走 gh-proxy 中转（2026-11-14 实测）
+
+## 14. 190 的出网限制：github.com 不可达，GitHub 仓必须走 gh-proxy 中转（2026-11-14 实测）
+
+**判读顺序**：在 `.190` 上 `git clone` GitHub 仓卡住不动时，**先查是"出网被墙"还是"认证失败"**，别去折腾 key / 代理环境变量。
+
+| 目标 | 190 上实测结果 |
+|---|---|
+| `gitcode.com` | **直连正常**（`git ls-remote` 秒回） |
+| `github.com` | **不通**：DNS 能解析（实测 `20.6.7.17`），但 TCP 443 被黑洞——`curl` 25s 无任何输出、`git ls-remote` 45s 无输出（`timeout` 杀掉，不是报错） |
+| `codeload.github.com` | 反而**能直连**（tarball 200 / 2.3s）⇒ 只要内容不要历史时可以下 tarball，但拿不到 `.git` |
+| `/etc/profile.d/`、`/etc/environment` | 无任何 `*_proxy` 设置（别指望机器上有现成代理） |
+
+**可用中转（逐个实测）**：
+
+```bash
+https://gh-proxy.com/https://github.com/<org>/<repo>      # 200 ✅ 唯一可用
+https://ghfast.top/https://github.com/<org>/<repo>        # 403
+https://ghproxy.net/https://github.com/<org>/<repo>       # 403
+https://gitclone.com/github.com/<org>/<repo>             # 502
+https://hub.gitmirror.com/...                            # DNS 不解析
+```
+
+`gh-proxy.com` **支持 git smart HTTP**：`git ls-remote` / `clone` / `fetch` 都能走，不只是下 tarball。
+
+**正确配法：映射写在仓内本地，不要写全局**（`.190` 上所有人都是 root，`git config --global` 会污染别人的 git）：
+
+```bash
+git clone -b <branch> https://gh-proxy.com/https://github.com/<org>/<repo>
+cd <repo>
+git remote set-url origin https://github.com/<org>/<repo>          # origin 留规范 URL
+git config url.https://gh-proxy.com/https://github.com/.insteadOf https://github.com/
+git ls-remote --heads origin | head                                 # 复核 fetch 也能走
+```
+
+- 写完 `git fetch / pull` 自动改走中转，且**只影响这个仓**。
+- 想一次性给某条命令加代理：`git -c url.https://gh-proxy.com/https://github.com/.insteadOf=https://github.com/ clone <url>`，同样不落盘。
+
+**坑**：
+
+- 内联 `ssh root@192.168.13.190 "..."` 里**不要出现 `\"`**：PowerShell 把反斜杠吞掉后远端 bash 报 `寻找匹配的"时遇到了未预期的文件结束符`，整条命令一行都不执行。带循环/引号的侦察脚本一律本地写 `.sh` → base64 → 远端 `base64 -d` 落盘再 `bash`（比管道传文件稳，天然避开 BOM/CRLF）：
+  ```powershell
+  $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes('D:\workspace\tmp\x.sh'))
+  ssh -n -o BatchMode=yes root@192.168.13.190 "echo $b64 | base64 -d > /tmp/x.sh; bash /tmp/x.sh"
+  ```
+- `git clone` 非 tty 时默认不打进度，要看"还在不在动"必须显式 `--progress`，否则日志长时间一片空白、容易误判为卡死。
+
+**已落位示例**（2026-11-14，DeepSeek-V4.1-Flash 部署）：4 仓克隆到 `/home/x00886548/work/dsv41/{FSDPTurbo,vllm-ascend,vllm,verl}`，其中 `FSDPTurbo` 走 gitcode 直连，另外三个走 gh-proxy 并按上式配好仓内 `insteadOf`；合 693 MB，工作区干净。仓库 provenance 与命令写在 `${个人根}/work/dsv41/README.md`，下次不用重新摸索。
