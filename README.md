@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **63** 个 skill、**242** 个文件、**26776165** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **63** 个 skill、**243** 个文件、**26797836** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -44,7 +44,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 10 | [`ascend-model-adaptation-recon`](skills/ascend-model-adaptation-recon/SKILL.md) | 判模型在昇腾/vllm-ascend 的适配度：全树代码、跨仓分工、镜像、缺口。适用于"H3 在昇腾能不能跑 / 适配到什么程度 / 缺口在哪 / Day-0 是真的吗 / 该用哪个镜像"。 | 1 |
 | 11 | [`ascend-moe-ep-capacity-planning`](skills/ascend-moe-ep-capacity-planning/SKILL.md) | MoE 显存与 EP/TP 几何：64GB/A5 96GB 两套预算、GLM-5.2 与 K3 权重/KV 口径、EP 整除硬约束。适用于"几张卡才跑得起来 / EP 设多少 / 按卡数选型" | 2 |
 | 12 | [`ascend-server-access`](skills/ascend-server-access/SKILL.md) | A5 隧道不通时：先数 TAP 张数，实例2 TAP 丢失就用原件 Switch 到 A5 应急 | 6 |
-| 13 | [`ascend-server-layout`](skills/ascend-server-layout/SKILL.md) | 昇腾个人根与目录红线：环境/项目/数据放哪、模型软链、npu-smi 选卡。适用于"新项目写哪个盘 / 环境放哪 / 磁盘满了 / 哪张 NPU 空闲 / 复用现成环境"。 | 3 |
+| 13 | [`ascend-server-layout`](skills/ascend-server-layout/SKILL.md) | 昇腾落位与判空：个人根/目录/磁盘红线 + npu-free.py 一键查在册 6 台哪几台有空卡。适用于新项目写哪盘/环境放哪/磁盘满/哪台有空卡 | 4 |
 | 14 | [`ascend-torch-npu`](skills/ascend-torch-npu/SKILL.md) | torch + torch_npu 装/验/排障：A/B 车道、版本配对、验收 True 16 253。适用于"装 torch_npu / NPU 不可用 / pip 卡死 / GLIBCXX 缺失 / 该走哪条车道"。 | 1 |
 | 15 | [`ascend-triton-ascend`](skills/ascend-triton-ascend/SKILL.md) | triton-ascend 装/验/排障：3.2.2 走 osinfra 源、覆盖式共存。适用于"装 triton-ascend / import 版本不对 / 被 pip -U triton 覆盖后崩"。 | 1 |
 | 16 | [`ascend-vllm-serve`](skills/ascend-vllm-serve/SKILL.md) | 在昇腾上起 vllm 服务：三层自检、选空闲 die、serve/离线/sleep、运行时排障。适用于"起 vllm 服务 / OOM / 输出乱码 / reload_weights / 该占哪张卡 / 模型太大要 TP=2"。 | 1 |

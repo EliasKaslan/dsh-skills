@@ -1,6 +1,6 @@
 ---
 name: ascend-server-layout
-description: 昇腾个人根与目录红线：环境/项目/数据放哪、模型软链、npu-smi 选卡。适用于"新项目写哪个盘 / 环境放哪 / 磁盘满了 / 哪张 NPU 空闲 / 复用现成环境"。
+description: 昇腾落位与判空：个人根/目录/磁盘红线 + npu-free.py 一键查在册 6 台哪几台有空卡。适用于新项目写哪盘/环境放哪/磁盘满/哪台有空卡
 whenToUse: 上机第一步——确认个人根 /home/x00886548 的落位、模型与数据集公共空间、新项目/脚本/环境各写哪里、哪张 NPU 空闲、能否复用现成环境时。CANN 见 ascend-cann-env，conda 见 ascend-conda-env，起服务见 ascend-vllm-serve。
 ---
 
@@ -426,3 +426,68 @@ docker exec -d $NAME bash -lc 'export PIP_INDEX_URL=https://mirrors.aliyun.com/p
 ```
 
 `build.sh` 自己带的 `--extra-index-url https://triton-ascend.osinfra.cn/pypi/simple/` 仍生效（实测该域名返回 301，可访问）。
+
+## 一键判空卡：scripts/npu-free.py（2026-11-14 实测，6/6 台成功）
+
+要回答「现在哪几台服务器有空闲卡」时**先跑这个脚本**，别一台一台手敲 `npu-smi info`。判空口径沿用本文件「共享机占用铁律」与「A5 上判空卡的实操修正」，脚本只是把它自动化。
+
+**前置**：两条隧道都通（见 `ascend-server-access`）；本机 python 3.12 + paramiko 5.0.0（已装）。
+
+```powershell
+$env:PYTHONIOENCODING="utf-8"     # 不设会中文乱码
+python C:\Users\admin\.dsh\skills\ascend-server-layout\scripts\npu-free.py
+python ...\scripts\npu-free.py --json                    # 给 agent 的结构化结果
+python ...\scripts\npu-free.py --hosts 177.11.25.1,192.168.13.190
+python ...\scripts\npu-free.py --raw D:\tmp\npudump      # 落原始 npu-smi 文本，格式变了时排障
+```
+
+每台只跑一条 `npu-smi info`，六台并发，实测 **8~20 s**；`.188` 自动走 `.190` 跳板，免密失败会回落到 `.secrets/ascend-servers.txt` 里的密码。
+
+**输出怎么读**（一行一台）：
+
+```
+HOST            TAG   CHIP         FREE   HBM_USED                 BUSY_BY                    NOTE
+192.168.13.188  A3    Ascend910    16/16  base 2858~3141MB         -                          -
+177.8.21.1      A5-1  Ascend950DT  0/8    88.6,88.1,...G           VLLMWorker_TP x8 84G, ...  ALARM NPU2/3/7
+```
+
+| 列 | 含义 |
+|---|---|
+| `FREE` | 空闲 die 数 / 总 die 数。**A3 是 2 die/NPU**（`16/16` = 8 张卡全空），**A5 是 1 die/卡**（`8/8` = 8 张卡） |
+| `HBM_USED` | 全空时打基线区间（`base 2858~3141MB`），有占用时逐 die 打 GB |
+| `BUSY_BY` | 进程段的占用者，按名字归并成 `名字 x张数 最大显存` |
+| `NOTE` | `ALARM NPUn/m` = 该 NPU 的 Health 不是 OK（UB/RAS 告警等）。**告警不等于被占用**，但这种卡派长任务前先问运维 |
+
+判定规则：某 die 的 `HBM used ≤ 阈值` **且** Process 段没有该 die 的进程 ⇒ 该 die 空闲。阈值 `65536MB→3500`、`98304MB→6000`、其它 `total*6%`（代码 `limit_for()`）；实测空卡基线 A3 `2858~3175`、A5 `4827~4930`。
+
+**改脚本时别再踩的三个解析坑**：
+
+1. 用 `\d+` 直接扫 `0     Ascend910` 会把型号里的 `910` 认成 chip 号 ⇒ 只认行首 `^(\d+)(?:\s+(\d+))?`。
+2. **A5 的 HBM 行首列是空的**（NPU 号只出现在该 die 的第一行），用首列取 npu 会一行都解析不到、脚本报 `npu-smi 输出里没有解析到 HBM 行` ⇒ 必须跨行记住当前 npu/chip。
+3. **Health 在 die 的首行，不在 HBM 行**（首行 HBM 是 `0 / 0`，会被过滤掉）⇒ 告警要跨行带到 HBM 行，否则 `ALARM` 永远打不出来（本轮先漏掉，修完才和独立采集的 `NPU2/3/7 Alarm` 对上）。
+
+**用法坑**：
+
+- 连不上的主机按 `ConnectTimeout=15` 慢慢超时才计入「连不上」，不是秒回；只查一两台时用 `--hosts` 更快。
+- 脚本只回答「卡空不空」。**磁盘 / CPU load / 会话数仍要单独看**（`df -h /home`、`uptime`、`who`）：`.188` 常见「卡全空但 load 277」，`.190` 常见「卡全空且负载轻」。
+- 结果只代表**采集那一刻**：2026-11-14 当天，`177.8.21.1` 在不到一小时里从 8/8 空变成 0/8（别人的 `VLLMWorker_TP×8` 起服务），`177.11.26.1` 的占卡进程从 `sglang` 换成 `rayMegatronTr` ⇒ **动手前再跑一次**，别拿上一轮结论排卡。
+
+验证：跑一次应看到 6 行数据（含经跳板的 `192.168.13.188`、4 台 `177.*`），`FREE` 列都是 `N/M` 形态，末尾汇总打印「有空卡 / 已占满 / 连不上」三类。
+
+## 共享 NFS 上给自己做权重副本：`cp -l` 硬链（2026-11-14 实测）
+
+同一导出（同文件系统）内的权重不想重复占空间，又要有自己的目录项（源目录被删不丢数据、可独立授权/引用）：
+
+```bash
+SRC=/mnt/share/g00815994/dsv41/dsv41-flash-bf16
+DST=/mnt/share/bi_dsv41/weights/dsv41-flash-bf16
+mkdir -p "$DST"
+find "$SRC" -maxdepth 1 -name '*.safetensors' -print0 | xargs -0 -r -n 50 cp -l -n -t "$DST"
+find "$SRC" -maxdepth 1 -type f ! -name '*.safetensors' -exec cp -a {} "$DST"/ \;
+```
+
+- 先判同 fs：`stat -c %d $SRC $DST` 同设备号；否则 `cp -l` 报 `EXDEV`，只能退化成真拷贝。
+- `-n` 才能幂等重跑；校验 `stat -c '%i %h'`（inode 相同、link ≥2）与 `df -h` 前后不变。
+- **不能原地改写硬链分片**（会同时改到源）；要真正独立物理副本只能 `cp -a`（1.39 TiB 级，小时计）。
+- 口径：`du` 会把硬链按满额计入，看着像复制了 1.39 TiB，实际 0 增长——报告里要写清是硬链，别让人误判占了空间。
+- 小文件（config/index/tokenizer）用 `cp -a` 实体复制，避免误改他人文件时连带改到源。

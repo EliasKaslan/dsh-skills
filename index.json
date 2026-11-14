@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 63,
-  "file_count": 242,
-  "total_bytes": 26776165,
+  "file_count": 243,
+  "total_bytes": 26797836,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -87,14 +87,14 @@
       "path": "skills/ascend-server-access",
       "description": "A5 隧道不通时：先数 TAP 张数，实例2 TAP 丢失就用原件 Switch 到 A5 应急",
       "files": 6,
-      "bytes": 113219
+      "bytes": 113437
     },
     {
       "name": "ascend-server-layout",
       "path": "skills/ascend-server-layout",
-      "description": "昇腾个人根与目录红线：环境/项目/数据放哪、模型软链、npu-smi 选卡。适用于\"新项目写哪个盘 / 环境放哪 / 磁盘满了 / 哪张 NPU 空闲 / 复用现成环境\"。",
-      "files": 3,
-      "bytes": 43132
+      "description": "昇腾落位与判空：个人根/目录/磁盘红线 + npu-free.py 一键查在册 6 台哪几台有空卡。适用于新项目写哪盘/环境放哪/磁盘满/哪台有空卡",
+      "files": 4,
+      "bytes": 61482
     },
     {
       "name": "ascend-torch-npu",
@@ -115,14 +115,14 @@
       "path": "skills/ascend-vllm-serve",
       "description": "在昇腾上起 vllm 服务：三层自检、选空闲 die、serve/离线/sleep、运行时排障。适用于\"起 vllm 服务 / OOM / 输出乱码 / reload_weights / 该占哪张卡 / 模型太大要 TP=2\"。",
       "files": 1,
-      "bytes": 24127
+      "bytes": 24372
     },
     {
       "name": "batch-invariance-acceptance",
       "path": "skills/batch-invariance-acceptance",
       "description": "batch 不变性验收与训推一致性：减层证据、算子级判据、外推六条件、昇腾 BI 白名单审计、验收成本优化（三层锚点+分派同构）。",
       "files": 8,
-      "bytes": 153928
+      "bytes": 156786
     },
     {
       "name": "batch-invariant-weekly-digest",

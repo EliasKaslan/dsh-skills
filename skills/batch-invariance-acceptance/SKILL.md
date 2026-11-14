@@ -858,3 +858,26 @@ git -C $B/FSDPTurbo status --porcelain                # 5 处，正是实际在�
 **不要做**：在 HC_BF16 落地前反复调 BI —— 已实测 BI on/off 对端到端 pearson 无显著变化，主项不在批组成。
 
 未验证：本文数字来自 2026-10-13~10-21 的工作记录，未在新树上复跑；`cann_ops_transformer.sparse_flash_mla` 与 `torch.ops._C_ascend.npu_sparse_flash_mla` 是否同一二进制内核未取证（签名不同：训练侧无 `cmp_residual`/`mask_mode`）。
+
+## DSV4.1 bf16 权重就位与 4 层切片的可加载性核验（2026-11-14 实测）
+
+**权重就位（A5 四台通用，NFS `172.27.1.1:/Share`）**
+- 全量 bf16：`/mnt/share/bi_dsv41/weights/dsv41-flash-bf16`，525 分片 / 1.39 TiB，硬链自 `/mnt/share/g00815994/dsv41/dsv41-flash-bf16`（0 额外空间，inode 相同）。
+- 4 层切片：`/mnt/share/bi_dsv41/models/dsv41-bf16-L4`（`weights/` 下有软链），4972 张量 / 105.88 GiB 逻辑 / 113.7 GB 占盘 / 14 分片；保留全 384 专家，剔 engram+MTP。
+
+**切片可加载性的 9 项机械判据（纯标准库、只读 header，约 1 分钟）**
+1. 每分片 `8+len(header)+max(data_offsets[1]) == filesize`；偏移不重叠、begin 单调、`end-begin == prod(shape)*dtype_size`。
+2. header 键集 == index 键集 == 张量总数；层 id 仅 `<N`；无 `engram` / `mtp.` / `nextn` / `dspark`。
+3. 与源逐张量 `(shape,dtype)` 全等，源缺失 0。
+4. dtype 计数（BF16/F32 混合要逐个列出，确认源里本就如此，不是切片引入）。
+5. `index.metadata.total_size == Σ张量字节 == Σ分片 data 区`；weight_map 分片集合 == 磁盘文件集合。
+6. config 逐字段 diff：应改的（层数 / compress_ratios / kv&index_source / num_nextn / dspark / engram）与原样保持的分开列。
+7. `tokenizer.json` 可解析、`configuration.json` 与源 sha256 相同；缺 `generation_config.json` 只是 warning。
+8. `safe_open(framework="numpy")` 能打开（没有 torch 的 python 也能验）。
+9. 核验前后切片目录 mtime 不变（证明只读）。
+
+**`candidate_source_layer_id` 不要"顺手修"**：4 层切片留着源值 20 是**安全**的——`build_layer_plan` 只做 `index_source > candidate_source` 比较，`dsa_v41.py` 有 `0 <= candidate < len(ratios)` 守卫 ⇒ 候选预筛关闭，与全模型（index_source=2 < 20）语义一致。改成 0/1/3 会让比较成立、**打开** candidate 过滤；改成 2 会把 layer 2 标成 candidate source。
+
+**命名能否被认领（静态证据）**：`vllm_ascend/models/deepseek_v41/model.py` 的 `load_weights` 改名表命中切片键族：`.w1/.w2/.w3 → gate_proj/down_proj/up_proj`、`.ffn. → .mlp.`、`.attn. → .self_attn.`、`.attn_norm. → .input_layernorm.`、`.ffn_norm. → .post_attention_layernorm.`、`.gate.bias → .gate.e_score_correction_bias`；`gate.bias_vl` 与 `attn_sink` 有专门特判；`aligner./vision./image_/mtp.` 走 `_DEFERRED_WEIGHT_PREFIXES`。
+
+**未验证**：真实 vllm 加载/前向（P2 blocker 仍是 `No module named 'ops'` + `aclnnScatterNdUpdateSk DT_UINT8`）。CPU 上实例化 V4.1 走不通：nvidia 实现断言 `DeepseekV4 attention requires a CUDA device`，Ascend 实现要平台解析成 npu ⇒ 要拿「模型参数名 − 切片键」差集，只能上空闲 die + `load_format=dummy` 跑同一脚本。
