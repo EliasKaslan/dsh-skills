@@ -1,6 +1,6 @@
 ---
 name: batch-invariance-acceptance
-description: batch 不变性验收：减层证据、算子级判据、外推六条件、昇腾 BI 白名单审计、验收成本优化（三层锚点+分派同构）。
+description: batch 不变性验收与训推一致性：减层证据、算子级判据、外推六条件、昇腾 BI 白名单审计、验收成本优化（三层锚点+分派同构）。
 version: 1.0.0
 domain: inference-model
 function: batch-invariance-validation
@@ -794,3 +794,67 @@ Ascend 侧也无 `validate_configuration` 门）⇒ `VLLM_BATCH_INVARIANT=1` **�
 ### MATH-500 在 thinking 模型上的坑
 
 `max_tokens=192` 时 500/500 都是 `finish_reason=length`（只有 78 条写出 `\boxed{}`）⇒ accuracy=0.0。BI 判据（逐轮文本逐字节相同）不受影响，但**报告里不能把 accuracy=0 写成「精度通过」**，要么提高 max_tokens，要么明确写「本阶段只证确定性」。
+
+## 训推一致性（train–infer）四仓支持度审计：与批次不变性不是同一件事
+
+## 训推一致性（train–infer）审计：先分清它和批次不变性不是同一件事
+
+**触发**：用户问"verl / FSDPTurbo / vllm / vllm-ascend 对某模型的训推一致性支持到什么程度"、"rollout 和 actor 的 logprob 对不上"、"训练和推理能不能逐位一致"、RL 里 `pearson_corr` / kl 偏大。
+
+**边界**：BI 问的是「同一引擎内，BS=1 与 BS=N 是否同」；训推一致性问的是「训练框架的计算图 与 推理引擎的计算图 是否同」。**裁判对象不同，结论不能互相外推**；BI 全绿也不代表训推一致（本 skill 前文已验证 dsv41 的 BI 判决只能到 `BLOCKED_OPERATOR_COVERAGE`）。
+
+### 1. 先锁树（这一步不做，后面全是错树）
+
+dsv41 的真栈在**一个目录**下，别认错：
+```bash
+B=/mnt/share/g00815994/dsv41
+git -C $B/verl_ds41 log -1 --date=short --format='%H %cd %d %s'   # 训练：fork of menjiantong/verl，branch support_deepseek41
+git -C $B/FSDPTurbo  log -1 --date=short --format='%H %cd %d %s'   # 训练内核（模型代码其实在这里，不在 verl）
+git -C $B/vllm      log -1 --date=short --format='%H %cd %d %s'    # v0.30.0 pin
+git -C $B/vllm-ascend log -1 --date=short --format='%H %cd %d %s'
+git -C $B/verl_ds41 status --porcelain | wc -l        # 实测 191 项！
+git -C $B/FSDPTurbo status --porcelain                # 5 处，正是实际在跑的数值
+```
+- **同名副本陷阱**：`z00988734/projects/step5/{verl,FSDPTurbo,vllm,vllm-ascend}` 是 Step5-VL（92 层/16 专家），`j00949742/verl_turbo*` 是第三方变体。判归属看 `config.json` 的 `num_hidden_layers=40` + `n_routed_experts=384`。
+- **只看 HEAD 会漏掉真数值**：`.before_*` 未跟踪文件就是 changelog，必须 `git diff HEAD`。
+- 训练与 rollout 用**同一份** vllm/vllm-ascend 源码树 + 同一镜像，这是唯一的好消息。
+
+### 2. 六维度矩阵（照这张表填，缺一维就写"未取证"）
+
+| 维度 | 要查什么 |
+|---|---|
+| D1 结构覆盖 | 两侧都实现了哪些子模块（engram / dspark / MTP / indexer / compressor / mHC / routing）；**MTP 与 DSpark 常是"仅推理"**（训练侧直接 raise） |
+| D2 权重与格式 | dtype 是否直通、有无 cast、专家维是否重排、量化形态是否两侧都有 |
+| D3 数值路径 | 融合算子清单、fp32-by-design 点位、BI 注册表覆盖、`supports_batch_invariance` 声明 |
+| D4 调度/缓存 | 训练有无 KV/cache、推理 KV 是否量化（A5 packed cache = FP4/int4/FP8）、chunked prefill / prefix caching 是否关 |
+| D5 采样/logprob | chosen logprob 与 prompt_logprobs 是否同一 kernel、bypass 模式下 old_log_probs ≡ rollout 会假绿 |
+| D6 验证设施 | 有无 golden logits / 断言 / CI / e2e 用例；指标是否只落日志 |
+
+判据：**逐位**要求两侧算子与舍入点同源；**统计一致**用 probs 空间 pearson + logprob 偏差分布。
+
+### 3. 已取证的结论（dsv41-flash，2026-11）
+
+- **逐位不可达**，4 条结构缺口：① A5 packed cache 把 KV 压到 FP4/int4/FP8，而训练 KV 是 bf16 环形 buffer 且 `if not self.training` 挡住播种；② 引擎 decode↔prefill 两条通道（0.043–0.19 nats，未做算子级归因）；③ 融合 sparse 核把**未归一化 exp** 舍 bf16、训练 eager 把**归一化 prob** 舍 bf16（舍入对象不同，不是精度高低）；④ MoE 有 ~4× 数学增益（Jacobian，不是 bug）。
+- **统计基线**：probs 空间 pooled pearson **0.99456–0.99464** 地板；到 0.999 需总差 ×0.4。
+- **主因**：训练侧 `fused_mhc_pre_sinkhorn_premix` 输出 fp32 ⇒ 主流全程 fp32 升格（torch_npu `F.linear(fp32, bf16)` 自动升格），引擎是 bf16 融合核。补丁 `VERL_DSV41_HC_BF16=1` 实测 q 链 ×130，**但从未落盘**（`grep -rn VERL_DSV41_HC_BF16` 在 `verl/`+`fsdp_turbo/` 零命中）。
+- **放大在 MoE 不在注意力**：嫁接 MoE 对齐 23×（384 专家 29–42×），注意力仅 2.6×；top-6 专家与压缩索引集合基本零偏差。
+- **反直觉但是对的**：训练 head 改 fp32 会让 pearson **变差**（0.99464→0.99403），因为训练侧所有参数都被 cast bf16，bf16 才是同一舍入点。
+
+### 4. 观测与门禁现状（四仓共同的短板）
+
+- 有度量：`verl/utils/debug/metrics.py` 的 `rollout_probs_diff_{mean,max,std}` + `rollout_actor_probs_pearson_corr`。
+- 无门禁：无 golden logits、无 CI 断言；带 `--max-k3-kl` 的对拍脚本 `rollout_logprob_diff.py` **不在训练树里**（只在别的副本）。
+- **旧 dump 口径偏低**：历史 dump 是 `VLLM_BATCH_INVARIANT=0` 时取的，生产偏差约为 harness 的 2.4×。
+- `prompt_logprobs` 走 `torch.logsumexp`，BI 不覆盖 ⇒ 只比 chosen 会漏检。
+
+### 5. 往前推的最小顺序（按性价比）
+
+1. 固化脏树（`git stash create` + tar 快照），否则数字不可复现。
+2. 落地 `VERL_DSV41_HC_BF16` → 跑 **1 步 RL** 对照三指标（这是 10 月遗留的待验收项）。
+3. 在 BI=1 + 同形状负控下重取 dump；引擎侧试 `VA_V41_OPROJ_FP32_AR=1`（o-proj all-reduce 走 fp32）。
+4. 把对拍脚本 + 阈值做成门禁。
+5. 只有"共用内核 + 放弃 packed cache"才可能逐位——成本很高，先想清楚是否值得。
+
+**不要做**：在 HC_BF16 落地前反复调 BI —— 已实测 BI on/off 对端到端 pearson 无显著变化，主项不在批组成。
+
+未验证：本文数字来自 2026-10-13~10-21 的工作记录，未在新树上复跑；`cann_ops_transformer.sparse_flash_mla` 与 `torch.ops._C_ascend.npu_sparse_flash_mla` 是否同一二进制内核未取证（签名不同：训练侧无 `cmp_residual`/`mask_mode`）。
