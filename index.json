@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 244,
-  "total_bytes": 26807020,
+  "total_bytes": 26812447,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -129,7 +129,7 @@
       "path": "skills/batch-invariance-acceptance",
       "description": "batch 不变性验收与训推一致性：减层证据、算子级判据、外推六条件、昇腾 BI 白名单审计、验收成本优化（三层锚点+分派同构）。",
       "files": 8,
-      "bytes": 160077
+      "bytes": 165070
     },
     {
       "name": "batch-invariant-weekly-digest",
@@ -199,7 +199,7 @@
       "path": "skills/dsh-plugin-market",
       "description": "DSH 插件市场：无官方源、format:1 校验、engines.dsh 兼容门禁、升级后市场静默失效与修复",
       "files": 1,
-      "bytes": 23036
+      "bytes": 23470
     },
     {
       "name": "dsh-repo-sync",

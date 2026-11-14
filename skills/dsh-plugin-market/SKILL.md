@@ -35,7 +35,7 @@ whenToUse: 问「插件市场里有什么能装/兼容当前 DSH 版本吗/Disco
 
 `@deepseek-ai/dsh-app-boot` 的 `plugin-compatibility.ts`：`semver.satisfies(runtimeVersion, range, { includePrerelease: true })`；runtime 取 app-boot 自身 `package.json` 版本。有 `engines.dsh` 就独占判定，没有才回退到 `@deepseek-ai/dsh*` peerDependencies。不满足 → 安装被拒，只能对精确 `name@version` 记豁免。
 
-**预发布陷阱**：`engines.dsh: "^0.2.2"` **匹配不到** `0.2.2-rc.2`；写死 `"0.2.2-rc.1"` 也不匹配 rc.2。要覆盖 rc.2 必须写成 `^0.2.2-rc.1` 或 `>=0.2.2-rc.1 <0.3.0-0`。
+**预发布口径（2026-11 本机 semver 7.8.1 实测纠正前一版说法）**：DSH 门禁固定传 `{includePrerelease:true}`，semver 这时把 `^0.2.2` 解糖成 `>=0.2.2-0 <0.3.0`，**能**匹配 `0.2.2-rc.3`（实测 `satisfies('0.2.2-rc.3','^0.2.2',{includePrerelease:true}) === true`）。真正匹配不到的是不带 `-0` 的 `>=0.2.2`。所以 `engines.dsh: "^0.2.2"` 是可用写法，不必刻意放宽成 `^0.2.2-rc.1`。仍然匹配不到的是**精确 pin**：写死 `"0.2.2-rc.1"` 只匹配自己，rc.2/rc.3 都 false。
 
 ## 只读判定一个插件能不能用（不装市场也能做）
 
@@ -115,7 +115,7 @@ peer 判断：bundle 只要求 `@deepseek-ai/cordis ~4.1.0`，运行时 `app.asa
 - `engines` 可选；一旦写了，就用**与 DSH 相同的判据**本地复验：
   `semver.satisfies(runtimeVersion, range, { includePrerelease: true })`
   （npm 自带 semver：`require('<nodejs>/node_modules/npm/node_modules/semver')`，profile 里通常没有 semver 包）
-- **预发布陷阱**：`^0.2.2` 匹配不到 `0.2.2-rc.2`；要覆盖 rc 必须写 `>=0.2.2-rc.1 <0.3.0-0` 这类显式范围
+- **预发布**：`^0.2.2` 在 `includePrerelease:true` 下**能**匹配 `0.2.2-rc.x`（解糖为 `>=0.2.2-0`）；只有 `>=0.2.2` 与精确 `0.2.2-rc.1` 匹配不到后续 rc
 
 ## 可见性与边界
 
@@ -216,7 +216,7 @@ try {
 
 - `name` 是 `@deepseek-ai/dsh-desktop-runtime`，`version` 就是当前 DSH 版本（实测 `0.2.2-rc.2`）；
 - 同文件 `dependencies` 里所有 `@deepseek-ai/dsh*` 应为同号，可交叉核对；
-- 拿这个版本号去判 `engines.dsh`，记得 `includePrerelease: true`（`^0.2.2` 匹配不到 `0.2.2-rc.2`）。
+- 拿这个版本号去判 `engines.dsh`，记得 `includePrerelease: true`（开了之后 `^0.2.2` 是能匹配 `0.2.2-rc.x` 的，见上文勘误）。
 
 本机 profile 里正在用的索引源（`cordis.patch.yml` → `- id: plugin-market` → `config.indexes`）：
 `https://cdn.dsh.so/market/index.json`、`https://dsh-plugin-lab.github.io/market/index.json`，

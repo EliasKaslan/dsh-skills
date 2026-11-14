@@ -903,3 +903,65 @@ git -C $B/FSDPTurbo status --porcelain                # 5 处，正是实际在�
 - 反例：vllm-ascend main 的 BI e2e 硬编码 `load_format="dummy"` + `num_hidden_layers=2`（`tests/e2e/pull_request/four_card/rlhf/consistency/test_batch_invariant_tp4.py:123-125`），而 `docs/source/user_guide/feature_guide/batch_invariance.md:200-206` 把 Qwen3-30B-A3B 写成 "tested and verified" 且未披露该证据是 2 层随机权重——这就是"dummy 当证据"的实例。
 
 **判据**：dummy 只用于链路/性能/shape 冒烟；dummy 下的 BI 结果报 `SAMPLED_PASS` 并注明「N 层切片 + 随机权重 + 无判别力证据」；要"成立"必须真权重 × 同形状负控（证明尺子有牙），或算子级行局部性 + 分派同构 diff。
+
+## BI + FULL_DECODE_ONLY 在 A5 真开起来：Qwen3.5 实测、A/B 因果取证与 replay/FIA 计数法
+
+## BI + FULL_DECODE_ONLY 在 A5 真开起来之后：Qwen3.5-35B-A3B 实测与三个取证手法（2026-11-14）
+
+**适用**：要回答「开 BI 还能不能开整图」「整图到底有没有生效」「图模式会不会把精度改掉」，或要复现 PR #21176 的前后差异。
+**前置**：本 skill《启动门》《五之二 图模式》两节。这里补的是「已经跑起来之后怎么证 + 真实数字」。
+
+### 栈与结论（一句话）
+
+镜像 `be3d1eeee5a3`（vllm 0.32.0@5df63a72 / vllm-ascend 0.19.1rc2@fd4be4db，CANN 9.2.1，torch_npu 2.10.0.post7），
+`/mnt/weight/Qwen3.5-35B-A3B`（77 GiB bf16），`VLLM_BATCH_INVARIANT=1` +
+`compilation_config={"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1,8]}`，TP=1：
+**capture 2/2 成功（1.08 GiB）、decode 6.0×、math500 与 eager 逐字节一致**。两个必带补丁：GDN 声明（#19442）+ FIA workspace 重绑（#21176）。
+
+### 手法一：A/B 开关证明「就是这一行让它能开图」
+
+把 PR 的重绑包进 `if os.environ.get("BI_SKIP_WS_REBIND") != "1":`，同一棵树同一 die 跑两腿：
+
+| 腿 | 结果 |
+|---|---|
+| `BI_SKIP_WS_REBIND=1`（PR 之前） | `aclnnFusedInferAttentionScoreBatchInvariantV5 failed ... Invalid_Argument(EZ1010)` → `capture_end ... error code is 107033` → `EE1018 ... A task group ... started but not ended` |
+| 默认（PR #21176） | `Capturing CUDA graphs (FULL): 2/2`、`Graph capturing finished in 1 secs, took 1.08 GiB` |
+
+比"我跑通了"强一个数量级：**没有这行就一定失败**，且失败签名与 PR 描述逐字一致。
+
+### 手法二：replay/FIA 计数证「decode 真在图里」
+
+引擎创建后挂钩 `torch_npu.npu.NPUGraph.replay` 与 `torch_npu.npu_fused_infer_attention_score`（BI 已把它换成 BI 算子），分 prefill/decode 相统计：
+
+| 模式（均 BI=1） | replay/步 | eager FIA/步 | decode tok/s |
+|---|---|---|---|
+| eager | 0.0 | **10.02** | 16.01 |
+| FULL_DECODE_ONLY | **1.0** | **0.02** | 95.52 |
+
+`replay/步=1.0` = 每步重放一次图；`eager FIA/步≈0`（511 步共 ~10 次 = 10 层在 capture 时各一次）⇒ **FIA 被捕获进图**。
+**坑**：capture 发生在**引擎初始化**阶段（日志 `Graph capturing finished`），任何在 `LLM(...)` 之后装的钩子都看不到 capture 调用；要统计 capture 就必须在构造引擎**之前**钩 op packet（`torch.ops.batch_invariant_ops.<op>.out`）。
+
+### 手法三：`.out` 形式怎么证（不靠调用计数）
+
+`attention_v1.py` 整图路径两处：`:705` 用 `_npu_fused_infer_attention_score_get_max_workspace` 算 workspace（PR #21176 重绑它）、`:726` `register_task(torch_npu.npu_fused_infer_attention_score.out, ...)`。
+BI 下 `torch_npu.npu_fused_infer_attention_score is torch.ops.batch_invariant_ops.npu_fused_infer_attention_score_batch_invariant` → True，
+且该 op 的 `overloads()` = `['default','out']` ⇒ **注册进图的就是 BI 算子的 out 重载**。三重证据（注册点 + identity + overload 列表）够用，不必强求调用计数。
+
+### 真实数字（2k 输入 / 2k 输出，bf16，TP=1）
+
+| BS | eager | FULL_DECODE_ONLY | 倍数 |
+|---|---|---|---|
+| 1 | 16.05 tok/s | 96.43（复现 97.1） | 6.0× |
+| 8 | 118.0 tok/s | 650.82（复现 652.85） | 5.5× |
+
+math500（500 题、T=0、seed=1234、`max_tokens=512`、**`enable_thinking=False`**）：eager 2057.2 s vs 图 600.9 s；
+accuracy 两侧同为 0.2260，**500/500 预测文本逐字节相同、两份文件 sha256 相同**、discordant 0/0、McNemar p=1.0、配对 t=0、CI[0,0]。
+注意 accuracy 0.226 是 512 token 截断（378/500 触顶）导致，不能当模型能力；比较图 vs 不图仍然有效。
+> 关思考链是"能比"的前提：不关时 192/512 token 全被 think 段吃掉，两边都会接近 0 分，比不出东西。
+
+### 其它实测坑
+
+- **TP=2 也能开图**（decode 28.97/223.16 tok/s），但该模型 TP>1 时 HCCL 开销压过收益，且与同机他人任务并存时数字不可比；性能结论只认独占 die 的 TP=1。
+- `docker exec` 里**别用最小 PATH**（只给 `/usr/local/python3.12.16/bin:/usr/bin:...`）：会丢 CANN/triton 路径，vllm 的 `_prepare_rope_positions_kernel[(grid,)](...)` 退化成普通函数 → `TypeError: 'function' object is not subscriptable`。正确写法是 `export PATH=/usr/local/python3.12.16/bin:$PATH`（在脚本里写 `$PATH` 让它运行时展开，别写 `\$PATH`）。
+- 该镜像仍有 `NPU Triton causal_conv1d_update is unavailable ... stalls ACL graph capture at decode-FULL` 警告，但 capture 仍 2/2 成功、decode 确实走图；GDN conv1d 回退是后续性能项，不是开图阻塞项。
+- PR #21176 在 `releases/v0.32.0rc` 上 `git apply --3way` 会被拒（rc 与 main 上下文漂移），按 PR 三处改动手工落地即可，务必留 sha256 前后值与落地 diff。
