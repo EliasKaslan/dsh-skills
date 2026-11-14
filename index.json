@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 63,
   "file_count": 242,
-  "total_bytes": 26750486,
+  "total_bytes": 26755883,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -87,7 +87,7 @@
       "path": "skills/ascend-server-access",
       "description": "A5 隧道不通时：先数 TAP 张数，实例2 TAP 丢失就用原件 Switch 到 A5 应急",
       "files": 6,
-      "bytes": 107822
+      "bytes": 113219
     },
     {
       "name": "ascend-server-layout",

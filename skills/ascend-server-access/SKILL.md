@@ -576,3 +576,32 @@ powershell -NoProfile -ExecutionPolicy Bypass -File vpnctl.ps1 -Action Switch -P
 代价：**蓝区 A3 同时断**（`192.168.0.0/16` 路由消失），要回 A3 再 `-Action Switch -Profile 蓝区网关 -Username x00886548`。互斥是单 TAP 的硬约束，双隧道必须先把实例 2 的 TAP 修回来（`D:\workspace\tmp\univpn-multi` 与 `.univpn-multi\instance-002.json` 里的 `TapGuid {7706C901-...}` 都还在，重建 TAP 需管理员）。
 
 **判读顺序**（别乱试）：`Get-PnpDevice -Class Net` 数 TAP 张数 → 只有 1 张就是本条；有 2 张再去查路由/认证。
+
+## 实例 2 的 TAP 丢失：建 TAP + 按新 GUID 重打补丁真正修回来（2026-11-14 实测）
+
+上一节只给了「原件 Switch 到 A5」的应急；**这里是把双隧道真正修回去的完整路径**（约 2 分钟，不重装实例、不动原件）。
+
+**判据**：`Get-NetAdapter -IncludeHidden | ? InterfaceDescription -like 'TAP-Windows*'` 只剩 1 张（本轮 `{7AD1593C-...}` `本地连接` ifIndex 14）；`Get-PnpDevice -Class Net` 连非 present 的设备都没有；`instance-002.json` 里的 `{7706C901-...}` 在注册表 `HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-...}` 下也查不到 ⇒ 设备节点被整体删除，不是被禁用，`Enable-NetAdapter` 之类没用。
+
+**为什么必须重打补丁**：UVP002 的 `UVP002.exe` 与 `serviceclient\UVP002CS.exe` 里**嵌着实例 TAP 的 GUID**（`PatchInstance` 把 `GUID大写\0GUID小写\0` 写进 `.rdata` 尾部 padding 并改指针）。`tapinstall install` 新建的 TAP 拿到的是**新随机 GUID**，不重打补丁仍然「等一张永远不出现的网卡」（`-Action Connect` 挂死 >120 s）。`promote\UVP002PromoteService.exe` 不含 GUID（kind=1 只改名/端口）。
+
+步骤（全部提权，**先关 UniVPN / UVP002 全部进程**）：
+
+1. `Stop-Service UVP002Service -Force` —— 要覆盖 `promote\UVP002PromoteService.exe`，服务在跑会锁文件。
+2. `& 'C:\Program Files (x86)\UniVPN\driver\ev\tapinstall.exe' install OemVista.inf tap0901`（实测 exit 0，输出 `Device node created...` + `Drivers installed successfully.`；新网卡名 `本地连接 2`）。
+3. 取**新增的那 1 张** TAP：比较操作前后 `InterfaceGuid` 集合的差集。**不要用 ifIndex 或网卡名判**（名字可能是 `本地连接 2`/`本地连接 3`，ifIndex 每次重排）。
+4. 读**原件**三个 exe 的原始字节 → `[UniVpnMulti.BinaryPatch]::PatchInstance($bytes,$kind,$newGuid,2)` → 写回 `C:\Program Files (x86)\UniVPN2\` 对应路径（kind 0=`UVP002.exe`、1=`promote\UVP002PromoteService.exe`、2=`serviceclient\UVP002CS.exe`）。**必须从原件字节重打**，不能拿已打补丁的文件当输入：`.rdata` padding 已非零，`Payload` 会抛 `Padding is not empty`。
+5. 更新 `C:\Program Files (x86)\UniVPN\.univpn-multi\instance-002.json`：`TapGuid` = 新 GUID（`"B"` 大写格式）+ `Files[].Hash` 换成新 SHA256 + `Status=Ready`。**不更新的话**：`vpnctl.ps1` 的排除逻辑按 json 里的 GUID 排除实例卡，会把两张 TAP 都当实例卡（`State` 报错/挑错网卡）；多实例工具的 `Open-Client` 也会 `Instance binary verification failed.`。
+6. `Start-Service UVP002Service`，等 `Get-NetTCPConnection -State Listen -LocalPort 29191` 出现 1 个 listener。
+7. `Start-Process 'C:\Program Files (x86)\UniVPN2\UVP002.exe'`，`AutoLogin=1` + `ClientLastAccessSession=A5.ini` 会在 ~20 s 内自己连回 A5，不用点登录。
+
+`PatchInstance` 的 C# 在 `D:\workspace\tmp\univpn-multi\UniVPN-Multi.ps1` 的 `Add-Type` 里：把整块 `if (-not ('UniVpnMulti.BinaryPatch' -as [type])) { ... }`（该文件第 131~258 行，含结尾 `}`）原样抽出来拼到自己的修复脚本前面即可，C# 一行都不用改。本轮拼好的成品 `D:\workspace\tmp\vpn\repair-tap2.ps1`，日志 `D:\workspace\tmp\vpn\repair.log`。
+
+**坑（本轮全踩）**：
+
+- `Start-Process -Verb RunAs` **不能和 `-NoNewWindow` / `-RedirectStandardOutput` 同用**：`Start-Process : 无法使用指定的命名参数解析参数集。... FullyQualifiedErrorId : AmbiguousParameterSet`（skill 里记的 `-Verb RunAs -NoNewWindow -Redirect*` 写法在本机 PS 5.1.26100 上不成立）。改法：日志写进**目标脚本自己**——`Start-Transcript -Path <log> -Force` 开头、`Stop-Transcript` 收尾，外层只 `Start-Process powershell -Verb RunAs -Wait -PassThru -ArgumentList $argLine`。
+- 写带 BOM 的包装 `.ps1`：`[IO.File]::WriteAllText($p,$t,(New-Object Text.UTF8Encoding($true)))` **本身已写 BOM，不要在字符串前再拼 `[char]0xFEFF`**，否则双 BOM；PS 5.1 只剥掉一个，另一个进正文，报 `The ampersand (&) character is not allowed`（指向第 1 行 char 2，看着像语法错）。
+- 补丁器对**原件**做 SHA256 白名单（`UniVPN.exe` `24f90f30...` / `promote\UniVPNPromoteService.exe` `e038021b...` / `serviceclient\UniVPNCS.exe` `cf07de7e...`，版本 `10781.19.0.1214`）；不匹配直接 `Unsupported UniVPN binary/version. No patch applied.`。打之前先用 `Get-FileHash -Algorithm SHA256` 对一遍，比事后猜错因快。
+- 拼装脚本别手抄 C#：`(Get-Content $multi -Encoding UTF8)[130..256] + '}'` 取块，再和修复逻辑拼接，最后用 `[System.Management.Automation.Language.Parser]::ParseFile()` 验 `$errs.Count -eq 0`（`PSParser.Tokenize` 不查括号配对，会假通过）。
+- 验收别只看 IP：`Get-NetRoute` 必须是 `192.168.0.0/16 经本地连接`、`177.0.0.0/8 经本地连接 2`；本轮 ifIndex 是 **14 / 24**（旧文 13/55、11-13 的 14/15 都作废，只当打印值，别写进脚本条件）。
+- 修好后原件照常：`vpnctl.ps1 -Action ResetUi -Profile 蓝区网关` 一条命令就能把蓝区拉到默认会话（它先杀 UI → 把 `ClientLastAccessSession` 改写成 `蓝区网关.ini`（GBK）→ 重启 UI → 自动登录），中文 profile 名走**包装 .ps1** 别走命令行。
