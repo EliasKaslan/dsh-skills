@@ -271,3 +271,40 @@ git : To https://github.com/<owner>/<repo>.git
 - 域外一条同源坑：`.NET` 静态方法（`[IO.File]::ReadAllBytes('相对路径')`）按**进程 CWD** 解析，不认 PowerShell 的 `Set-Location`；在 `pwsh` 里 `cd` 过之后仍会 `DirectoryNotFoundException`。要么用绝对路径，要么先 `Resolve-Path`。
 
 纪律：任何一条测量如果支持「这是缺陷」，就换一种口径复现一次再下结论；推翻了自己先前的判断就明确写「撤回」，不要静悄悄改口——比错结论更贵的是让读者以为那个结论还成立。
+
+## 传给 ssh 的内嵌双引号会被 PowerShell 5.1 静默吞掉
+
+**这不是引号转义写错，而是 PowerShell 5.1 在把参数交给原生程序时把双引号剥掉了。**
+
+现象（本轮真踩两次）：
+
+```powershell
+# 写法 A：外层双引号 + 内层 \" 转义
+ssh -n root@192.168.13.190 "python -c 'import torch;print(\"torch\",torch.__version__)'"
+# 远端实际收到：python -c import torch;print(torch,torch.__version__)
+# bash: -c:行1: 未预期的符号“torch.__version__,”附近有语法错误
+
+# 写法 B：外层用 PowerShell 单引号包住（看起来最安全）
+ssh -n root@192.168.13.190 'echo "== torch =="; python -c "import torch;print(torch.__version__)"'
+# 远端实际收到：echo == torch ==; python -c import torch;print(torch.__version__)
+# bash: -c:行1: 未预期的符号“torch.__version__,”附近有语法错误
+```
+
+判读要点：报错指向的是**命令里本该被引号包住的那段**，且回显的整条命令行里引号全消失 ⇒ 直接判本条，别去查 ssh 配置、别去改转义层数。
+
+**唯一稳的写法：脚本落地再执行（base64 中转）**
+
+```powershell
+$b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path $ScriptFile)))
+$remote = 'echo ' + $b64 + ' | base64 -d > /tmp/r.sh; bash /tmp/r.sh; rm -f /tmp/r.sh'
+& ssh -n -o BatchMode=yes -o ConnectTimeout=20 root@$TargetHost $remote
+```
+
+`$remote` 里**不要出现任何双引号**，只做字符串拼接即可绕过。
+
+配套两个细节：
+
+- **调试期别用 `2>$null`**：它会把远端 stderr 一起吞掉，你只会看到空输出 + `[exit code: 1]`，完全不知道错在哪。用 `2>&1` 收全，再用 `Where-Object { $_ -notmatch 'Authorized users only' }` 过滤登录横幅。
+- **跳板机**同理，只是多两个参数：`-o IPQoS=none -o ProxyJump=root@<jump>`。
+
+本轮成品（可直接抄）：`D:\workspace\261108_recreation\music\_shared\rsh.ps1`，签名 `-TargetHost <ip 或 jump@target> -ScriptFile <本地 .sh>`，内部就是上面这套 base64 中转，跑完打印 `[remote-exit=N]`。

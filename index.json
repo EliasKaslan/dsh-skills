@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 63,
   "file_count": 243,
-  "total_bytes": 26797836,
+  "total_bytes": 26799925,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -360,7 +360,7 @@
       "path": "skills/pwsh-on-windows",
       "description": "本机 pwsh 实为 Windows PowerShell 5.1：GBK 解码、BOM、PS7 语法静默坑。适用于\"中文乱码 / 行数或 CR 数不对 / 计数总是 0 / 执行策略拦 / PS7 语法报错\"。",
       "files": 1,
-      "bytes": 34466
+      "bytes": 36555
     },
     {
       "name": "qq-mail-control",
