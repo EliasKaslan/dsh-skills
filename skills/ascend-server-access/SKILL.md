@@ -1,6 +1,6 @@
 ---
 name: ascend-server-access
-description: 昇腾服务器准入：在册 6 台（A3×2、A5×4）、双隧道、凭据与免密。适用于"188/177.x 连不上 / 走哪个 VPN / 凭据在哪 / 新机配免密"
+description: A5 隧道不通时：先数 TAP 张数，实例2 TAP 丢失就用原件 Switch 到 A5 应急
 whenToUse: 昇腾服务器清单、凭据、可达性判据与 UniVPN 准入/双开（在册见 §12：A3×2 + A5×4）；模型看不到本节。
 ---
 
@@ -557,3 +557,22 @@ git ls-remote --heads origin | head                                 # 复核 fet
    ```
    日志落在 bind 挂载进容器的目录上，宿主就能直接 tail。
 4. 反查自家进程别用会自匹配的 `pgrep -af <关键字>`：本轮 `pgrep -af 'docker pull' | head -1` 恰好命中自己的包装命令，误判成「pull 进程没了」。改成查 PID（`ps -o etime= -p <pid>`）或匹配更长的唯一串。
+
+## 实例 2 的 TAP 丢失后 A5 不可达：用原件 Switch 应急（2026-11-14 实测）
+
+## 实例 2 的 TAP 丢失后 A5 不可达：用原件 Switch 应急（2026-11-14 实测）
+
+**现象**：`177.x` 四台 TCP 22 全不通、`177.0.0.0/8` 路由不存在，但 `UVP002.exe` / `UVP002CS.exe` / `UVP002Service` 都在跑、`sysconfig.ini` 里 `AutoLogin=1` 且 `ClientLastAccessSession=A5.ini`。`univpn-instance.ps1 -Action State -Instance 2` 回 `Connected=False`、`TapName` 为空。
+
+**根因**：系统里**只剩一张 TAP**（`Get-PnpDevice -Class Net` 只有 `ROOT\NET\0000`），实例 2 那张 `本地连接 2` 连同设备节点一起消失（客户端重装会顺带清掉多实例 TAP；同日 `ifIndex` 从 13/55 变成单张 14 也指向重装）。没有 TAP，引擎自动登录也连不上；`-Action Connect` 会**挂死超过 120 s**（等一张永远不出现的网卡），别在前台等。
+
+**应急（不修多实例，2 分钟内拿到 A5）**：原件客户端里同时有 `A5.ini` 与 `蓝区网关.ini`（`%APPDATA%\UniVPN\config\`），直接切配置：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File vpnctl.ps1 -Action Switch -Profile A5 -Username vpn_xmz
+# 成功输出：Connected True / Profile A5 / VirtualIP 1.2.x.x / TapRoutes 含 177.0.0.0/8 170.70.0.0/16 197.0.0.0/8
+```
+
+代价：**蓝区 A3 同时断**（`192.168.0.0/16` 路由消失），要回 A3 再 `-Action Switch -Profile 蓝区网关 -Username x00886548`。互斥是单 TAP 的硬约束，双隧道必须先把实例 2 的 TAP 修回来（`D:\workspace\tmp\univpn-multi` 与 `.univpn-multi\instance-002.json` 里的 `TapGuid {7706C901-...}` 都还在，重建 TAP 需管理员）。
+
+**判读顺序**（别乱试）：`Get-PnpDevice -Class Net` 数 TAP 张数 → 只有 1 张就是本条；有 2 张再去查路由/认证。

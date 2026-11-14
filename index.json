@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 63,
   "file_count": 242,
-  "total_bytes": 26745857,
+  "total_bytes": 26747636,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -85,9 +85,9 @@
     {
       "name": "ascend-server-access",
       "path": "skills/ascend-server-access",
-      "description": "昇腾服务器准入：在册 6 台（A3×2、A5×4）、双隧道、凭据与免密。适用于\"188/177.x 连不上 / 走哪个 VPN / 凭据在哪 / 新机配免密\"",
+      "description": "A5 隧道不通时：先数 TAP 张数，实例2 TAP 丢失就用原件 Switch 到 A5 应急",
       "files": 6,
-      "bytes": 106043
+      "bytes": 107822
     },
     {
       "name": "ascend-server-layout",
