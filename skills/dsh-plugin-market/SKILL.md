@@ -271,3 +271,59 @@ try {
 - `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 会留下旧版条目，无害、不必删。
 - 本机 pnpm 在 PATH 上是 `pnpm.CMD`（实测 11.23.0）；`pnpm.ps1` 被执行策略拦，直接调 `.ps1` 得到 `PSSecurityException: 因为在此系统上禁止运行脚本`。
 - asar 是单文件：内部 `glob`/`grep` 全部 `os error 3`，只能对已知绝对路径用 read；`D:\tools\dsh\resources\app.asar\dsh\package.json` 可直接 read，用来交叉确认内置包与运行时版本。
+
+## 按能力挑插件（以「会话全文搜索 + 定位到会话」为例）：热度口径、真实清单复核、官方基线
+
+## 何时调用这一节
+
+用户要的不是"某个插件"，而是"能干某件事的插件里最该装哪个"（示例：搜索所有聊天内容并直接定位到会话）。
+
+三条判据缺一不可：**能力真的对口**（不是记忆/RAG/联网搜索冒充）→ **对当前运行时兼容**（同一套 semver 门禁）→ **有热度且还在维护**。
+
+## 热度口径：市场索引给不了热度，star 在本生态几乎无区分度
+
+- `cdn.dsh.so` 索引里 `metadata.stars` 恒为 `null`，star 只在 `metadata.labels` 的 `stars-0` / `stars-1-4` / `stars-5-19` / `stars-20-99` 分桶里；也没有下载量字段。
+- 本生态 star 天花板极低：实测"会话全文搜索"类插件最高 47★，而那是个停在 DSH 0.1.7 时代、`pushed_at` 一个多月没动的旧包。**按 star 排序会把最不能用的那一个排第一。**
+- 可用热度组合：npm 周下载（`api.npmjs.org/downloads/point/last-week/<pkg>`）为主 + GitHub `stargazers_count` / `pushed_at` / `archived` 为辅。周下载上千就算这一类的头部，别用"上万下载"的期望去筛。
+
+## 索引 ≠ 真实清单：兼容判定一律以 npm/Package manifest 为准
+
+索引只用来**发现候选**。实测两处常见错位：
+
+- 版本滞后：索引里 `dsh-chat-search` 是 `1.0.2`，npm `latest` 已 `1.2.4`；
+- engines 缺失：索引里该条目没有 `engines.dsh`，包自己的 `package.json` 里其实写了 `>=0.2.0-rc.1`。
+
+按索引判会把"能用"判成"未知"。判定顺序：`registry.npmjs.org/<pkg>/latest` 拿 `engines.dsh` → 无则看 `@deepseek-ai/dsh*` peerDependencies → 都没有才是 UNKNOWN（"能装不承诺"）。git 源用 `raw.githubusercontent.com/<owner>/<repo>/<commit>/package.json`。
+
+## 复核脚本（一条命令出表，别手工猜）
+
+```js
+// node verify.js —— 需要 node 在 PATH；npm 自带 semver 7.8.x
+const semver = require('C:/Program Files/nodejs/node_modules/npm/node_modules/semver');
+const RT = '0.2.2-rc.3';
+const enc = (n) => (n.startsWith('@') ? '@' + encodeURIComponent(n.slice(1)) : n);
+// 对每个包：registry.npmjs.org/<enc>/latest 取 engines.dsh / peerDependencies / repository
+//            api.npmjs.org/downloads/point/last-week/<enc> 取 downloads
+// 判定：semver.satisfies(RT, engines.dsh, { includePrerelease: true })  ← 必须开，与 DSH 门禁同参
+```
+
+## 官方基线：先确认"官方已经做到了哪一步"，再决定要不要装
+
+以会话搜索为例，0.2.2-rc.3 的事实（读 asar 内 `@deepseek-ai/dsh-base` / `dsh-web-app` 的 `cordis.patch.yml` 与 `dsh-session-query-sqlite/lib/index.js` 得到）：
+
+- UI 入口**已存在**：侧栏放大镜 + `Ctrl+K`（shortcut id `session.search`）。
+- 但正文索引**默认关**：两层 patch 都把 `session-query-sqlite` 设成 `path: ':memory:'` + `openAt: never`，搜索抛 `SESSION_QUERY_SEARCH_DISABLED`，此时只匹配**标题/工作区名**。
+- 即使打开 `openAt`: FTS5 建表是 `tokenize = 'unicode61'`，查询侧 `quoteFtsData()` 把整条 query 包成**一个字面 phrase**（不加 `*`）。连续中文被 unicode61 当成单个 token → `"报错"` 搜不到「这个报错信息」，**中文全文搜索基本不可用**。
+- 即使命中，UI 行映射只有 `{id,title,workspace,snippet}`，**没有 seq** → 点结果只打开会话，不定位到具体消息。
+
+结论模板：官方给了"入口"，第三方插件补的是"中文子串索引 + 跳到消息"。判断该不该装插件，就是看这三条缺口里用户在意哪一条。
+
+## 零插件兜底（不想装/装不上的时候）
+
+会话日志是 `~/.dsh/sessions/<ws-slug>/<session-id>/session.v4.jsonl.zstd`，**多帧 zstd**：Python 用 `zstandard` 的 `d.stream_reader(f, read_across_frames=True)`，少这个参数只解首帧（看起来"文件只有一行"）。命中路径里的 `<session-id>` 就是会话 id，正文在 `user/message` / `assistant/message` / `tool/call` / `tool/result` 的 `data` 里。
+
+## 坑
+
+- 候选里大量同名近似包（`dsh-chat-search` / `dsh-search-chat` / `dsh-session-search` / `dsh-session-search-bar` …）分属不同作者，**名字差一个词就是两个包**，必须按 npm 包名精确核对，别按"看起来是同一个"合并。
+- `dsh-free-search`（上万下载、上千 star）是**联网搜索**，不是聊天记录搜索；`dsh-all-search`、`*local-search` 同理。按下载量排名前必须先按能力消歧。
+- 第三方"跳到命中消息"普遍依赖私有 DOM 锚点与内部 API（`data-chat-*`、`navigateToTurn`、`loadThrough`），engines 满足只代表**可安装**，不代表升级后还能跳；发布方 README 常自己承认这点。

@@ -78,3 +78,29 @@ i = t.find('"initialModels":['); arr, _ = dec.raw_decode(t, t.index('[', i))
 
 - AA 的 `intelligenceIndexIsEstimated` 字段网页 payload 里没有（属付费 API），无法区分"实测分"与"估算分"。
 - 各家的"有效上下文长度"至今无官方数字，只能定性引用 context rot。
+
+## effort 档位是隐藏比较维度（同名模型排序会翻转）
+
+## effort 档位是隐藏比较维度（同名模型排序会翻转）
+
+2026-11 实测：同一张 AA 榜单里，一个模型会按 effort 出现 **5 行**（Low/Medium/High/Xhigh/Max，显示名带 `(Max)` 这类后缀，默认档还标 `Default Fallback`）。不锚定档位，"A 和 B 谁强"可以得出相反答案：
+
+| Claude 5.5 同一 v5.0.1 口径 | Low | Medium | High | Xhigh | Max |
+|---|---|---|---|---|---|
+| Sonnet 5.5 | 25.65 | 30.82 | **41.52**（默认） | 49.92 | 54.54 |
+| Haiku 5.5 | 18.62 | **24.60**（默认） | 29.87 | 34.64 | 36.48 |
+
+- Sonnet(Low) 25.65 **低于** Haiku(Max) 36.48 —— 拿"小模型拉满 vs 大模型摆烂"就能反转排序。
+- 正确问法是先固定两件事：**同 effort 档**（要规划就都取 Max，要落地就都取默认档），再比 intelligenceIndex。
+- 默认档要看官方文档的 `Default effort` 行（Sonnet 5.5=high、Haiku 5.5=medium、Opus 5.5=medium、Fable 5.2=high），不能假设各家都是 high。
+
+## 名次的分母不统一
+
+模型详情页给的 `Intelligence # n / N` 里 N 是**按族**给的（实测 Sonnet 5.5 `#13/80`、Haiku 5.5 `#1/36`、Opus 5.5 `#5/80`）。`#1/36` 不代表进前 10 —— 跨分母不能比名次；要全局名次就自己按 payload 里所有有指数的条目降序排一次（本轮 113 条）。
+
+## 口径补充（Anthropic 4.6 代之后）
+
+- **dateless ID 就是快照**：`claude-sonnet-5-5` / `claude-haiku-5-5` 没有 `-2026xxxx` 后缀，也没有 alias（官方 `model-ids-and-versions`：For the 4.6 generation and later, the dateless ID is the canonical model ID… maps to a single, fixed model snapshot）。别去搜"带日期的快照名"。
+- **Haiku 5.5 起按 prompt 长度分档定价**：input `$0.10/MTok`（≤100,000 tokens）、`$0.50`（>100K）；output `$0.50` / `$2.50`。抓 pricing 时必须把两档都记下，只记小数会低估长上下文成本。
+- 引用 Anthropic 公告里的 GDPval-AA / AA-Briefcase 时注意：那是**AA 第三方复跑**，且两家页面自相矛盾（Sonnet 自己的公告 1844/1811，Haiku 公告的参照列 1840/1824）→ 结论里标出，别当单一权威。
+- 旧版本（Sonnet 5、Sonnet 4.6、Haiku 4.5）在 AA `initialModels` 里**没有**，只在 `releases`（无指数）→ 跨代对照只能引官方自报基准。
