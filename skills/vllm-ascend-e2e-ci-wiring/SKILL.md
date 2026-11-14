@@ -243,3 +243,51 @@ Error: The request was canceled due to the configured HttpClient.Timeout of 100 
 ### 3. 评审要求切片、而你想要真模型证据时
 
 切片是 CI 成本的妥协，不是证明手段。做法：代码按维护者要求回到切片；把「完整模型也跑过一次并通过」的记录（哪两条车道、耗时）写进 PR 正文作为补充证据，注明它不是本用例的交付形态。这样既满足评审，又不丢"全模型 BI 成立"这一条事实。
+
+## e2e 测试代码：mypy 坑、marker 的 AST 约束与多模型骨架
+
+## e2e 测试代码：静态检查坑与可复用的多模型骨架
+
+**适用**：在 vllm-ascend 里写/改 `tests/e2e/**` 用例，尤其是"多个模型共用一套比较逻辑"。
+
+### 1. 测试文件同样过 mypy（3.10/3.11/3.12）
+
+异构字面量 + `update()` 会踩 `call-overload`：
+
+```python
+extra_kwargs = {"enable_chunked_prefill": False, "block_size": 128}   # → dict[str, bool | int]
+extra_kwargs.update(load_format="dummy", hf_overrides=overrides)      # mypy: No overload variant of "update"
+```
+
+修法：先声明宽类型再逐项赋值（`extra_kwargs: dict = {...}`，然后 `extra_kwargs["load_format"] = ...`）。ruff 与 pytest 都能过，只有 pre-commit 的 mypy 会拦，别等 CI 才发现。
+
+### 2. marker 的 AST 约束：`e2e_model` 和 `e2e_coverage` 都必须字面量
+
+`tests/e2e/generate_coverage_html.py` 用 `ast` 读这两个装饰器：`e2e_model("...")` 只认字符串常量，`e2e_coverage(...)` 的 kwargs 同样按常量提取。因此：
+
+- `@pytest.mark.e2e_coverage(**_COVERAGE)`、`@pytest.mark.e2e_model(name)`（变量）都会让覆盖率报告漏掉该用例；
+- `@pytest.mark.model(**_model(...))` 安全——这个 marker 只在运行时被 fixture 读取。
+
+### 3. 多模型骨架（新增模型 ≈ 3 行装饰器 + 1 行函数体）
+
+```python
+def _model(name: str, *, utilization: float = 0.9, overrides: dict | None = None) -> dict:
+    # 所有引擎参数在这里，含 max_num_seqs / max_model_len / dtype / TP / 图捕获 / 内存占比
+    ...
+
+@pytest.mark.e2e_model("Qwen/Qwen3.5-35B-A3B")          # 字面量
+@pytest.mark.e2e_coverage(arch="moe", ...)               # 字面量
+@pytest.mark.model(**_model(QWEN35_MODEL, utilization=0.9))
+def test_qwen35_...(vllm_runner):
+    _assert_bitwise_batch_invariance(vllm_runner)        # 共用体
+```
+
+配套约定：
+
+- 共用体里保留原始的 `pytest.skip`（拿不到 logprobs 时），真不一致才 `pytest.fail`；不要把 skip 改成 fail，评审会要求改回；
+- 不要为"证明配置生效"加一堆 `hf_config` 断言——评审视角是噪音；真有静默换模型的风险时再保留最小集合；
+- 图模式、内存占比等参数跟已有用例保持一致，别为切片单独造一套预算。
+
+### 4. 排队与取消
+
+`/e2e` 派生的 job 会排在 4 卡 runner 上；上一个 head 的 run 没跑完时新 run 只能 queued。用 `POST /actions/runs/{id}/cancel` 取消可能 403（token 缺 `actions:write`），此时只能等它结束，别反复重触发。
