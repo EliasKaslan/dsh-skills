@@ -384,3 +384,45 @@ ssh -n -o BatchMode=yes -o ConnectTimeout=10 root@<ip> "npu-smi info 2>/dev/null
 
 同一台 `177.11.25.1` 在 2026-11-13 20:35→20:36 的 **50 秒内 HBM 从 33.9 G 爬到 65.0 G**（ray worker 正在装权重）；同日上午记为「八卡全空」的 `177.11.27.1`，当晚已被别人的 vLLM DP8 占满（HBM 12 G→43 G 边跑边涨）。
 ⇒ **「有没有空卡」只能以当场 `npu-smi info` 为准**，当天早先的快照、甚至 10 分钟前的结论都不算数。
+
+## `.188` 上跑容器的落位、挂载与依赖源（2026-11-14 实测）
+
+## `.188` 上跑容器的落位、挂载与依赖源（2026-11-14 实测）
+
+### 1. docker root 在 `/`，别指望 `/home/vllm`
+
+`Docker Root Dir: /var/lib/docker`，落在 2.9T 的 `nvme0n1p2`（当时 91%，余 253G）。拉一个 **11.7 GB** 的 CANN 镜像，实测把 `/` 吃掉约 15–20 GB（下载暂存 + 解压），速度 10.9 MB/s、耗时约 22 分钟。
+⇒ **拉镜像/建容器前先 `df -h /`**；`/home/vllm` 的 739G 对 docker 一点忙帮不上。现网 `docker system df` 显示 images 有大量 reclaimable，但那是别人的，**不要 prune**。
+
+### 2. 容器必须同时挂 `/home` 与 `/home/vllm`
+
+`.188` 个人根是软链：`lrwxrwxrwx /home/x00886548 -> /home/vllm/x00886548`。
+只写 `-v /home:/home` 时，容器里能 `ls` 到这条软链，但 `/home/vllm` 不存在 ⇒ `ls /home/x00886548/work/...` 直接 `No such file or directory`（本轮踩过）。正确写法：
+
+```bash
+-v /home:/home -v /home/vllm:/home/vllm
+```
+
+docker 按路径深度排序挂载，先 `/home` 后 `/home/vllm`，不会互相覆盖。
+
+### 3. 参数照抄本机在跑的容器（别自创）
+
+`--privileged --network=host` + `--device=/dev/davinci0..15` + `--device=/dev/davinci_manager --device=/dev/devmm_svm --device=/dev/hisi_hdc` + `-v /usr/local/Ascend/driver -v /usr/local/dcmi -v /usr/local/bin/npu-smi -v /etc/ascend_install.info`。
+`--ipc`：现网三种都有人用（`host` / `private`+`--shm-size=128g` / `shareable`），训练容器取 `--ipc=host` 最省事。
+取某台机器的惯例：`docker inspect -f '{{json .HostConfig.Devices}}' <name>`、`docker inspect -f 'ipc={{.HostConfig.IpcMode}} net={{.HostConfig.NetworkMode}} priv={{.HostConfig.Privileged}} shm={{.HostConfig.ShmSize}}' <name>`；`Binds` 可能是 `null`（有人根本不挂目录），别以为一定都有。
+
+### 4. 镜像内自检基线（`cann:9.1.0-a3-ubuntu22.04-py3.11`）
+
+python **3.11.15** / Ubuntu 22.04.5 / gcc **11.4.0** / cmake **3.22.1** / `nproc` 256；`/usr/local/Ascend/ascend-toolkit/set_env.sh` 是指向 `latest/set_env.sh` 的软链、**存在**，`npu-smi` 在容器里直接可用（挂了宿主 `/usr/local/bin/npu-smi`）。
+未验证：CANN 9.1.0 × 宿主驱动（`npu-smi 25.5.1`）的官方兼容矩阵——本轮没跑到训练。
+
+### 5. pip 源：188 直连 pypi 只有 ~30 KB/s
+
+实测：`pip download numpy` 18 MB 跑 8 分钟没完成；宿主 `curl files.pythonhosted.org` 25s 无响应。镜像源实测 **aliyun 2.6 MB/s、huawei 2.25 MB/s**（tuna 当轮索引查询异常，未取到）。
+**不用改脚本**，pip 直接读环境变量：
+
+```bash
+docker exec -d $NAME bash -lc 'export PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple; bash build.sh ...'
+```
+
+`build.sh` 自己带的 `--extra-index-url https://triton-ascend.osinfra.cn/pypi/simple/` 仍生效（实测该域名返回 301，可访问）。

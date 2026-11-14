@@ -526,3 +526,34 @@ git ls-remote --heads origin | head                                 # 复核 fet
 - `git clone` 非 tty 时默认不打进度，要看"还在不在动"必须显式 `--progress`，否则日志长时间一片空白、容易误判为卡死。
 
 **已落位示例**（2026-11-14，DeepSeek-V4.1-Flash 部署）：4 仓克隆到 `/home/x00886548/work/dsv41/{FSDPTurbo,vllm-ascend,vllm,verl}`，其中 `FSDPTurbo` 走 gitcode 直连，另外三个走 gh-proxy 并按上式配好仓内 `insteadOf`；合 693 MB，工作区干净。仓库 provenance 与命令写在 `${个人根}/work/dsv41/README.md`，下次不用重新摸索。
+
+## 15. 188 与 190 的出网差异、机器同名陷阱与远程重试纪律（2026-11-14 实测）
+
+## 15. 188 与 190 的出网差异、机器同名陷阱与远程重试纪律（2026-11-14 实测）
+
+**两台蓝区机的 GitHub 表现完全不同，别互相套用：**
+
+| | `.190` | `.188` |
+|---|---|---|
+| `github.com` | TCP 443 黑洞，`ls-remote` 45s 无输出（见 §14） | **能连**，`ls-remote` 秒回，但 ~740 KB/s 且随机断 |
+| 症状 | 静默超时 | `gnutls_handshake() failed: The TLS connection was non-properly terminated` / `error: RPC failed; curl 16 Error in the HTTP2 framing layer` / `Empty reply from server` |
+| 对策 | 必须 gh-proxy | 小仓直连可试；**大仓（>50 MB）直接用 gh-proxy** |
+
+- 加 `-c http.version=HTTP/1.1 -c http.postBuffer=524288000` 能减少 HTTP2 那类失败，但**不根治**：同一台 188 上 `gh-proxy` 克隆 48 MB 仓 **29 秒**成功，直连连试 3 次全败。⇒ 别在直连上反复耗，换中转。
+- gh-proxy 的 URL 形状与仓内 `insteadOf` 配法见 §14。
+
+### 机器同名陷阱：脚本名里的 "188" 不一定是这台 188
+
+实例：`verl/my_scripts/1110_run_dsv41_188_longrun_v1.sh`，同名家族还有 `1110_dsv41_188_common.sh`。打开头注释才发现写的是「**单机 16 卡（80.5.27.188）**」——公网地址，不是 `192.168.13.188`；它硬编码的 `/mnt/share/m00899630/...`（repo / 493 GiB 权重 / parquet / py521 overlay）在蓝区两台机上**全部 MISS**，190 的 NFS（285T）里也没有。
+⇒ **跑别人的脚本前，先 `head -30` 看头注释 + `grep -nE '/mnt/|/home/|主机名|IP'`，确认主机和路径对得上**；同名不代表同机。
+
+### 远程重试的三条纪律（本轮真踩，代价是丢了一次好克隆）
+
+1. **失败分支不要无条件 `rm -rf <目标目录>`。** 实测：脚本 B 11:37 克隆成功并核对到正确 HEAD，脚本 A 的第 3 次尝试 11:44 才失败、执行兜底的 `rm -rf verl`，把 B 的成果删了。重试脚本只在 `[ -d dir/.git ]` 为假时才克隆，删只对「本进程刚建的空目录」做。
+2. **`pkill -f <脚本名>` 会匹配到你自己的 ssh 包装命令**，等于自杀：本轮 `pkill -f 188_verl_retry.sh` 把自己那条 `bash -c` 干掉，返回 `[exit code: 1]`、后续命令一行没跑。要停就按 PID，或先确认它已自行退出（`ps -eo pid,args | grep` 仅用于观测，不要拿它喂 kill）。
+3. **`docker exec -d` 不把内层 stdout 交给调用方**：`docker exec -d ... 'bash x.sh' > host.log` 里宿主侧 `>` 收到 0 字节。重定向要写进容器内命令：
+   ```bash
+   docker exec -d $NAME bash -lc '{ bash /path/x.sh; echo "exit=$?"; } > /home/.../x.log 2>&1'
+   ```
+   日志落在 bind 挂载进容器的目录上，宿主就能直接 tail。
+4. 反查自家进程别用会自匹配的 `pgrep -af <关键字>`：本轮 `pgrep -af 'docker pull' | head -1` 恰好命中自己的包装命令，误判成「pull 进程没了」。改成查 PID（`ps -o etime= -p <pid>`）或匹配更长的唯一串。

@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 63,
   "file_count": 242,
-  "total_bytes": 26739851,
+  "total_bytes": 26745857,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -87,14 +87,14 @@
       "path": "skills/ascend-server-access",
       "description": "昇腾服务器准入：在册 6 台（A3×2、A5×4）、双隧道、凭据与免密。适用于\"188/177.x 连不上 / 走哪个 VPN / 凭据在哪 / 新机配免密\"",
       "files": 6,
-      "bytes": 102979
+      "bytes": 106043
     },
     {
       "name": "ascend-server-layout",
       "path": "skills/ascend-server-layout",
       "description": "昇腾个人根与目录红线：环境/项目/数据放哪、模型软链、npu-smi 选卡。适用于\"新项目写哪个盘 / 环境放哪 / 磁盘满了 / 哪张 NPU 空闲 / 复用现成环境\"。",
       "files": 3,
-      "bytes": 40190
+      "bytes": 43132
     },
     {
       "name": "ascend-torch-npu",
