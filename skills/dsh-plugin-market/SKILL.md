@@ -1,6 +1,6 @@
 ---
 name: dsh-plugin-market
-description: DSH 插件市场/索引源：无官方源、format:1 校验、engines.dsh 兼容判定与第三方源陷阱
+description: DSH 插件市场：无官方源、format:1 校验、engines.dsh 兼容门禁、升级后市场静默失效与修复
 whenToUse: 问「插件市场里有什么能装/兼容当前 DSH 版本吗/Discover 空白/怎么加索引源/这个插件能不能用」时加载
 ---
 
@@ -221,3 +221,53 @@ try {
 本机 profile 里正在用的索引源（`cordis.patch.yml` → `- id: plugin-market` → `config.indexes`）：
 `https://cdn.dsh.so/market/index.json`、`https://dsh-plugin-lab.github.io/market/index.json`，
 另有一条自建索引（git 源指向已发布提交）。未验证：这两份公共索引当前的收录量与新鲜度本轮没有亲自统计。
+
+## 运行时升级后市场静默失效：profile 旧 pin 被兼容性门禁禁用（0.2.2-rc.2 → rc.3 实测）
+
+## 症状：市场"失效"但没有任何报错
+
+- Plugins → Discover 打不开或空白；`plugin_market` agent 工具从工具列表里**静默消失**。
+- 活体插件树里 `include:plugin-market` 是 `enabled:false, fiberPhase:null`，而**同 bundle 的 `ui-plugin-market` 仍 active**（客户端 UI 在、宿主服务没起来）。
+- 索引源本身正常，不用去查网络。
+
+## 判据链（三条，逐条可查）
+
+1. `plugin_manager` → `action=list_plugins`，分页翻全量（limit=50，offset=0/50/…）筛 `enabled!==true || fiberPhase!=="active"`。
+   **`enabled:false + fiberPhase:null` 是两种原因同形**：patch 层 `disabled: true`（平台/配置）与兼容性 preflight 禁用。前者能在 `cordis.patch.yml` 里查到 `disabled:`，后者**查不到**、只在 boot stderr 留痕（本机不落盘，故无法直接取原文）。
+2. 定位该行的实际清单：`profiles\<name>\node_modules\<moduleName>\package.json` 存在则**以它为准**（profile 会 shadow 掉 app 内置的版本）；不在才读 `app.asar\dsh\node_modules\...`。
+3. 判据一句话：**无 `engines.dsh` 且存在 `@deepseek-ai/dsh*` peer 不满足运行时版本** = preflight 命中。
+   源码 `app-boot/lib/index.js` 的 `unmetRequirements`：有 `engines` 时 engines 独占判定、peerDeps 被忽略；否则每个 `@deepseek-ai/dsh*` peer 都要 `semver.satisfies(rt, range, {includePrerelease:true})`。
+   所以**只有官方插件会被这条门禁打到**，第三方插件通常没有 dsh peer，不受影响。rc.3 实测全树 225 行里 26 行禁用，其中 25 行是 patch 层明文/平台条件，只有 plugin-market 一行是 preflight 命中。
+
+## rc.3 的根因变化：市场 bundle 变成 app 内置
+
+- rc.3 的 `app.asar\dsh\package.json` 里已有 `@deepseek-ai/dsh-experimental-plugin-market-bundle: 0.2.2-rc.3`、`dsh-plugin-market`、`dsh-client-ui-plugin-market`、`dsh-plugin-market-index`。**rc.2 时代不是内置的**，所以才要 pnpm 装进 profile。
+- 升级后 profile 里那条 rc.2 依赖还在 → `node_modules` 里有 rc.2 的 `dsh-plugin-market`（peers 精确 `0.2.2-rc.2`）→ **shadow 掉内置的 rc.3** → 门禁禁用整行。
+
+## 修复：只删 profile 依赖、保留 bundles 条目
+
+`plugin_manager` 的两条路**都走不通**（rc.3 实测）：
+- `install_bundle target=...@0.2.2-rc.3` → `{"code":"already-installed"}`（app 已内置，故判"已装"）
+- `remove_bundle` → `{"code":"not-removable"}`（installation 态 bundle 不可移除）
+
+正确做法：
+1. 编辑 `profiles\<name>\package.json`：删掉 `dependencies` 里的 `@deepseek-ai/dsh-experimental-plugin-market-bundle`，**保留** `dsh.profile.bundles` 里的同名条目（删了 bundles 条目市场就整个消失）。
+2. 在 profile 目录跑 `pnpm install` 剪掉孤儿包（实测 `Packages: -53`），可用 `--reporter=append-only`。
+3. 重启 host（`restart-required`）。
+
+**为什么能work**：`dsh.profile.bundles` 里的 app 内置 bundle（`dsh-base`、`dsh-web-app`、`dsh-experimental-cot-translation-bundle`）本来就不在 profile 依赖里，照样从 asar 解析加载——这是同 profile 内可直接比对的先例，改前先用 `Test-Path node_modules\@deepseek-ai\<name>` 验一遍这些先例目录确实不存在。
+
+设置覆盖仍然有效：asar 里 bundle 自带的 patch 只 insert `id: plugin-market` + `id: ui-plugin-market`，profile 的 `- id: plugin-market`（只有 `config.indexes`，别写 name/moduleName）按下标合并。
+
+## 验证
+
+- 重启后 `list_plugins` 里 `include:plugin-market` 应为 `enabled:true / fiberPhase:active`；`plugin_market` 工具重新出现在工具列表（bundle 自带注释原文：该工具只在服务挂载时注册）。
+- 索引侧不用动：3 条源全 200，11141 个插件全部通过 `parseMarketIndex`。
+
+## 坑
+
+- 别用 `list_bundles` 的 `version`/`installed` 判 profile 实际版本：那是 installation(asar) 清单，profile pin 在 rc.2 时它也照样显示 `0.2.2-rc.3 / installed:true`。
+- 别在 `cordis.patch.yml` 里给这行加 `disabled: false`：preflight 在合成之后跑，会再禁一次。
+- `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 会留下旧版条目，无害、不必删。
+- 本机 pnpm 在 PATH 上是 `pnpm.CMD`（实测 11.23.0）；`pnpm.ps1` 被执行策略拦，直接调 `.ps1` 得到 `PSSecurityException: 因为在此系统上禁止运行脚本`。
+- asar 是单文件：内部 `glob`/`grep` 全部 `os error 3`，只能对已知绝对路径用 read；`D:\tools\dsh\resources\app.asar\dsh\package.json` 可直接 read，用来交叉确认内置包与运行时版本。

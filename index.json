@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 63,
   "file_count": 242,
-  "total_bytes": 26771354,
+  "total_bytes": 26776165,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -190,9 +190,9 @@
     {
       "name": "dsh-plugin-market",
       "path": "skills/dsh-plugin-market",
-      "description": "DSH 插件市场/索引源：无官方源、format:1 校验、engines.dsh 兼容判定与第三方源陷阱",
+      "description": "DSH 插件市场：无官方源、format:1 校验、engines.dsh 兼容门禁、升级后市场静默失效与修复",
       "files": 1,
-      "bytes": 18225
+      "bytes": 23036
     },
     {
       "name": "dsh-repo-sync",

@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **63** 个 skill、**242** 个文件、**26771354** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **63** 个 skill、**242** 个文件、**26776165** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -58,7 +58,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 24 | [`dsh-isolated-web-host`](skills/dsh-isolated-web-host/SKILL.md) | 起隔离 DSH host（重定向 DSH_HOME）：401 判就绪、落盘 pid 收尾、端口枚举恒空。适用于"起个隔离 host 试试 / 不污染真实环境验插件 / 真实 host 占着端口不能重启"。 | 1 |
 | 25 | [`dsh-longhaul-mode`](skills/dsh-longhaul-mode/SKILL.md) | DSH 的 Longhaul 长线工程模式——longhaul 插件 7 个工具把「完成」改成密封命令与独立审计者双签，靠 .longhaul 账本哈希链与五道闸挡住改测试、改标尺、绿基线和自评放行。适用于"长线任务用哪个模式 / long... | 1 |
 | 26 | [`dsh-phone-remote-relay`](skills/dsh-phone-remote-relay/SKILL.md) | 手机接管电脑上的 DSH：中继丢包 / 唤醒断连 / 建联失败 / 多标签互斥 / 任务落到未分组 / 版本是否生效 | 1 |
-| 27 | [`dsh-plugin-market`](skills/dsh-plugin-market/SKILL.md) | DSH 插件市场/索引源：无官方源、format:1 校验、engines.dsh 兼容判定与第三方源陷阱 | 1 |
+| 27 | [`dsh-plugin-market`](skills/dsh-plugin-market/SKILL.md) | DSH 插件市场：无官方源、format:1 校验、engines.dsh 兼容门禁、升级后市场静默失效与修复 | 1 |
 | 28 | [`dsh-repo-sync`](skills/dsh-repo-sync/SKILL.md) | 已退役——~/.dsh 私仓同步机制（DSH-Repo-Sync 任务与镜像仓均已删除）。仅留作历史记录与令牌形态参考。 | 3 |
 | 29 | [`dsh-skill-authoring`](skills/dsh-skill-authoring/SKILL.md) | skill frontmatter 写法契约：description 才是触发字段、字符预算、拒载键。适用于"skill 没被触发或加载不上 / description 超限 / 改新建 skill / 校验脚本报错"。 | 3 |
 | 30 | [`dsh-skill-self-audit`](skills/dsh-skill-self-audit/SKILL.md) | skill 集合定时自检：YAML、交叉引用、重复正文、目录预算。适用于"自检我的 skill / 有没有该合并的重复 / 哪些 skill 触发不了 / skill 目录多久没动"。 | 6 |
