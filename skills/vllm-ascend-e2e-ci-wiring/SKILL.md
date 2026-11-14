@@ -197,3 +197,49 @@ git push "https://x-access-token:$(cat <token-file>)@github.com/<user>/<fork>.gi
 - 用例里把模型形状钉死（层数、GDN/full 的条数、experts/top-k），否则上游 interleave 变化时会「静默换个模型还绿」。
 
 未验证：不同 checkpoint 的真实权重体积/加载耗时差异较大，显存预算仍要以启动日志的 `Available KV cache memory` 为准。
+
+## 切片用例：多模态 hf_overrides 的作用域，以及 setup 阶段失败的判读
+
+## 切片用例：`hf_overrides` 的作用域（多模态 checkpoint）与 setup 阶段的基础设施失败
+
+**适用**：给 e2e 用例做「减层切片」却加载成了全模型；或 e2e job 在 `Set up job` 就红，日志里没有任何 pytest 输出。
+
+### 1. 扁平 override 到不了 text tower
+
+vLLM 对 `hf_overrides` 分两条路（`vllm/config/model.py:626-640`）：
+
+- **扁平键**（`{"num_hidden_layers": 4}`）→ `config.update(...)`，只写顶层 config；
+- **dict 值**（`{"text_config": {...}}`）→ `_apply_dict_overrides`（`:565`）递归进嵌套 config。
+
+多模态 checkpoint（文本塔在 `text_config` 里，例如 Qwen3.5 / Qwen3-VL 系）要减层**必须**写嵌套：
+
+```python
+SMALL_OVERRIDES = {
+    "architectures": ["<TextOnlyForCausalLM>"],   # 只服务语言塔
+    "text_config": {
+        "num_hidden_layers": 4,
+        "layer_types": ["linear_attention", "linear_attention", "linear_attention", "full_attention"],
+    },
+}
+```
+
+只写扁平 `num_hidden_layers` 时文本塔仍是完整层数，用例会悄悄加载全模型（显存、时长、权重下载全变），但 marker 和断言仍显示"切片"——这是最容易误判的一类。
+
+配套检查：断言 `hf_text_config.model_type`（例如 `qwen3_5_moe_text`）确认落到哪个 tower；改 `num_hidden_layers` 时同步把 `layer_types` 截到相同长度、按真实 interleave 写，否则上下游的层数/列表长度约束容易对不上（未验证：不同 vLLM/transformers 版本是否强校验长度）。
+
+### 2. `Set up job` 就失败 = 基础设施，不是代码
+
+e2e job 在 `Set up job` 阶段 failure，日志只有：
+
+```text
+Failed to download archive 'https://codeload.github.com/runs-on/cache/tar.gz/...' after 3 attempts.
+Error: The request was canceled due to the configured HttpClient.Timeout of 100 seconds elapsing.
+```
+
+说明 runner 连 action 都没拉下来，pytest 一行没跑 ⇒ 改代码无意义，直接重跑 `/e2e`。同类还有：跑到引擎启动才挂的 `HCCL function error: ... code is 7 (resource unavailable)`，最终表现为 job `cancelled`——同样是"无判定"，不是 case 失败。
+
+判断顺序：先看失败 step 名（`Set up job` vs `Run selected tests with device`），再看日志里有没有 `collected/passed/failed`。没有这两样就不要动测试代码。
+
+### 3. 评审要求切片、而你想要真模型证据时
+
+切片是 CI 成本的妥协，不是证明手段。做法：代码按维护者要求回到切片；把「完整模型也跑过一次并通过」的记录（哪两条车道、耗时）写进 PR 正文作为补充证据，注明它不是本用例的交付形态。这样既满足评审，又不丢"全模型 BI 成立"这一条事实。

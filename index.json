@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 63,
   "file_count": 242,
-  "total_bytes": 26747636,
+  "total_bytes": 26750486,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -409,7 +409,7 @@
       "path": "skills/vllm-ascend-e2e-ci-wiring",
       "description": "vllm-ascend e2e 进 CI：estimated_times 登记、coverage 门禁、目录归属。适用于\"新增 e2e / CI 报 MISSING / 本地全 MISSING\"。",
       "files": 1,
-      "bytes": 24699
+      "bytes": 27549
     },
     {
       "name": "vllm-ascend-source-install",
