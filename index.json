@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 63,
   "file_count": 242,
-  "total_bytes": 26758482,
+  "total_bytes": 26761029,
   "skills": [
     {
       "name": "ai-musume-4k-art",
@@ -367,7 +367,7 @@
       "path": "skills/qq-mail-control",
       "description": "QQ 邮箱接管（IMAP/SMTP）：发信、搜读、归档、黄区/私人别名。适用于\"发 QQ 邮件 / 查收件箱 / 搜邮件 / 读某封 / 建夹归档 / 只能读不能发\"。",
       "files": 1,
-      "bytes": 26118
+      "bytes": 28665
     },
     {
       "name": "sedimenting-skills",

@@ -200,3 +200,24 @@ icacls "C:\Users\admin\.dsh\.secrets\qqmail\config.json" /grant:r ($env:USERNAME
 - **清完验权威副本**：比对权威配置文件的 sha256 未变、`authCode` 字段仍在且非空 —— 否则是"为清副本把真凭证弄坏了"。
 - **判历史泄漏面**：先 `git rev-parse --is-inside-work-tree` 判目标目录是不是 git 仓（非仓 exit 128 ⇒ 无提交历史面）；是仓再查 `git log -S"<授权码>" --all`。
 - **屏蔽靠忽略规则**：`C:\Users\admin\.dsh\.secrets\.gitignore` 的 `*` 匹配任意层级 ⇒ 已覆盖子目录（含 `qqmail/`），无需逐目录再加。
+
+## 分片附件传输实测（大文件走邮件）
+
+## 分片附件传输实测（大文件走邮件）
+
+**适用**：需要把大二进制（镜像 tar / 数据包）经本邮箱搬进搬出（黄蓝协同、跨区摆渡）。比逐封点 `qqmail_attachment` 更省事。
+
+**实测能力（2026-11-14 端到端跑通，含自发自收）**
+- 单封带附件：**20 MB 二进制 → 26.67 MB 报文**，SMTP 发出、IMAP 取回、sha256 逐字节一致。base64 膨胀约 4/3，MCP 侧 `maxSendMb` / `maxParseMb` 默认 40 ⇒ **20 MB 二进制是安全档位**，再往上没有余量。
+- **中文附件名往返不变形**（`镜像测试.tar.part000` 收发同名）；取回用 `email` 的 `part.get_filename()`（RFC2231）解析即可。
+- 切分约定可行：`<原名>.partNNN`（从 000 连续）+ `MANIFEST.txt`（每行 `sha256  字节数  片名`，末行 `TOTAL 总字节 片数 整文件sha256 原名`）；拼接时**按目录收集 + 按尾部数字排序 + 校验编号连续**，不要用「文件名前缀 glob」——附件下载常带 uid 前缀（`1454_原名.part000`），前缀 glob 会只拼到 1 片且不报错（表现为成品字节数偏小、整体 sha256 对不上）。
+
+**批量取附件的正确姿势**
+`imaplib` + `select(mailbox, readonly=True)` + `uid('fetch', uid, '(BODY.PEEK[])')`：一次会话取多封，**不标已读**，也不受 MCP 40 MB 解析上限牵制。逐封调 `qqmail_attachment` 在几十片时不可用。
+
+**这三个坑会让人误判「信丢了」**
+1. **发信后立刻 `qqmail_list {mailbox:"INBOX"}` 会返回「已发送」夹的内容**：实测 send 之后查 INBOX，返回的封数与 `Sent Messages` 一模一样、条目全是自己刚发的信；再调一次才回到真 INBOX（原信一封没少）。⇒ 发信后先查别的夹、或重查一次，**别据此判丢信**。
+2. **send 返回「存副本失败：… Mail already saved to Sent by SMTP, no need to APPEND again」属正常**：QQ 服务端发信时已自动存副本，插件的 APPEND 被拒；邮件本身已 `250 OK` 送达（实测收件箱 uid 正常出现）。
+3. **`qqmail_search {larger: N}` 过滤实测未生效**：要 >400 KB 仍返回 58.9 KB 的信，且「匹配 N 封」等于整夹总数。⇒ 筛大附件只能按 uid 逐封看，别信 `larger` / `smaller`。
+
+**未验证**：`smaller` 是否同样失效（只测了 `larger`）；单封 >20 MB 二进制在上游网关（非 QQ）是否被拒——黄区侧网关上限通常远小于 QQ，实际走不通时先降档位。
