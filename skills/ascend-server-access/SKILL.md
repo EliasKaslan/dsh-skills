@@ -605,3 +605,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File vpnctl.ps1 -Action Switch -P
 - 拼装脚本别手抄 C#：`(Get-Content $multi -Encoding UTF8)[130..256] + '}'` 取块，再和修复逻辑拼接，最后用 `[System.Management.Automation.Language.Parser]::ParseFile()` 验 `$errs.Count -eq 0`（`PSParser.Tokenize` 不查括号配对，会假通过）。
 - 验收别只看 IP：`Get-NetRoute` 必须是 `192.168.0.0/16 经本地连接`、`177.0.0.0/8 经本地连接 2`；本轮 ifIndex 是 **14 / 24**（旧文 13/55、11-13 的 14/15 都作废，只当打印值，别写进脚本条件）。
 - 修好后原件照常：`vpnctl.ps1 -Action ResetUi -Profile 蓝区网关` 一条命令就能把蓝区拉到默认会话（它先杀 UI → 把 `ClientLastAccessSession` 改写成 `蓝区网关.ini`（GBK）→ 重启 UI → 自动登录），中文 profile 名走**包装 .ps1** 别走命令行。
+
+## A5 隧道掉线后的判读与 15 秒恢复（2026-11-14 晚实测）
+
+**先分清三种"不通"**，别一上来就重建 TAP：
+
+| 现象 | 结论 | 动作 |
+|---|---|---|
+| `本地连接 2` 还在、GUID 未变，但 `Disconnected` + IP 是 `169.254.*`，且 `Get-Process UVP002,UVP002CS` 为空 | **只是客户端进程没了**，TAP 完好 | `Start-Process 'C:\Program Files (x86)\UniVPN2\UVP002.exe'`，15 s 内回来 |
+| 只剩 1 张 TAP / `instance-002.json` 的 GUID 查不到 | 设备节点被删 | 走上一节「建 TAP + 新 GUID 重打补丁」 |
+| TAP Up、IP 正常但目标不通 | 路由/认证/远端问题 | 先 `Get-NetRoute` 看有没有 `177.0.0.0/8` 经该 TAP |
+
+**恢复实测（只需一条命令）**：`Start-Process 'C:\Program Files (x86)\UniVPN2\UVP002.exe'` → t+10 s 拿到虚拟 IP（`1.2.19.18`）但 **`177.0.0.0/8` 路由还没有** → t+15 s 路由才下发。⇒ 判据必须等路由，别只看 IP（踩过一次：拿到 IP 就测目标机，全部误报不通）。
+
+**区分「正常退出」与「被杀/崩溃」**（判断要不要查更深）：
+
+- UI 日志 `%APPDATA%\UVP002\log\UVP002_UVP002UI_0.log`：正常退出会写 `[into main ui exit pre]` + `[#################UI exit!#################]`。**进程已消失却没有这两行 = 被杀或崩溃**（本轮 18:16 就是这种，日志里没有任何 logout/exit）。
+- 引擎日志 `UVP002_UVP002CS_<pid>.log`：每约 1 MB 换一个文件（约 5~6 分钟一个）；进程突然消失时最后一个文件停在半截（本轮停在一条 route print 中间）。
+- 先排除整机重启：`(Get-CimInstance Win32_OperatingSystem).LastBootUpTime`。
+- 别把 Application 日志里的 `Application Hang` (Id 1002) 直接当成 VPN 崩溃证据——本轮那条指向 `codex-windows-sandbox-setup.exe`；**VPN 进程崩溃在这台机的 Application 日志里没有记录**。
+
+**A5 没有自愈**：`UVP002Service` 是 Manual、无 auto-start 项，进程被杀后就是静默掉线，没人拉起。要长期在线得自己盯（或保留托盘进程）。**A3 侧不一样**：原件掉线后会自行重连（虚拟 IP 会变，本轮 `192.168.206.148` → `.177`），判据仍是 `192.168.0.0/16` 经 `本地连接`。

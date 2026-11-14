@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 244,
-  "total_bytes": 26819688,
+  "total_bytes": 26821931,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -94,7 +94,7 @@
       "path": "skills/ascend-server-access",
       "description": "A5 隧道不通时：先数 TAP 张数，实例2 TAP 丢失就用原件 Switch 到 A5 应急",
       "files": 6,
-      "bytes": 113437
+      "bytes": 115680
     },
     {
       "name": "ascend-server-layout",
