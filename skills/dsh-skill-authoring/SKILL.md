@@ -238,6 +238,7 @@ warm-reason: "为什么冷备（过期/低频/兴趣）"
 
 ```powershell
 cd D:\workspace\agent\skill\cross-harness
+.\sync-agents-skills.cmd                     # 日常只用这条，等价于 --prune（--check 只查不写）
 python .\render_agents_skills.py --dry-run     # 看计划：new/update/same + 被丢弃的键
 python .\render_agents_skills.py --prune       # 写 %USERPROFILE%\.agents\skills
 python .\render_agents_skills.py --check       # 有漂移 exit 1（可挂计划任务/回合钩子）

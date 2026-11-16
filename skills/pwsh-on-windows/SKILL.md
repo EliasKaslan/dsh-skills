@@ -308,3 +308,26 @@ $remote = 'echo ' + $b64 + ' | base64 -d > /tmp/r.sh; bash /tmp/r.sh; rm -f /tmp
 - **跳板机**同理，只是多两个参数：`-o IPQoS=none -o ProxyJump=root@<jump>`。
 
 本轮成品（可直接抄）：`D:\workspace\261108_recreation\music\_shared\rsh.ps1`，签名 `-TargetHost <ip 或 jump@target> -ScriptFile <本地 .sh>`，内部就是上面这套 base64 中转，跑完打印 `[remote-exit=N]`。
+
+## Windows .cmd 包装器必须纯 ASCII
+
+**症状**：UTF-8 无 BOM 的 `.cmd` 里写了中文注释或 `echo` 提示，执行时报一堆碎片命令：
+
+```
+'�行' is not recognized as an internal or external command,
+operable program or batch file.
+'��，上面是详情。' is not recognized as an internal or external command,
+```
+
+（原文是「运行」和「渲染失败或有漂移，上面是详情。」被拆出来的半句。）
+
+**原因**：`cmd.exe` 按 OEM 代码页（本机 936/GBK）解析 `.bat`/`.cmd`，UTF-8 中文字节被当成本地编码的双字节字符，行被拆碎后送入命令解析。
+
+**对照（已做实）**：只把中文换成 ASCII、其余（纯 LF、`if errorlevel` 结构、`%*` 透传）一字不动 → 同一包装器正常执行、`exit=0`。
+⇒ **触发条件是"非 ASCII 字符"，不是换行风格**（本机两次写盘都是 LF）。
+
+**修法**：`.cmd` / `.bat` 一律**纯 ASCII**——注释用 `REM`、提示用英文；要给用户看的中文，让被调用的 Python/程序自己输出（Python 侧 `PYTHONIOENCODING=utf-8` 已足够）。
+
+**为什么本机拿 `.cmd` 当包装器**：`ExecutionPolicy` = `Restricted`，双击 `.ps1` 会被拦（`PSSecurityException` / `UnauthorizedAccess`）；`.cmd` 不受执行策略约束，适合做"双击 / 计划任务"入口，内部再调 `python x.py`。
+
+**一句话**：Python 里随便写中文，`.cmd` 里一个非 ASCII 字符都别放。
