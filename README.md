@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **64** 个 skill、**244** 个文件、**26844265** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **64** 个 skill、**244** 个文件、**26847144** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -73,7 +73,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 39 | [`login-credential-autofill`](skills/login-credential-autofill/SKILL.md) | 登录凭据自动填充的本地凭据库与防封号护栏——页面要登录时按账号取凭据填入、先复用已有登录态、每账号24小时最多1次密码提交、遇验证码/2FA/风控页立刻停手交人；凭据库里没有该站时，先在本机浏览器密码库与邮箱里反查账号身份，附字段读取与额度... | 5 |
 | 40 | [`lora-weekly-report`](skills/lora-weekly-report/SKILL.md) | LoRA 周报：vLLM/vLLM-Ascend/SGLang 近 7 天已合入 PR，四节 Markdown 发黄区。适用于"跑这周 LoRA 周报 / LoRA 特性跟踪 / SGLang 的 LoRA 进展"。 | 4 |
 | 41 | [`mindspeed-ops-interface-compat-audit`](skills/mindspeed-ops-interface-compat-audit/SKILL.md) | MindSpeed-Ops 仓面核查：跨仓接口兼容（AST 盘点/周边仓实跑/缺口报告）+ 算子增量（近 N 天新增哪些算子、四件套判定）。 | 1 |
-| 42 | [`mindspeed-ops-smoke`](skills/mindspeed-ops-smoke/SKILL.md) | MindSpeed-Ops 冒烟：按版本矩阵建环境、UT + ATK 精度双读判绿。适用于"跑 26.2.0 冒烟 / ATK 精度怎么判 / 冒烟全绿了吗 / CI 镜像配套对不对"。 | 1 |
+| 42 | [`mindspeed-ops-smoke`](skills/mindspeed-ops-smoke/SKILL.md) | MindSpeed-Ops 冒烟：按版本矩阵建环境、UT + ATK 精度双读判绿。适用于"跑 26.2.0 冒烟 / ATK 精度怎么判 / 冒烟全绿了吗 / 冒烟在 26.0.0 配套能不能跑" | 1 |
 | 43 | [`mindspeed-ops-whl-build`](skills/mindspeed-ops-whl-build/SKILL.md) | 打 MindSpeed-Ops whl 并验收：cmake/clang、SOC_VERSION、CATLASS。适用于"打 ops 的 whl / cmake 版本报错 / GCC 太旧 / 验证 whl"。 | 1 |
 | 44 | [`minimax-ai-musume-4k-art`](skills/minimax-ai-musume-4k-art/SKILL.md) | 用 MiniMax-H3-Image 在昇腾 192.168.13.190 出 AI 娘插画（1696×2528 六步约 8 秒，4 die）——五位 AI 娘（Claude／DeepSeek／GPT／Grok／Gemini）的形象已按 B... | 51 |
 | 45 | [`model-endpoint-identity-audit`](skills/model-endpoint-identity-audit/SKILL.md) | 同一供应商多个 model id 是否同一个模型 + 能力/速度实测——支撑说"都是某版本"靠不靠谱、四个渠道哪个快哪个贵：用前缀缓存互通矩阵判是否同一后端（决定性证据）、tokenizer 与图像 token 指纹、短贪心输出指纹、随机 ... | 1 |

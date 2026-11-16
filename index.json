@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 244,
-  "total_bytes": 26844265,
+  "total_bytes": 26847144,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -295,9 +295,9 @@
     {
       "name": "mindspeed-ops-smoke",
       "path": "skills/mindspeed-ops-smoke",
-      "description": "MindSpeed-Ops 冒烟：按版本矩阵建环境、UT + ATK 精度双读判绿。适用于\"跑 26.2.0 冒烟 / ATK 精度怎么判 / 冒烟全绿了吗 / CI 镜像配套对不对\"。",
+      "description": "MindSpeed-Ops 冒烟：按版本矩阵建环境、UT + ATK 精度双读判绿。适用于\"跑 26.2.0 冒烟 / ATK 精度怎么判 / 冒烟全绿了吗 / 冒烟在 26.0.0 配套能不能跑\"",
       "files": 1,
-      "bytes": 44052
+      "bytes": 46931
     },
     {
       "name": "mindspeed-ops-whl-build",

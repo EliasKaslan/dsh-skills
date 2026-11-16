@@ -1,6 +1,6 @@
 ---
 name: mindspeed-ops-smoke
-description: MindSpeed-Ops 冒烟：按版本矩阵建环境、UT + ATK 精度双读判绿。适用于"跑 26.2.0 冒烟 / ATK 精度怎么判 / 冒烟全绿了吗 / CI 镜像配套对不对"。
+description: MindSpeed-Ops 冒烟：按版本矩阵建环境、UT + ATK 精度双读判绿。适用于"跑 26.2.0 冒烟 / ATK 精度怎么判 / 冒烟全绿了吗 / 冒烟在 26.0.0 配套能不能跑"
 ---
 
 # MindSpeed-Ops 商发配套冒烟（UT + ATK）
@@ -488,3 +488,34 @@ docker run --rm -it --privileged --network host \
 **结论口径**：26.0.0 配套环境（CANN 9.0.0 + torch 2.7.1 + 无 Triton 配套）跑 master 基本跑不通；要试只能退到 **Ops 26.1.0 分支**（其 docker 默认就是 CANN 9.0.0-beta.2 + torch 2.7.1 + TA 3.2.1，说明在 9.0 线上构建过），并把 TA 装成 3.2.2。
 
 未验证：CANN 9.0.0 上 `pip install -e .` 是否真编不过——csrc 的 CMake 引用 `pkg_inc/op_common`、`include/experiment/*`、`include/ascendc/basic_api`（9.1+ 目录布局），属静态推断，需真机复验。
+
+## 26.0.0 配套栈下跑 Ops UT 的判定（代码检视，未实跑）
+
+## 26.0.0 配套栈下跑 Ops UT 的判定（2026-11-16，代码检视，未实跑）
+
+触发：客户/现场只有 MindSpeed **26.0.0** 配套（CANN 9.0.0 / torch 2.7.1 / torch_npu 2.7.1 / py3.10-3.11），问"这条路跑 Ops 的 UT 行不行"。
+
+**结论：原样不行；补 TA 也只能部分通过。** 三段证据链（都只读核对，未跑 UT，报告里标"代码检视"）：
+
+1. **26.0.0 配套里没有 triton-ascend。** 配套表在 `docs/zh/release_notes_core.md:44`（CANN 9.0.0 / PyTorch 2.7.1 / PTA 2.7.1 / Python3.10）；镜像默认 py3.11（`docker/Dockerfile:11,20-21`）；`requirements.txt` 无 triton，`docker/Dockerfile:97` 只装 `torch + torch_npu`。而 Ops UT 顶层硬依赖：`mindspeed_ops/api/triton/utils.py:8-9` `import torch / import triton`，37 个 test 文件顶部 import `mindspeed_ops` 子模块 ⇒ 缺 TA 时整批 collect error。
+2. **手装 TA 被 CANN 锁死。** TA 官方配套表：`3.2.2` 配 CANN 9.1.0；CANN 9.0.0 只有 `3.2.1` 或 `3.2.2.post2`（后者要 torch_npu 2.7.1.post11，26.0.0 是 post4）。Ops 的 `requirements.txt:1` / `pyproject.toml:10` 钉 `triton-ascend==3.2.2`，`pip install -r` 直接装成不配套版本。
+3. **代码用了 3.2.x 没有的扩展 API，且无 fallback。** `arch32/triton/convolution.py:34` `from triton.language.extra.cann.extension import extract_slice, insert_slice`，失败 `pass`，`:132` 仍调 `tl.extract_slice(...)`。TA 官方 tag `v3.2.1` / `v3.2.2` / `v3.2.2.post2` 的 `python/triton/language/__init__.py` 均无 `extract_slice`，`triton/language/extra/` 只有 `libdevice.py`（无 `cann/` 子包）⇒ kernel 编译期 `AttributeError`。`tests/` 无 TA 版本 skip（只有 `is_arch35`/device 条件 skip）⇒ 记 failed，不记 skip。
+
+**分档预期**
+
+| 环境 | 预期 |
+|---|---|
+| 26.0.0 官方镜像原样 | 37 个 UT 全 collect error，零通过 |
+| 手装 TA 3.2.1 / 3.2.2.post2 + 升 torch_npu | 基础 tl API 算子（rmsnorm、部分 chunk）可能过；用 `extract_slice/insert_slice/get_element` 的（causal_conv1d、部分 mhc/gdn/sinkhorn）失败 |
+| 要全绿 | 换 26.2.0 配套：CANN 9.2.0 + TA 3.6.0 + torch_npu 2.10.0.post7 + py3.12 |
+
+**一行判档（目标机）**
+
+```bash
+python -c "import triton, triton.language as tl; print(triton.__version__, hasattr(tl,'extract_slice'))"
+python -c "from triton.language.extra.cann.extension import extract_slice; print('ok')"
+```
+
+第一条 False 或第二条 ImportError = 3.2.x 不全档；第一条就 ImportError = 无 TA 档。
+
+**未验证**：TA 3.2.x 的 **wheel** 是否与 GitHub tag 源码一致（源码树无 `cann/`，但 wheel 由 CI 构建；没有下载 wheel 核实）。真要落结论前，在目标机 `python -c "import triton.language.extra.cann.extension"` 实测一次。
