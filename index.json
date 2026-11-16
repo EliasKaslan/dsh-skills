@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 244,
-  "total_bytes": 26827189,
+  "total_bytes": 26832537,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -211,9 +211,9 @@
     {
       "name": "dsh-skill-authoring",
       "path": "skills/dsh-skill-authoring",
-      "description": "skill frontmatter 写法契约：description 才是触发字段、字符预算、拒载键。适用于\"skill 没被触发或加载不上 / description 超限 / 改新建 skill / 校验脚本报错\"。",
+      "description": "skill 契约与跨 harness 分发：触发字段、预算、拒载键、导出到 ChatGPT 的清洗规则。适用于\"skill 没被触发 / description 超限 / 想给 ChatGPT 用\"",
       "files": 3,
-      "bytes": 42365
+      "bytes": 45543
     },
     {
       "name": "dsh-skill-self-audit",
@@ -416,7 +416,7 @@
       "path": "skills/vllm-ascend-e2e-ci-wiring",
       "description": "vllm-ascend e2e 进 CI：estimated_times 登记、coverage 门禁、目录归属。适用于\"新增 e2e / CI 报 MISSING / 本地全 MISSING\"。",
       "files": 1,
-      "bytes": 30148
+      "bytes": 32318
     },
     {
       "name": "vllm-ascend-source-install",

@@ -1,6 +1,6 @@
 ---
 name: dsh-skill-authoring
-description: skill frontmatter 写法契约：description 才是触发字段、字符预算、拒载键。适用于"skill 没被触发或加载不上 / description 超限 / 改新建 skill / 校验脚本报错"。
+description: skill 契约与跨 harness 分发：触发字段、预算、拒载键、导出到 ChatGPT 的清洗规则。适用于"skill 没被触发 / description 超限 / 想给 ChatGPT 用"
 whenToUse: 要新建或改 SKILL.md 的 frontmatter / description / 「何时调用」段，或要逐条校验一批 skill 的契约合规时使用。模型看不到本节，它只影响人和 API 的阅读。
 ---
 
@@ -216,3 +216,39 @@ warm-reason: "为什么冷备（过期/低频/兴趣）"
 
 **实测收益**：56 个 skill（2 个已废弃移出）→ 36 hot + 22 warm，目录行合计 25,383 → **4,519** 字符（本地部分，-82%），
 热条目平均 description 411 → 125 字符。冷备条目仍可按索引加载，不丢能力。
+
+## 10. 跨 harness 分发（DSH ↔ ChatGPT / Codex）
+
+**结论：不做格式转换，做「标准形态的副本」。** DSH 与 ChatGPT/Codex 都吃 Agent Skills：`<name>/SKILL.md` + 六字段 `name`/`description`/`license`/`compatibility`/`metadata`/`allowed-tools`。差异只在"多出来的键"和"放哪"。
+
+### 10.1 三条硬事实（源码 + 实测）
+
+1. **DSH 原生就读 `~/.agents/skills`**：`agentsHome` 默认 `~/.agents`（`DSH_AGENTS_HOME` 可覆盖），源码注释写明它是"与其他 agent 工具共享"的根（`dsh-home-paths/src/index.ts:21,142-152`）。
+2. **重名按 rank 取胜**：`<repo>/.dsh/skills`(100) < `<repo>/.agents/skills`(200) < custom(300) < `~/.dsh/skills`(400) < `~/.agents/skills`(500) < bundled(600)；败者只写一行 `ignored because a higher-priority skill already exists`（`dsh-skill/src/index.ts:567-582,807-811`）。
+   ⇒ 真源留 `~/.dsh/skills`、标准副本落 `~/.agents/skills`，**DSH 目录成本一条不涨**（同名被 rank 400 影子覆盖），warm 仍是 warm。
+3. **DSH 宽松、别家严格**：DSH 对未知顶层键**静默忽略**；Claude Code 直接拒载，原文 `Unexpected key(s) in SKILL.md frontmatter: argument-hint. Allowed properties are: allowed-tools, compatibility, description, license, metadata, name`。⇒ **不能 symlink 直通，必须剥键**。
+
+### 10.2 导出必须做的三件事
+
+- **剥掉所有非标准顶层键**：`whenToUse`、`disable-model-invocation`、`warm-triggers`、`warm-reason`、`version`、`tags`…；要留私有信息就塞 `metadata:`（它是标准字段）。
+- **形状**：`name` 必须**等于父目录名**、kebab、≤64；`description` 折成物理单行、≤1024，按 **200** 保守写（claude.ai 口径）。
+- **只导"换 harness 还能用"的**：含 `D:\`、`~/.dsh`、内网/ssh、Ascend/NPU/CANN、凭据的 skill **一律不导**——对方没有那台机器，搬过去只会让模型照旧路径编命令。本机 64 个里 portable 只有 10 个。
+
+### 10.3 一键做法（已跑通，脚本在本机）
+
+```powershell
+cd D:\workspace\agent\skill\cross-harness
+python .\render_agents_skills.py --dry-run     # 看计划：new/update/same + 被丢弃的键
+python .\render_agents_skills.py --prune       # 写 %USERPROFILE%\.agents\skills
+python .\render_agents_skills.py --check       # 有漂移 exit 1（可挂计划任务/回合钩子）
+python .\render_agents_skills.py --zip-dir .\out\chatgpt-upload   # 要网页/手机时再打 zip
+```
+
+脚本按 `.render-manifest.json` 记每个文件的 sha256，`--prune` **只删「自己写过且一字未改」的目录**（`~/.agents/skills` 是共享目录，别人写的不碰）；产物用 DSH 同一套 JS `yaml` 解析验证过（UTF-8 无 BOM、LF、只剩 name+description 两个键）。
+
+### 10.4 边界
+
+- **ChatGPT 网页/移动端**要 workspace Skills（Business/Enterprise/Edu）或 plugin；**桌面 app / Codex CLI / IDE 直接读 `~/.agents/skills`，零上传**。Custom GPT 2026-12-11 退役，别走那条路。
+- **反向是免费的**：往 `~/.agents/skills` 丢标准 skill，DSH 不用配置就能用（rank 500）。
+- OpenAI 对未知顶层键是否硬拒**未证实**（官方只说"按 Agent Skills 规范校验"）→ 按严格清洗走，不赌。
+- 完整方案与全部取证：`D:\workspace\agent\skill\cross-harness\README.md`。

@@ -291,3 +291,19 @@ def test_qwen35_...(vllm_runner):
 ### 4. 排队与取消
 
 `/e2e` 派生的 job 会排在 4 卡 runner 上；上一个 head 的 run 没跑完时新 run 只能 queued。用 `POST /actions/runs/{id}/cancel` 取消可能 403（token 缺 `actions:write`），此时只能等它结束，别反复重触发。
+
+## 移动/拆分 e2e 测试文件的清单（包结构、estimated_times、coverage.py 平台坑、改名边界）
+
+## 移动 / 拆分 e2e 测试文件的清单
+
+**适用**：把一个 `test_*.py` 拆成"多模型族"目录（如 `rlhf/consistency/batch_invariant/test_qwen.py`），或整体搬家。
+
+- **目录结构**：新目录要放 `__init__.py`（本仓 `tests` 是包结构，绝对导入 `tests.e2e...` 才能解析）；共享 fixture / 环境变量放该目录的 `conftest.py`（先例：`tests/e2e/pull_request/one_card/spec_decode/conftest.py`），共享函数放非 `test_*.py` 的模块（如 `_common.py`，pytest 不会收集）。
+- **`estimated_times.yaml` 必须同步**：删旧 key、加新文件路径（文件级粒度）。旧 key 留着会算 broken path，新文件不加会报 MISSING。
+- **路由不变**：`runner_mapping` 按路径前缀匹配，`tests/e2e/pull_request/four_card` 下再嵌套仍是 a3-4；`/e2e` 也按路径里的 `four_card` 子串路由，搬家后命令换成新路径即可。
+- **marker 仍是字面量**：`e2e_model("...")` 与 `e2e_coverage(...)` 都要保持常量写法（AST 解析），别改成 `**dict`。
+- **`coverage.py` 的两个坑**：
+  - 脚本里有 `✓`，Windows 下先 `set PYTHONIOENCODING=utf-8`，否则 `UnicodeEncodeError: 'gbk' codec`；
+  - 它用 `Path.rglob` 得到反斜杠路径，与 yaml 的正斜杠 key 对不上，会显示 `0/162 covered` 全是假象。用 POSIX 重算再下结论：`{p.relative_to(root).as_posix() for p in (root/"tests/e2e/pull_request").rglob("test_*.py")}` 与 yaml keys 求差集。
+- **机械改名的陷阱**：`text.replace("_model(", "model_kwargs(")` 会命中 `@pytest.mark.e2e_model(`，把它改成 `e2emodel_kwargs(`，覆盖率报告直接丢掉该用例。改名要用带边界的模式（`def _model(`、`**_model(`）或 AST 级改写，改完用 AST 检查 `e2e_model`/`e2e_coverage` 是否仍能被解析。
+- **收尾验证顺序**：ruff/mypy → AST marker 解析 → estimated_times 覆盖（POSIX）→ `/e2e <新路径>` 在两条 vLLM 车道上跑通（日志里应看到 `collected N items` 和 `PASSED: <新路径>`）。

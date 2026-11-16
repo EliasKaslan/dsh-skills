@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **64** 个 skill、**244** 个文件、**26827189** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **64** 个 skill、**244** 个文件、**26832537** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -61,7 +61,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 27 | [`dsh-phone-remote-relay`](skills/dsh-phone-remote-relay/SKILL.md) | 手机接管电脑上的 DSH：中继丢包 / 唤醒断连 / 建联失败 / 多标签互斥 / 任务落到未分组 / 版本是否生效 | 1 |
 | 28 | [`dsh-plugin-market`](skills/dsh-plugin-market/SKILL.md) | DSH 插件市场：无官方源、format:1 校验、engines.dsh 兼容门禁、升级后市场静默失效与修复 | 1 |
 | 29 | [`dsh-repo-sync`](skills/dsh-repo-sync/SKILL.md) | 已退役——~/.dsh 私仓同步机制（DSH-Repo-Sync 任务与镜像仓均已删除）。仅留作历史记录与令牌形态参考。 | 3 |
-| 30 | [`dsh-skill-authoring`](skills/dsh-skill-authoring/SKILL.md) | skill frontmatter 写法契约：description 才是触发字段、字符预算、拒载键。适用于"skill 没被触发或加载不上 / description 超限 / 改新建 skill / 校验脚本报错"。 | 3 |
+| 30 | [`dsh-skill-authoring`](skills/dsh-skill-authoring/SKILL.md) | skill 契约与跨 harness 分发：触发字段、预算、拒载键、导出到 ChatGPT 的清洗规则。适用于"skill 没被触发 / description 超限 / 想给 ChatGPT 用" | 3 |
 | 31 | [`dsh-skill-self-audit`](skills/dsh-skill-self-audit/SKILL.md) | skill 集合定时自检：YAML、交叉引用、重复正文、目录预算。适用于"自检我的 skill / 有没有该合并的重复 / 哪些 skill 触发不了 / skill 目录多久没动"。 | 6 |
 | 32 | [`external-buzz-magnitude-check`](skills/external-buzz-magnitude-check/SKILL.md) | 外部热度量级取证——这事在外网真的火吗（HN points/评论、HF likes/下载量、Artificial Analysis/OpenRouter 体验指标、社区情绪分级）——判某事在外网是否真热、某模型是否真难用，给可复现量级数字；... | 1 |
 | 33 | [`git-tag-diff-audit`](skills/git-tag-diff-audit/SKILL.md) | 两个 git tag 之间做实质变更审计——两 tag 无共同祖先时 merge-base 静默返回空、git log A...B 静默给出两段历史之和，取数一律改两点 git diff A B；用 name-status 的 A/M/D/... | 1 |
