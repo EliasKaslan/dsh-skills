@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 244,
-  "total_bytes": 26821931,
+  "total_bytes": 26825084,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -304,7 +304,7 @@
       "path": "skills/mindspeed-ops-whl-build",
       "description": "打 MindSpeed-Ops whl 并验收：cmake/clang、SOC_VERSION、CATLASS。适用于\"打 ops 的 whl / cmake 版本报错 / GCC 太旧 / 验证 whl\"。",
       "files": 1,
-      "bytes": 12223
+      "bytes": 15376
     },
     {
       "name": "minimax-ai-musume-4k-art",

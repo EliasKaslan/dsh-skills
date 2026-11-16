@@ -121,3 +121,30 @@ git grep -n -E 'URL_HASH|TLS_VERIFY' -- mindspeed_ops/csrc/cmake/third_party/
 - 同目录有正确范式 = 疏漏（要求统一修复）；一处都没有，才需要论证可行性。
 - 漏洞报告侧的定级口径（无 hash / TLS 关掉该维持高危还是降级）→ `vuln-scan-report-verification` §5，本节不重复。
 
+## SOC_VERSION 全景：影响哪些编译产物
+
+## SOC_VERSION 全景：影响哪些编译产物
+
+只认一条：`SOC_VERSION` 承载的是 **`soc_series`（产品系列）而非精确芯片型号**，`setup.py:normalize_soc_version()` 只做前缀归并（`ascend910b1`→`ascend910b`），所以精确型号与系列名都能收敛。
+
+| 用途 | 产编译物 | 落点（仓内相对路径） |
+| --- | --- | --- |
+| ACLNN 自定义算子包（主场景） | 是 | `setup.py`（`_env_soc_version` ← 环境变量或 `npu-smi` 探测）→ `mindspeed_ops/csrc/build_aclnn.sh` → `build.sh --pkg --soc=` → `-DASCEND_COMPUTE_UNIT` → `cmake/scripts/util/{const_var,ascendc_bin_param_build}.py` 的 `opc --soc_version=` |
+| C++ 扩展（torch binding） | 是 | `setup.py` 里 `ext_modules` **仅在 soc 非空时创建**；与算子包同一开关，无法只编扩展不编算子包 |
+| CATLASS 算子 | 是 | `setup.py` → `-DMINDSPEED_CATLASS_SOC`；根 `CMakeLists.txt` 只认 `ascend910b`/`ascend910_93`，950 不启用 |
+| UT / example 运行 | 否 | `tests/unit_tests/aclnn/test_triangle_multiplicative_update.py` 非 `ascend950*` 即 skip；`build.sh -u --soc=` 只选跑测 SoC |
+| 包命名 | 否 | `cmake/package.cmake`、`build_empty_package.cmake` 从 `ASCEND_COMPUTE_UNIT` 抠短名 |
+| CANN stub 占位 | 否 | `mindspeed_ops/csrc/common/stub/op_tiling/*`（接口签名里的 `soc_version` 参数被注释丢弃） |
+
+**ATB 算子编译走的是另一条路，与 `SOC_VERSION` 无关**：`mindspeed_ops/op_builder/atb_builder.py` 靠 `ATB_HOME_PATH`（cann-nnal）+ `torch.utils.cpp_extension` **运行期 JIT**（`-D ENABLE_ATB`，链 `-latb/-lasdops/-llcal`），全篇无 `soc_version`。运行时区分代际也不看该变量，而是 `mindspeed_ops/utils.py` 的 `is_arch35()`（`torch_npu.npu.get_device_name()` 判 `Ascend910_95`/`Ascend950`）。
+
+### 踩坑
+
+- **值不匹配会静默跳过**：`build_aclnn.sh` 的 soc 分支是 if/elif，落到 else 就 `exit 0`——编不出算子包但不报错。怀疑"pip install 成功却没有 ACLNN 算子"时先看这行的 `[build_aclnn] no custom ACLNN ops configured for SOC_VERSION=...`。
+- **`setup.py` 里环境变量优先于自动探测**：容器/CI 里残留 `SOC_VERSION` 会盖掉真实芯片，导致按错系列编包。
+- **CI 不设该变量**：`.gitcode/workflows/` 与 `ci/` 下无 soc 引用，流水线产物与本地手编不一致时别从 CI 找原因。
+- 仓内 `soc_version` 字面量大量出现在 18 个文档里（README/install_guide/FAQ/OVERVIEW/catlass 文档），审计"谁在用"时必须把文档与 `csrc/cmake/scripts/util/*`（vendored AscendC 脚本）分开计数，否则得出的"场景数"会虚高。
+
+### 用法
+
+审计"仓里 soc_version 用在哪些场景"时，别用工作区级 grep（会命中 `_prdata`、`upstream_cache`、各 PR 分支副本）：先定位真正的 master 工作副本，再只扫该目录并在脚本里跳过 `.git`/`.ruff_cache`；`_master` 这类目录名不代表分支，务必 `git rev-parse --abbrev-ref HEAD` + `git diff --stat origin/master..HEAD` 确认差异不触及被审计文件。
