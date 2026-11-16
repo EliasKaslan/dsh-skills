@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 245,
-  "total_bytes": 26873267,
+  "total_bytes": 26875614,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -269,7 +269,7 @@
       "path": "skills/llm-landscape-recon",
       "description": "核查 OpenAI/Anthropic/Google 最新模型能力：官方定价直取、AA 榜单 JSON 解析、版本口径",
       "files": 1,
-      "bytes": 8504
+      "bytes": 10851
     },
     {
       "name": "login-credential-autofill",

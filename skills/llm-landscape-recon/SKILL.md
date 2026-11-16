@@ -104,3 +104,23 @@ i = t.find('"initialModels":['); arr, _ = dec.raw_decode(t, t.index('[', i))
 - **Haiku 5.5 起按 prompt 长度分档定价**：input `$0.10/MTok`（≤100,000 tokens）、`$0.50`（>100K）；output `$0.50` / `$2.50`。抓 pricing 时必须把两档都记下，只记小数会低估长上下文成本。
 - 引用 Anthropic 公告里的 GDPval-AA / AA-Briefcase 时注意：那是**AA 第三方复跑**，且两家页面自相矛盾（Sonnet 自己的公告 1844/1811，Haiku 公告的参照列 1840/1824）→ 结论里标出，别当单一权威。
 - 旧版本（Sonnet 5、Sonnet 4.6、Haiku 4.5）在 AA `initialModels` 里**没有**，只在 `releases`（无指数）→ 跨代对照只能引官方自报基准。
+
+## OpenAI effort 档位与文档站迁移（2026-11 实测）
+
+## OpenAI effort 档位与文档站迁移（2026-11 实测）
+
+### 文档站已迁走（正文表格里 platform.openai.com 的旧入口作废）
+- 抓 `platform.openai.com/docs/...` 报 `Error: cross-origin redirect to https://developers.openai.com is not followed automatically; retry against that URL directly`。
+- 新入口：`developers.openai.com/api/docs/<page>`，**URL 末尾加 `.md`** 直接拿到 `content-type: text/markdown` 原文，比 HTML 转文本省一个数量级。
+- 官方模型清单只有 `gpt-6.1-sol` / `gpt-6.1-terra`，**没有裸 `gpt-6.1`**（`/api/docs/models/gpt-6.1.md` → HTTP 404，可作反证）。第三方聚合（ageval 之类）会把 effort 写成含 `none`，与官方冲突时以官方模型页为准。
+
+### GPT-6.1 Sol 的档位事实
+- `reasoning.effort` = `low` / `medium`(默认) / `high` / `xhigh` / `max`；**不支持 `none`、`minimal`**；从 GPT-6 Sol 迁来要把 `none` 改成 `low`。
+- **价格不随档位变**：$2/$10（≤272K input），只有 reasoning token 量变，而 reasoning token 按输出计价；`effort != none` 时必须去掉 `temperature`/`top_p`/`top_logprobs`；`text.verbosity` 是正交轴。
+- 三套命名别混：API `low..max`；Work·Codex `Light(=low)/Medium/High/Extra High/Max/Ultra`；Chat `Instant/Medium/High/Extra High/Pro`。Sol 不在普通 ChatGPT 对话，只在 Work/Codex（那里默认 500K 上下文且无长上下溢价）。
+
+### AA 的分档数据怎么读
+- 同族按 effort 出 5 行（`GPT-6.1 Sol (Max)` 这种）。`Default Fallback` 只打在 Anthropic 行上，**OpenAI 行不带** → 默认档只能查官方文档，别从 AA 猜。
+- v5.0.1 实测 Sol：ii 34.80 / 46.35（默认）/ 50.33 / 52.46 / 54.61；首字等待 3.0 / 4.8 / 32.9 / 68.6 / 167.4 s。**medium 已拿 max 的 85%，首字快 35 倍**；边际收益断点在 medium 之后（medium→high 只 +4 分却慢 7 倍）。
+- 详情页 `Cost per Intelligence Index task` 是**一模型一个数**（实际取 Max 行），不能用来算逐档成本差；逐档成本只能按 reasoning token 量估（第三方小样本：194 / 539 / 1213 tok，high/low≈1.8×）。
+- 对 reasoning 模型，TTFT ≈「想完才吐第一个字」，比 index 更能决定日常体感，选档结论要带它。
