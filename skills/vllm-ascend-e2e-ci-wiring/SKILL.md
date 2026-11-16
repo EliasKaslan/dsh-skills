@@ -307,3 +307,24 @@ def test_qwen35_...(vllm_runner):
   - 它用 `Path.rglob` 得到反斜杠路径，与 yaml 的正斜杠 key 对不上，会显示 `0/162 covered` 全是假象。用 POSIX 重算再下结论：`{p.relative_to(root).as_posix() for p in (root/"tests/e2e/pull_request").rglob("test_*.py")}` 与 yaml keys 求差集。
 - **机械改名的陷阱**：`text.replace("_model(", "model_kwargs(")` 会命中 `@pytest.mark.e2e_model(`，把它改成 `e2emodel_kwargs(`，覆盖率报告直接丢掉该用例。改名要用带边界的模式（`def _model(`、`**_model(`）或 AST 级改写，改完用 AST 检查 `e2e_model`/`e2e_coverage` 是否仍能被解析。
 - **收尾验证顺序**：ruff/mypy → AST marker 解析 → estimated_times 覆盖（POSIX）→ `/e2e <新路径>` 在两条 vLLM 车道上跑通（日志里应看到 `collected N items` 和 `PASSED: <新路径>`）。
+
+## 共享实现放 common、入口留 pull_request：conftest 作用域与"假绿"陷阱
+
+## 共享实现放 common、测试入口留 pull_request：conftest 的作用域陷阱
+
+**适用**：把某个 e2e 用例的共享逻辑上移成公共代码，或想用 `conftest.py` 给一组测试设环境变量。
+
+### 分层约定
+
+- **共享实现**放 `tests/e2e/common/rlhf/<topic>/`（与 `weight_transfer/` 并列）：`__init__.py` + 实现模块（如 `common.py`）。`tests/e2e/common/rlhf/common.py` 是跨卡数的通用 helper，topic 包放各自实现。
+- **测试入口**必须留在 `tests/e2e/pull_request/...`：`/e2e` 只接受 `^tests/e2e/pull_request/[^/]+/`，`select_tests.py` 只扫 `tests/ut` 与 `tests/e2e/pull_request`，`coverage.py` 的 `estimated_times` 也只看 `pull_request/**/test_*.py`。把 `test_*.py` 放进 `common/` 会变成"CI 永远不跑"的文件。
+- 入口只保留 marker + 一行调用，import 用绝对路径 `from tests.e2e.common.rlhf.<topic>.common import ...`（`tests` 是包结构，新目录要有 `__init__.py`）。
+
+### conftest 不会跨树生效
+
+pytest 只加载**被收集测试文件的祖先目录**里的 `conftest.py`。所以：
+
+- 把 conftest 放到 `tests/e2e/common/rlhf/`，对 `tests/e2e/pull_request/...` 下的测试**完全不生效**——autouse fixture 和 `os.environ` 设置都会被静默跳过，用例可能在"非目标模式"下跑完并变绿（假绿，比失败更糟）。
+- 正确做法：需要"import 即生效"的环境变量放在被测试 import 的共享模块**模块级**（测试模块 import 时执行，早于 fixture 与引擎创建）；需要 per-test 的 autouse fixture 才放测试目录自己的 conftest。
+- `vllm.envs` 的值是 `__getattr__` 动态读环境（`enable_envs_cache()` 之后才缓存），因此在共享模块 import 时设置 `VLLM_BATCH_INVARIANT` 这类开关是有效的（未验证：某些入口在 import 更早阶段就读该值的情况）。
+- 判断环境是否真的生效，别只看用例绿：看日志里的分支打印（如 BI 的 `BATCH INVARIANCE MODE: Disabling custom all-reduce`）。
