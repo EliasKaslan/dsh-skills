@@ -1,0 +1,15 @@
+# DSH原生文件契约与目录发现
+
+2026-11-16在安装包0.2.2-rc.3只读复核dsh-tool-skill、dsh-skill-filesystem和dsh-skill实现，审计依据是具体包版本，不保证未来不变。
+
+- 模型可调用catalog根据invocation.modelInvocable过滤，只包括name和经规范化截断的description。当前默认catalogDescriptionMaxLength=500、可配置且须为至少3的正整数；不是所有环境永久500。description先压缩空白，截断时保留省略号余量。只改whenToUse不会改变同一catalog条目的可见描述。
+- whenToUse由文件系统provider解析并透传summary/API，是人类导航；当前模型catalog不使用它。正文在skill实际加载后使用，所以正文里堆触发词不能挽救不清晰的description。
+- 身份取frontmatter.name，须满足当前loader命名规则；目录与name一致最易审计。同名候选可能来自user/repo/.agents等不同root与rank，改文件后用权威source/path确认命中的那一份。
+- disable-model-invocation为YAML布尔true时排除模型自动目录；user-invocable默认true，可用布尔false关闭用户调用。旧camelCase disableModelInvocation/modelInvocable/userInvocable被明确拒绝，不是忽略。不要把字符串"true"当布尔值。
+- description当前只要求非空字符串；正文中不强制五条口语触发或固定结尾。简洁、区分度和路由正确比堆关键词重要。保留原whenToUse和单入口策略，但正文需说明历史模式的当前适用边界。
+
+原40热入口/7000目录字符/单描述120字符是本机旧预算，不是加载器硬上限；若用户仍采用该预算，单独报告budget而非YAML或loader错误。旧checker480/500阈值又不同。目录实际成本按当前发给模型的内容与tokenizer度量，不能把全tools/list元数据或固定字符比率当真实token账单。
+
+文件更改的发现/稳定等待、已加载正文缓存、会话catalog更新分别验证；成功写盘不证明当前会话已用新内容。可用当前skill工具/会话API读取path/source和正文标记，再检查新catalog或新会话。不要无证据要求重启整个宿主。
+
+跨harness导出需按接收方自己的文件契约适配，在目标根另验证；不把DSH的warm字段、工具名、secret路径或内部引用不经检查搬过去，也不为导出改坏DSH原生文件。

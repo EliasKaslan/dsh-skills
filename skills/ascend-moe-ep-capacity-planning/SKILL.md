@@ -1,221 +1,29 @@
 ---
 name: ascend-moe-ep-capacity-planning
-description: MoE 显存与 EP/TP 几何：64GB/A5 96GB 两套预算、GLM-5.2 与 K3 权重/KV 口径、EP 整除硬约束。适用于"几张卡才跑得起来 / EP 设多少 / 按卡数选型"
-whenToUse: 起服务【之前】决定要占几张卡、EP/TP/DP 怎么配、预算够不够时用。装环境见 vllm-ascend-source-install，运行时报错见 ascend-vllm-serve，上游有没有代码见 ascend-model-adaptation-recon。模型看不到本节。
+description: 在昇腾 MoE 部署前核算每 rank 权重、KV/线性注意力状态与运行峰值，筛选合法 TP/DP/PCP/EP 组合；适用于需要几张卡、并行配置和显存余量，不替代真机可运行验收。
+whenToUse: 在昇腾 MoE 部署前核算每 rank 权重、KV/线性注意力状态与运行峰值，筛选合法 TP/DP/PCP/EP 组合；适用于需要几张卡、并行配置和显存余量，不替代真机可运行验收。
 ---
 
-# 昇腾 MoE + EP 起服务前的显存容量规划
+# 昇腾 MoE 容量规划
 
-实测环境：`192.168.13.188`（A3，8 NPU × 2 die = 16 个 Ascend910_9382，每 die `npu-smi` 报 65536 MB，2026-10-22 复核 16 die 全 `Health OK`）。**`.190` 已采到 16 个 `Ascend910` die × 65536 MB（2026-11-03，未跑 torch）；A5 是 8 × `Ascend950DT` × 98304 MB（96 GB/卡，需连 A5 VPN）**。两台的 torch / 实测可用显存都 `未采` ⇒ **本 skill 的「64GB 卡预算 56.378 GiB」只对 A3 的 65536 MB die 成立，A5 的 96 GB 卡不能套**；机器准入见 `ascend-server-access` §0。
-对象 = Kimi-K3 类 MoE（`num_experts=896`、`num_experts_per_token=8`、`num_shared_experts=1`、`hidden_size=7168`、`moe_intermediate_size=3584`、KDA 线性注意力 + MLA 混合、`tie_word_embeddings`）。
-**这是「起服务之前」的阶段**：本 skill 回答"几张卡 / 怎么配"，`ascend-vllm-serve` 回答"怎么跑起来 / 报错了怎么办"。
-配套脚本：本目录 `scripts/ep_mem_model.py`（含 `--help` 全参数、真跑过 `EXIT=0`；含 legal-deployment scan：按 N 重推合法 TP）。下面只留路径与样例命令。
-> `FORMULAS.md`（公式→源码行号溯源表，含 pin 的两个 commit SHA）**本轮未复制进本目录**：仍在工作区 `D:\workspace\tmp_new\artifacts\k3-ep-model\FORMULAS.md`。要引用出处行号时读它；要长期留存请把它复制到本目录 `scripts/`。
-> 复制采用的是「读源文件 + 逐字重写」，**未做 sha256 逐字节比对**（本写手无 shell 工具、跑不了 `Get-FileHash`）⇒ 首次使用前请用 `python scripts/ep_mem_model.py --help` 与源文件对一次；有差异以 `D:\workspace\tmp_new\artifacts\k3-ep-model\ep_mem_model.py` 为准。
+固定模型 revision、层数/截断、运行精度与量化 loader、并行组、总/每 DP 请求量和缓存布局。读取 config 时识别 text_config/vision_config 及字段别名，记录实际 resolved config；不要把旧 K3/GLM 的字段、权重大小和卡数当默认。
 
-## 何时调用
+## 建模
 
-**加载本 skill 当：**
+将权重按实际 loader 和并行层分为 routed expert（EP 域）、TP 分片、每 rank 复制、PP stage/其他域。q_a/kv_a、norm、router、shared experts 的分片方式从本版本实现取证；不能把全部非专家都除 TP。量化按 packed bytes、scale、zero、padding、重排与反量化工作区计，不统一套逻辑参数×2，也不从 U8 numel 推出全部逻辑参数。
 
-- 要决定"这个 MoE 模型要占几张卡"，或已有卡数下判断 `FITS / DOES NOT FIT`。
-- 要选并行几何（EP / TP / DP）——尤其"`--enable-expert-parallel` 打开了，EP 到底等于几"。
-- 起服务前要做一次显存预算，而不是等 `MemoryError` / `value too large` 再回头猜。
-- 要解释"为什么 64GB 卡装不下 64GB 的权重"（预算只有 56.378 GiB）。
-- 要判断 `EP` 是否必须整除 `num_experts`、`--enable-eplb` 会不会强制均分。
+EP 几何由目标后端 group 定义；许多版本 EP=DP×PCP×TP，PP 等维度不属于同一 EP group。核实而非宣称 EP 永远等于全部卡数。TP/DP/PCP、头数/维度约束与拓扑一起验证。枚举合法组合并比较余量，不预设最大 TP 总最优。
 
-**不要用本 skill（转交）：**
+专家不均分必须检查 dispatch/gather 和 kernel，不因 Python 可初始化就称支持。某些历史 Ascend 路径会崩或错算；默认只将整除组列为候选，证实目标后端支持后才放行不均分。EPLB 冗余专家既影响整除也增加驻留权重，不能只加个数字绕过校验。按每 rank 完整专家数算最坏 rank：`ceil(E/EP)×每专家bytes`，不能对所有专家参数总数除 EP 后取整冒充专家分配。
 
-- 服务已经起来要排障（`Engine core initialization failed`、`NnopbaseExecutorDoTiling`、sleep/wake_up、TP=2 起服务） → 用 `ascend-vllm-serve`。
-- 要装 / 重装 / 编译 vllm 或 vllm-ascend → 用 `vllm-ascend-source-install`。
-- 要判某模型在上游与昇腾侧到底有没有代码 → 用 `ascend-model-adaptation-recon`。
-- 模型 / 权重在哪、磁盘该写哪块 → 用 `ascend-server-layout`；本机 PowerShell 的坑 → 用 `pwsh-on-windows`。
+## 预算与结论
 
-**前置**：拿到目标模型的 `config.json`（**多模态模型必须读 `text_config` 子对象**，见坑 4）；有一个 Python 3.10+ 可用。
-**后继**：按本 skill 选出的卡数与并行参数去 `ascend-vllm-serve` 起服务；起服务后把真实开销值回填重算（见「验收标准」第 5 条）。
+现场读取 `free_bytes, total_bytes = torch.npu.mem_get_info(logical_id)`，单位用 bytes/GiB，确认调用设备已准入。free 和 total 不颠倒；驱动可见 total 与 npu-smi 物理 HBM 不强行相减凑基线。以当前引擎的预算算法、实际 utilization/KV 固定预算和外部分配为准，不能固定 56.378 GiB 或 0.92。
 
-## 前置检查
+逐 rank 分开列权重、KV/递归状态、激活、通信、框架、图池、加载/reload 峰值与安全余量。通信若已含在 non-torch 里就不再叠加。MLA cache 取实际 head_size/dtype/scale/分片策略；KDA/DeltaNet 稳态递归状态常按每序列计，但多步推测、chunk、prefix snapshot 和临时 workspace 另核，不能因此断言 KV 永远非瓶颈。
 
-```bash
-# ① 卡上与 HBM 的真实上限（不是 64GB，是 65536 MiB 且其中约 2874 MiB 被驱动吃掉）
-ssh -n root@192.168.13.188 "npu-smi info | head -14"
-# ② 真正能给引擎的可见总量：实测 62748 MiB ≈ 61.28 GiB
-ssh -n root@192.168.13.188 "python -c \"import torch, torch_npu; t,f=torch.npu.mem_get_info(0); print('total_mib', t//1048576)\""
-# ③ 预算 = 可见总量 × gpu_memory_utilization（vLLM 默认 0.92）⇒ 61.28 × 0.92 = 56.378 GiB
-# ④ 脚本自带全部参数说明
-python scripts/ep_mem_model.py --help
-```
+使用 [scripts/plan_capacity.py](scripts/plan_capacity.py) 与 [输入说明](references/planner.md) 复算已确定的分项。工具要求显式输入及证据标记，不从模型名猜公式；结果是容量候选或下界，不是服务 PASS。未知开销可计算下界，状态必须是 INCONCLUSIVE，不能置 0 后宣称 FITS。
 
-**判据：所有容量比较一律用 GiB（1024³），并且从 56.378 GiB 起算。** 用 `64` 或 `64×10⁹` 都会高估（后者少算 7.4%）。
+给出权重下界排除、含开销的最小候选、推荐余量及翻转条件。全局物理总量不够可作必要条件反证；全局足够不保证每 rank 足够。所有组合均非法或不完整时可报告“未找到”，不能硬给最小卡数。上机读取真实 profile/加载峰值后回填并复验实际目标；减层结论不外推全模。
 
-## 步骤
-
-### 1 先把「并行几何」钉死：EP 不是一个可以单独设的量
-
-```powershell
-python scripts/ep_mem_model.py --config configs/fake_k3_4layer.json --layers 4 --tp 4 --dp 1 --seq-len 8192 --batch-size 16
-```
-
-脚本会把推导链打出来，三条事实都要核：
-
-- **`EP size = DP × PCP × TP`**（`--enable-expert-parallel` 只是布尔开关，没有"EP=几"这个参数）。
-  出处：`vllm/distributed/parallel_state.py:2293-2302`（EP group = `reshape(-1, data_parallel_size*pcp*tp)`）、
-  `vllm/model_executor/layers/fused_moe/config.py:1103-1105,1221`（`ep_size = flatten_tp_size = dp*pcp*tp`）、
-  `vllm/engine/arg_utils.py:1260-1264`。
-- **EP 下 MoE 的 tp_size 被压成 1**（每个 rank 完整拥有自己的专家）：`fused_moe/config.py:1219-1224`。
-- **TP 必须整除 `gcd(num_attention_heads, kda.num_heads)`**（本例 `gcd(96,96)=96` ⇒ 合法 TP ∈ `{1,2,3,4,6,8,12,16,24,32,48,96}`）；**EP size 在 Python 层不必整除 `num_experts`，但运行期必须整除**（不整除 = 首次前向崩 EZ1008，或 A2 上静默错算；实测见坑 2）。
-  出处：`vllm/models/kimi_k3/nvidia/kda.py:604`（`assert self.num_heads % self.tp_size == 0`）、`vllm/model_executor/models/deepseek_v2.py:502,510,526`（MLA 投影是 `ColumnParallelLinear` 铺在 `num_attention_heads` 上）。
-  另一道（通常不成约束的）合法性闸门：`moe_intermediate_size % tp_size == 0`（`fused_moe/config.py:1339-1341`；本例 3072 % 4 = 0 ✓）。
-- ⚠ **按卡数 N 扫描时必须随 N 重推 TP**（选 `TP | N` 且 `TP | 96` 的最大值，`DP = N/TP`）：EP 与 N 是**同一个量**（`EP ≡ TP×DP×PCP ≡ 卡数`），固定 TP 去变 EP 等于每一行都悄悄假设了不同的错误非专家足迹。**这是本轮被证伪的断言**（见坑 10）。
-
-验证：输出里出现 `--tp N --dp M --pcp K -> EP SIZE = N*M*K` 这一行，且该值与你以为的 EP 一致。
-
-### 2 逐卡权重：把「切」和「不切」分开算
-
-```powershell
-python scripts/ep_mem_model.py --config <目标 config.json> --layers <截断层数> --tp 4 --dp 1 --seq-len 8192 --batch-size 16
-```
-
-- **切（按 EP）**：只有 routed experts。`每卡专家参数 = 专家总参数 / EP`。
-- **不切（每卡整份复制）**：gate/router、MLA 的 `q_a_proj` / `kv_a_proj_with_mqa`、norm。
-  出处：`vllm_ascend/ops/fused_moe/shared_experts.py:171-175`（shared experts 的 linear **仍铺在物理 TP 组**上，只是**从不按 EP 切**）、`vllm/model_executor/models/deepseek_v2.py:321-323`（`GateLinear` 不带 tp/ep 参数 = 复制）。
-- **连 TP 都不切**：MLA 的 `q_a_proj` / `kv_a_proj_with_mqa` 是 `ReplicatedLinear`（`deepseek_v2.py:494,518`）。
-  （`q_b_proj` / `kv_b_proj` 是 `ColumnParallelLinear`、`o_proj` 是 `RowParallelLinear`、`embed_tokens` / `lm_head` 是 `VocabParallelEmbedding` / `ParallelLMHead`、稠密 MLP 是 `MergedColumnParallelLinear` / `RowParallelLinear` —— 这些都**按 TP 切**。）
-- ⇒ **TP=1 时"非专家那部分"是卡数硬地板**，EP 再大也不变小。脚本输出的 `repl+TP GB` 列就是它。
-
-### 3 KV cache：按注意力类型分开算
-
-- **MLA（全注意力）**：每 token 每层 `(kv_lora_rank + qk_rope_head_dim) × dtype字节`，`num_kv_heads=1`。
-  出处：`vllm/model_executor/layers/attention/mla_attention.py:479`（`head_size = kv_lora_rank + qk_rope_head_dim`）、`:1350-1361`、`:1608-1610`（`get_supported_head_sizes` 含 576 = 512+64）。
-- **KDA / Gated-DeltaNet 类线性注意力**：递归状态**每序列常数**、**不随 token 增长**，且递归部分用 fp32。
-  出处：`vllm/model_executor/layers/mamba/mamba_utils.py:304-327`（`conv=(3*H*D/tp, C-1)`、`recurrent=(H/tp, D, D)`）、`:132-149`（dtype = float32）。
-- ⇒ 混合模型里线性注意力层占比高时，**KV 完全不是瓶颈**：8k 与 128k 上下文实测差异 <1 GiB；把 KDA 层误当 MLA 算，本例总量只从 40.891 → 41.021 GiB（`--assume-all-full-attn` 可一键对照）。
-
-### 4 预算链与开销项（只有带出处的才当数字）
-
-```
-npu-smi 65536 MiB  --(驱动基线 2852–3105 MiB/die)-->  mem_get_info 可见 62748 MiB ≈ 61.28 GiB
-                    --(× gpu_memory_utilization 默认 0.92)-->  引擎预算 56.378 GiB
-56.378 GiB − 每卡权重 − KV − 激活 − 通信缓冲 − 框架/ACL − 150 MiB 安全余量 ≥ 0  ⇒ FITS
-```
-
-有出处的开销项：
-
-- `HCCL_BUFFSIZE=1024` / `HCCL_BUFFSIZE_EP=2048`（单位 MB，官方 K3 recipe：`vllm-ascend/docs/source/tutorials/models/Kimi-K3.md:158-159`）；CANN 侧 `HCCL_BUFFSIZE` 默认 200 MB、`vllm_ascend/utils.py:73,77` 另有 200 MB / 100 MB 的 per-group 缓冲。
-- 安全余量 **150 MiB** 是硬编码：`vllm_ascend/worker/worker.py:898` `redundancy_buffer = 150 MiB`。
-- `requested_memory = total_memory * gpu_memory_utilization`（`vllm_ascend/worker/worker.py:454-455`）；`requested > free` 直接抛 `ValueError`（`worker.py:456-466`）。
-- **激活峰值 / 框架开销是假设值**（脚本默认 4 GiB / 2 GiB，`--activation-mib` / `--framework-mib` 可改）——判定要用"可承受开销"列做敏感性分析，别把假设值当实测。
-
-### 5 出结论：最小卡数与推荐卡数分开写
-
-脚本输出的 `EP SWEEP` 表 + `可承受开销 = 预算 − 每卡权重` 列就是结论。本次 4 层包实测（bf16、8k×16 并发）：
-
-| 卡数 | 配置 | 每卡权重 GiB | 总占用 GiB | 余量 GiB | 判定 |
-|---:|---|---:|---:|---:|---|
-| 3 | TP=3 | 58.721 | 68.299 | −11.922 | ✗ 权重本身就超 56.378 |
-| **4** | **TP=4** | 44.059 | 53.637 | **+2.740** | ✓ 最小合法 |
-| 4 | TP=1 DP=4 | 51.984 | 61.562 | −5.185 | ✗ 同一批卡，仅因 TP=1 就装不下 |
-| 4 | TP=2 DP=2 | 46.701 | 56.279 | +0.099 | ✓ 但 0.1 GiB 余量，实际不可用 |
-| **8** | **TP=8** | 22.066 | 31.645 | **+24.733** | ✓ 推荐 |
-
-**卡数没变、权重没变，同一 4 张卡仅因把 TP 从 1 改成 4 就从"装不下"翻成"装得下"。被撑爆的不是卡数，是 TP 的选择。**
-`N ∈ {5,7,11,13}` 是"合法但退化"档：没有 >1 的 TP 同时整除 96 与 N，TP 被强制为 1、稠密张量全量复制，比相邻 TP>1 档严格更差。
-
-**⚠ 已被证伪的断言（本轮最该记住的反例）**：**固定 `TP=1` 扫 EP 会得出"最小 5 卡"，随 N 重推 TP 后真值是 4 卡**（TP=4 / DP=1 / EP=4，每卡权重 44.059 GiB，余量 +2.740 GiB）。那张旧表的每一行都隐含 TP=1，是**错误建模撑出来的伪结论**——别把"EP 当自由变量"的扫描结果写进交付。
-
-**两条边界结论（写结论时必须带上）**：
-
-1. **3 卡无论假设怎么调都装不下**：权重 58.721 GiB **本身就 > 预算 56.378 GiB**，属**硬约束**，与开销假设无关。
-2. **把假设性开销换成"只留有出处"的口径，判定不翻转**：`HCCL_BUFFSIZE_EP=2048` + `HCCL_BUFFSIZE=1024`（MB）+ `worker.py:898` 的 150 MiB = **3.146 GiB**，激活/框架**无出处则置 0、不猜** ⇒ 4 卡仍 **FITS**，只是余量 2.740 → **9.172 GiB**。⇒ **4 卡结论由权重项主导，对开销假设不敏感**；唯一翻转条件是"激活+框架实测合计 > 12.318 GiB"。
-
-### 6 反查参数口径（防"3.1 TB 权重"这类误判）
-
-不要用 HF `safetensors.parameters` 里的 `U8` 计数当字节数（见坑 3）；也不要拿 `safetensors.total` 与 `.safetensors` 文件总字节互替（**不是同一个量**）。
-正确口径：**逻辑参数量 × dtype 字节数**；把普查得到的非专家参数量用 `--non-expert-params-override <N>` 灌进去（本次 Lead 普查值 5,712,517,920，与脚本自算值差 +15.02%，脚本会显式打印这个 delta）。
-
-## 坑与修法
-
-1. **以为 EP size 是独立可设的量** → 它不是：`--enable-expert-parallel` 是布尔量，`EP = DP × PCP × TP`（出处见步骤 1）。
-   修法：给 `--tp/--dp`，让脚本自己算 EP；`--ep N` 只用于"假设能设成这么大"的探索，别拿它当部署配置。**反例与真值见坑 9**。
-2. **`ValueError: EPLB currently only supports even distribution of experts across ranks. Got 896 experts and 5 EP ranks.`**
-   → 原因：`--enable-eplb` 在 **Python 层**强制整除（`vllm/.../fused_moe/layer.py:260-265`，约束是 `num_experts + num_redundant_experts`）。
-   → **【2026-10-26 实测更正：本条旧断言"非 EPLB 不均分也合法、不报错"已被证伪】** 非 EPLB 只是"Python 层不校验"，运行期是**崩或静默错算**，二选一：
-     · 实测配比 **12 专家 / EP=8**（不整除）、V2 runner、A3、dummy 权重：**权重按 2/1 不均分真的分配成功了**——`expert_map_manager.py:250` 打 `Local/global number of experts: 2/12`，`Model loading took` 在 TP0–3 是 **2.7 GiB**、TP4–7 是 **2.51 GiB**（差 0.19 GiB ≈ 1 专家 × 3 个 MoE 层）⇒ **"能加载 / 能建模型"完全不能证明"支持不均匀"**。
-     · 随后**第一次前向（profile/dummy_run）就崩**：`RuntimeError: npu_moe_distribute_dispatch_v2 ... Execution_Error(EZ1008): Failed to execute operator MoeDistributeDispatchV2_1020. Reason: Failed to execute tiling function.` —— CANN 算子在 **tiling 阶段**就拒绝 `moe_expert_num=12` 与 `ep_world_size=8`。
-     · A2/310P 的 prefill 走 AllGather（`_310p/fused_moe/token_dispatcher.py:57-72`），不经过该算子、没人校验 → **静默错算**：`ops/fused_moe/token_dispatcher.py:396` 拿 `rank * num_experts_local` 当本地专家起点，而真起点是 `expert_map_manager.py:76` 的 `rank*base + min(rank, rem)`（`rank ≥ rem` 时两式差 `rem`）。
-   → 修法：**`(num_experts + redundant)` 凑成 EP 的整数倍是唯一可行解**（K3：896+128=1024，EP=256 时每 rank 4 个）；别指望"不均匀也能跑"。完整取证见 `findings/F-uneven-v2-verdict.md`（工作区 `261026_k3_不均匀切分专家`）。
-3. **把 `safetensors.parameters` 的 `U8` 计数当字节数** → 会误得出"3.1 TB 权重"。
-   实测 `{"F32":11122432,"BF16":57179884544,"U8":2722740830208}`：`U8` numel ÷ 剩余可用字节 ≈ **1.882 ≈ 2** —— MXFP4 把 2 个权重打包进 1 个 U8，且 U8 里还混着 per-32 的 scale 字节。
-   → 修法：算显存一律"逻辑参数 × dtype 字节数"；要估 MXFP4 **存储量**就另按存储字节算，两者不要混用。
-4. **照顶层读多模态 `config.json` → 字段全部 ABSENT，误判成"config 是空壳"**（本轮最大的坑，Lead 与子代理都踩过）。
-   → 原因：`torch_dtype` 键**已改名 `dtype`**；MoE 字段是 `num_experts` / `num_experts_per_token` / `num_shared_experts`（**不是** `n_routed_experts` / `num_experts_per_tok` / `n_shared_experts`）；且多模态 config 把语言塔全部参数**嵌在 `text_config` 下**（顶层只有 `architectures` / `dtype` / `tie_word_embeddings` / `text_config` / `vision_config`）。
-   → 修法：先 `json.load` 后 `if 'text_config' in d: d = d['text_config']`，再取字段；取不到时先怀疑嵌套与改名，别先怀疑模型。
-5. **`find -printf '%s'` 对符号链接报的是 link 长度** → 官方 `model.safetensors.index.json` 显示 **76 B**，几乎被判成空壳，真值 **59,764,096 B**。
-   → 修法：一律 `find -L <dir> -printf '%y %s %p -> %l\n'` 判真体积（`-L` 跟随符号链接）。未下载权重时改用 HF cache 元数据，见 `ascend-server-layout` §步骤2。
-6. **拿 `createdAt` 当发布日 / 拿大小写差异当"另一个仓" / 按异常文本判 HF 仓不存在** → 见 `ai-vendor-official-source-audit`（本文件只留指针）。
-7. **激活峰值是唯一没实测的假设值**：真值从 `vllm serve` 启动日志读（`vllm_ascend/worker/worker.py:908-928` 打印 `N GiB for weights, N GiB for peak activation, N GiB for non-torch memory, N GiB for NPU graph memory`），喂回 `--activation-mib` / `--framework-mib` 重算。
-   → 判定要看"可承受开销"余量：4 卡档余量只有 2.740 GiB，所以要往上一档（8 卡，余量 24.733 GiB）；3 卡装不下与开销假设无关（权重自身超预算）。
-8. **`HCCL_BUFFSIZE_EP=2048` 是 K3-specific 的硬数字**（官方 recipe），若与 pg_options 的 `hccl_buffer_size` 叠加，估算会低估约 3 GiB。换模型要重新找该模型的 recipe，别照抄。
-
-9. **固定 TP 去扫 EP（本轮被证伪的断言，最该记住的一条）**：EP 不是独立可调量，`EP ≡ TP × DP × PCP ≡ 卡数`；按卡数 N 扫描**必须随 N 重推 TP**（选 `TP | N` 且 `TP | gcd(num_attention_heads, kda.num_heads)` 的最大值）。
-    → 反例数据：固定 `TP=1` 扫 EP 得出"**最小 5 卡**"；随 N 重推 TP 后真值是 "**4 卡**"（TP=4 / DP=1 / EP=4，每卡权重 44.059 GiB，余量 +2.740 GiB）。**同一 4 卡、同一权重，仅 TP 1→4 就翻转判定**。
-    → 修法：扫描表每一行都要显示"这行的 TP/DP 是怎么从 N 推出来的"，别让 EP 当自变量。
-10. **"打印的合计"与"各项求和"对不上**（脚本作者自己踩到）：探针函数漏加 `kv_total`，打印头显示 `9.578 GiB`、各项实际求和只有 `9.146 GiB`；修前会把 4 卡总占用**谎报成 53.206 GiB**。
-    → 修法：出结论前把输出里的**分项逐条相加**与那个合计行对一遍；只信能对上的一项。
-## 不要做什么
-
-- 不要用 `64 GB`、`64 GiB` 或 `64×10⁹` 当可用预算——**只能从 56.378 GiB 起算**（61.28 × 0.92）。
-- 不要拿 `--ep N` 当部署参数，也**不要固定 TP 去扫卡数**（EP ≡ 卡数；两处反例见坑 1 与坑 9）。
-- 不要为了凑 EP 整除而改卡数，除非开了 `--enable-eplb`（坑 2）。
-- 不要在没把输出里"分项求和"与"打印合计"对上之前就采信那个合计（坑 10）。
-- 不要把"无出处的假设开销"当数字用：**没有出处就置 0 并标注，不猜**（步骤 4 与步骤 5 的第 2 条边界结论）。
-- 不要把 `U8` numel 当字节、不要把 `safetensors.total` 与 `.safetensors` 文件总字节互替（坑 3）。
-- 不要在截断层数上做显存结论后直接上线——**层数变了结论全变**；93 层全量在 bf16 下 `DOES NOT FIT` even at EP=64（实测 2,751,966,453,248 逻辑参数）。
-- 不要把假设值（激活 / 框架）当实测值写进结论；不确定的标 `未验证：`。
-
-## 验收标准
-
-1. `python scripts/ep_mem_model.py --help` 能列出全部参数（`--config/--layers/--tp/--dp/--pcp/--ep/--seq-len/--batch-size/--dtype-bytes/--activation-mib/--framework-mib/--non-expert-params-override/--enable-eplb/--num-redundant-experts/--assume-all-full-attn/--json`），退出码 0。
-2. 输出里出现 `EP SIZE = DP*PCP*TP` 的推导行与三条 `SRC` 出处行；能口头复述 `shared_experts.py:171-175` 说明"哪些不被切"。
-3. 预算行逐字为 `ENGINE BUDGET per card : 56.378 GiB`；**若你的机器 `mem_get_info` 不是 62748 MiB，以现场值为准并同步改算**。
-4. 给出**最小卡数**与**推荐卡数**两个数，并附"可承受开销"余量；对最小档说明余量是否够覆盖未实测的激活项。
-5. 起服务后从日志抄回 4 个真实开销值，重跑一次脚本，结论方向不变（或明确记录翻转条件，例如"激活+框架合计超过 12.318 GiB 才会重新装不下"）。
-6. 每条数字都有出处（文件:行号 / 官方 URL / 实测命令）；假设值单独标注。
-7. **扫描表的每一行都写明"这行的 TP/DP 是怎么从卡数 N 推出来的"**（合法 TP 必须整除 `gcd(num_attention_heads, kda.num_heads)`）；出现"固定 TP 变 EP"的行即判不合格（坑 9）。
-8. 结论里带上两条边界：**3 卡是权重硬约束下的装不下**（58.721 > 56.378，与开销假设无关）；**把无出处开销置 0 后 4 卡判定不翻转**（余量 2.740 → 9.172 GiB）。
-9. 输出的分项逐条求和与打印合计**能对上**（坑 10）。
-
-## GLM-5.2（`glm_moe_dsa`）在 A5 96 GiB 卡上的预算口径
-
-**适用**：客户问"GLM-5.2 双机 A5 能不能 bf16 起 64 batch × 24k"。**不适用**：A3 的 65536 MB die（用本文件上面的 56.378 GiB 口径，两套卡不可互套）。
-
-### 权重（以 `zai-org/GLM-5.2/config.json` 为准）
-- 参数 **753.62 B**（routed experts 737.43 B + 非专家 16.196 B），bf16 = **1403.7 GiB / 1506.7 GB**；282 个 shard 逐字节 HEAD 求和与 index `total_size` 一致。
-- 每层：注意力 **165.02 M**、MoE **9.703 B**（256 experts × 3 × 6144 × 2048）、dense MLP 226.49 M（前 3 层）、DSA indexer 26.15 M。
-- 切分：专家 / EP，非专家 / TP（`EP = TP×DP×PCP`，细则见本文件步骤 1）。
-
-### A5 预算
-- `npu-smi` 报 **98304 MiB = 96 GiB/卡**，8 卡/机；driver 开销 **未实测**（暂按 A3 的 2.75 GiB）→ 可见 93.25 GiB × 0.92 = **85.79 GiB/卡**；双机 16 卡总预算 **1372.6 GiB**。
-- 该 2.75 GiB 是**假设值**，上机后必须用 `torch.npu.mem_get_info` 换真值重算。
-
-### KV：这个模型有两个专属口径
-- MLA latent：`78 × (kv_lora_rank 512 + qk_rope_head_dim 64) × 2 B = 89,856 B/token`。
-- DSA indexer：**不是** `index_n_heads(32) × index_head_dim(128)` 个元素。vLLM 的 `k_cache` 是**单向量 `128 + 4`（fp8 e4m3 载荷 + scale）= 132 B/token/层**，且只有 **21 个 full 层**（`indexer_types` = 21 full / 57 shared，full = 层 0,1,2,6,10,…,74）→ 仅 2,772 B/token。
-  - 出处：`vllm/models/deepseek_v32/attention.py` 的 `head_dim + head_dim//128*4`、`kv_cache_interface.py` 的 `(head_size+head_size_v)*dtype_size`（MLA 的 `head_size_v=0`）。
-- 合计 bf16 KV = **90.46 KiB/token**；`fp8_ds_mla` = `78×656 + 2,772` = **52.68 KiB/token**。
-- 64 × 24576 = 1,572,864 token → bf16 KV **135.7 GiB**、fp8 KV **79.0 GiB**。
-
-### 判定（双机 16 卡 × 96 GiB）
-- 权重 1403.7 GiB > 预算 1372.6 GiB ⇒ **util=0.92 连权重都加载不了**（util 要 0.941 才装下权重，此时 KV 余量为 0）。
-- 权重 + KV = **1539.4 GiB = 100.2% 的 1536 GiB 物理显存** ⇒ **util=1.0 也不可能**；这还没算激活、HCCL buffer、框架与 graph 池。
-- util=1.0 且开销全为 0 时的上限：**1.02 M token ≈ 41.6 × 24k**（要 64 条，不够）。
-- 每卡权重（EP=16）：TP=8 → 89.62 GiB（超预算 3.83）、TP=4 → 93.39、TP=1 → 116.02；**TP=8 已是最省的一档**。
-
-### 要多少卡 / 怎么配
-- 量化：**W8A8C8 16 卡** slack +527.8 GiB；**W4A4C8-mxfp4 8 卡** slack +224.4 GiB；单机 8 卡 W8A8 不行（812.9 > 686.3）。
-- bf16 硬要：**32 卡（4 机）**。因为 `EP = TP×DP = 卡数` 且 `EP | 256` ⇒ 只有 16/32/64 合法；**24 卡（EP=24）256/24 不整除，首轮前向就报 EZ1008**。
-- A5 的量化档只有 MXFP 系（`W4A4MXFP/W4A8MXFP/W8A8MXFP`）；GLM-5.2 的 FP8 权重（W8A8FP）**未验证**。
-
-### 坑
-- **网上流传的 `v_head_dim=128` 是错的，真值 256**。用它建模得 749.2 B（低估 0.6%），每层注意力少算 24.4 M（o_proj 100.66 M 被算成 50.33 M）。以官方 config 为准，别抄博客。
-- 别把 A3 的 56.378 GiB 预算套到 A5 的 96 GiB 卡上；也别把 A5 的 96 GiB 当 96×10⁹（差 7.4%）。
-- 软件侧不是障碍：vLLM-Ascend 自 v0.30.0 官方支持 GLM-5.2，950DT/A3/A2 均有教程页与 SIT 用例——但官方给的都是量化配方，bf16 全量不在其列。
+底本：原 ascend-moe-ep-capacity-planning 及 ep_mem_model.py，2026-11-16 已复现专家分配低估、旧表隐含 override 和总量不一致；旧估算器已停用。详见 `D:/workspace/share/codex-review/REVIEW.md`。

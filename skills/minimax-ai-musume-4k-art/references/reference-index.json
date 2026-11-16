@@ -1,0 +1,224 @@
+{
+  "references": [
+    {
+      "character": "claude",
+      "path": "frames/claude/t00784.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "48bc73dd2d0dcce2b23a239a6b5514136781adc33bb8b0a0833a8ab37889ce9d",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "claude",
+      "path": "frames/claude/t00790.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "1f18be57d83171bb6d2540ff1b63d591bcf70bb3285d4e26fed8b52c5259575c",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "claude",
+      "path": "frames/claude/t01428.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "7e4787461a5b2d6e42c45b3d1d542707da2bcf5594f37c8c6d0c3ad208fe3925",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "claude",
+      "path": "frames/claude/t01438.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "8e8cc550ebfd5c073ce6d76887b72bf485d00987e1fe8d3049486c7fc63510ea",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "claude",
+      "path": "frames/claude/t01448.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "81f88742572b2550c7a27a51b54aa95ea031b03143a49f34411d6bd81dad7e81",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "claude",
+      "path": "frames/claude/t01568.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "eaf5ca1a876650e5e3fa24cd3fecd543859727148a6148fe2b7533955495e6ca",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "deepseek",
+      "path": "frames/deepseek/t00513.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "817ec97d89086f7ddbcd030348dbb3619c53fab7cc593e4d8e9aef4b321463eb",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "deepseek",
+      "path": "frames/deepseek/t00523.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "81b7d8004551856621918ba6ddd970a3f8368d39ae517b1851e9f890ea2f4f57",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "deepseek",
+      "path": "frames/deepseek/t01045.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "3ae59a16652a456b867ca4b7eb929af88fbcb10991f4de9979bf51adb513cc75",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "deepseek",
+      "path": "frames/deepseek/t01055.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "a70b1d7d390307cf5c14ec61ac5035e524dc216c1a291995fcda819e77943743",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "deepseek",
+      "path": "frames/deepseek/t01297.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "18daf91832f6e73634e943a9526428cc874f588c372869cc747766280351db0a",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "deepseek",
+      "path": "frames/deepseek/t01307.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "feea81e92a8a12c03e0d7cad497d1398a81998fc92889291fae638f6274b7445",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "gemini",
+      "path": "frames/gemini/t00382.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "ec48e536690faa1681c270bf29c5c7fe46a17e55846867a9ba7320b65352c473",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "gemini",
+      "path": "frames/gemini/t00392.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "8ce479722dc32e58c186497706b115dabbab03faec34238924aae774b029d719",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "gemini",
+      "path": "frames/gemini/t00402.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "b88ab98cdebaafefd512e9b24926a0170854799b68692a89580bcd67b186250e",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "gemini",
+      "path": "frames/gemini/t00412.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "36b708aa9e4e4173c85a488fac3bccedc70d85e783279b18956151ad18c16f50",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "gpt",
+      "path": "frames/gpt/t00663.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "620e7125cc6403d0f829e67642955efd88b552d9a385fbe5530631cd1a61ca0e",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "gpt",
+      "path": "frames/gpt/t01820.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "1c51a9b149825f26c4e084aed698a19587af5f78384900ecbc1144297b5e78de",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "gpt",
+      "path": "frames/gpt/t01830.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "427928804f5ed83aa83e3e7f38da48f5c35b481a1035617e0b2040131317812e",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "grok",
+      "path": "frames/grok/t00130.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "4be464cb42bb9e55d76ed338e615cb24c82f507e3b8f5a4ecb089f979d2c56d1",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "grok",
+      "path": "frames/grok/t00915.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "40ee992eae072094de841e7daac3ba770828aadd5d1eb61b2f9d5c5ad3086b56",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    },
+    {
+      "character": "grok",
+      "path": "frames/grok/t01699.png",
+      "size": [
+        648,
+        816
+      ],
+      "sha256": "33b93087b13021c359e3c6f605b68da9f3c80ef05fa454a88448ecf8a552888b",
+      "origin": "historical source BV14C456WEXN; timestamp/identity not independently reverified"
+    }
+  ]
+}

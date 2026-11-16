@@ -1,170 +1,21 @@
 ---
-name: login-credential-autofill
-description: 登录凭据自动填充的本地凭据库与防封号护栏——页面要登录时按账号取凭据填入、先复用已有登录态、每账号24小时最多1次密码提交、遇验证码/2FA/风控页立刻停手交人；凭据库里没有该站时，先在本机浏览器密码库与邮箱里反查账号身份，附字段读取与额度记账脚本。适用于"帮我登录一下 / 用我的账号登进去 / 要输密码了 / 这个站点要登录 / 微软和 GitHub 账号密码在哪 / 我的密码存在哪台机器上 / 不知道要登的是哪个账号 / 浏览器里存过这个站的登录吗 / 找回旧账号先从哪查 / 填完要不要帮我点提交 / 登录失败了还能不能重试 / 会不会把号登封"。不适用：GitHub API 或 PAT 提 PR → 用 `github-pr-flow`；读 Outlook 邮件 → 用 `outlook-mailbox-control`；过滑块验证码 → 用 `dingxiang-slider-captcha`；本机 pwsh 编码坑 → 用 `pwsh-on-windows`。
-whenToUse: 页面出现登录表单或请求返回 401 时，按账号键从本机凭据库取字段填入，并受 LoginGuard 的 24h 额度约束；含读取/记账脚本与挑战页判据。模型看不到本节。
+name: "login-credential-autofill"
+description: "在用户授权的账号登录流程中复用已登录会话、辨认失败阶段和处理验证码/二次验证交接；适用于网页登录卡住或已有登录守护脚本审查，凭据填充须匹配用户指定账号和当前授权，验证码交接给用户。"
+whenToUse: "在用户授权的账号登录流程中复用已登录会话、辨认失败阶段和处理验证码/二次验证交接；适用于网页登录卡住或已有登录守护脚本审查，凭据填充须匹配用户指定账号和当前授权，验证码交接给用户。 模型触发仍以description为准。"
 disable-model-invocation: true
-warm-triggers: 登录凭据自动填充 / 防封号 / 浏览器密码库反查
-warm-reason: 低频，且有风险动作
+warm-triggers: "登录凭据自动填充 / 防封号 / 浏览器密码库反查"
+warm-reason: "低频专用模式；以当前DSH运行时证据为准。"
 ---
 
-# 登录凭据自动填充（本地凭据库 + 防封号护栏）
+# 登录会话与人工交接
 
-2026-11-02 建立。凭据只存本机 `~\.dsh\.secrets\accounts.json`（ACL 仅当前用户），skill 正文**不含任何账号或密码**——因为 `~\.dsh\skills` 会被 DSH 插件 `dsh-plugin-skill-publish` 在检测到变更后推到**公开**仓（GitCode + GitHub 的 `dsh-skills`），写进正文等于公开。
+确定用户指定的站点、账号和操作范围，先复用规范域名上的已登录会话或用户控制的密码管理器。只用当前可用的 MCP/插件/浏览器能力；DSH legacy browser 工具名和账号文件路径不是 DSH 可用工具或读取密码的授权。
 
-## 何时调用
+1. 核对真实域名、跳转和当前登录状态，再分清网络、授权不足、过期会话、限流、账号密码或 challenge。401/403 不能单独证明密码错误。
+2. 使用用户已经授权的认证方式。密码/验证码不写报告、不进入脚本参数或调试截图。需要用户输入或批准时在规范 UI 交接，结束后只验证账号和必要页面状态。
+3. 碰到验证码、滑块、二次验证或风控页时停止自动重试，说明当前页面和需要完成的交互。不要注入伪造 SDK、替换验证回调或脚本计算绕过滑块；旧丁象脚本/参数配方不迁移。用户完成后重新读 UI 判断是否成功。
+4. 失败次数、冷却和账号锁依该平台提示及用户已有偏好执行；错误反复或出现风险警告就停止。不要把旧本地“一天一次”当作平台规定。
 
-**加载本 skill 当：**
-- 浏览器页面出现登录表单（邮箱/密码两栏、或"先输邮箱再输密码"两步页），或 `browser_snapshot` 看到 `Sign in` / `登录`。
-- 某个 MCP 工具、git push、网页后台返回 `401` / `403` / `not logged in`，需要先建立登录态。
-- 用户说"登录一下 / 用我的账号登进去 / 帮我填一下密码 / 这个站点要登录"。
+审查旧 Get-LoginCredential/LoginGuard 的已验证缺陷与替代要求见 [凭据守护审查](references/credential-guard.md)。用户明确要求填充指定账号凭据时，先复核规范域名、账号及已授权存储来源，再使用经审查的当前填充/密码管理能力；只读必要条目，秘密不回显到聊天、日志、命令行或截图。旧Get-LoginCredential/ LoginGuard未经修复不得作为自动提交依据。不复制浏览器数据库、不自动解密会话、不为了登录遍历邮箱/搜索所有密码库。若用户明确要求调查某账号来源，把范围和敏感输出单独约束。
 
-**不要用本 skill（转交）：**
-- 目标是 GitHub 的 API / PR / fork 推送（用 PAT，不走密码）→ `github-pr-flow`。
-- 读或回 Outlook 邮件（MSA 走设备码 OAuth，不走密码）→ `outlook-mailbox-control`。
-- 遇到拼图/滑块类验证码 → `dingxiang-slider-captcha`（结论是成功率极低，别硬试）。
-- 脚本跑不起来、中文乱码、`-File` 参数被拒 → `pwsh-on-windows`。
-
-**前置**：`~\.dsh\.secrets\accounts.json` 存在且 ACL 只含本用户；`LoginGuard.ps1 -Action check` 返回 `ALLOW`。 ／ **后继**：登录成功后回到目标站点对应的领域 skill（GitHub 侧 → `github-pr-flow`，邮箱侧 → `outlook-mailbox-control`）。
-
-## 0. 凭据在哪、怎么读（单一出处）
-
-| 东西 | 路径 | 说明 |
-|---|---|---|
-| 账号库 | `~\.dsh\.secrets\accounts.json` | 键 = `microsoft` / `github`；字段 `identifier` / `username` / `password` / `mfa` / `auto_submit` |
-| 额度账本 | `~\.dsh\.secrets\.login-ledger.json` | `LoginGuard.ps1` 自动建；每次填提交前后各写一次 |
-| GitHub PAT | `~\.dsh\.secrets\github-pr-flow.token` | classic `ghp_`，2026-11-02 实测 `GET /user` → `login=EliasKaslan` |
-
-**读法：一次只取一个字段，别整文件读。** 整文件 `read` 会把两个账号的密码一起灌进上下文和会话日志。
-
-```powershell
-$S = "C:\Users\admin\.dsh\skills\login-credential-autofill\scripts"
-# 本机 execution policy = Restricted，裸 `& $S\xxx.ps1` 会被拦（原文见 §5.9），必须走 -File + Bypass
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$S\Get-LoginCredential.ps1" -Account github -Field identifier   # 邮箱
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$S\Get-LoginCredential.ps1" -Account github -Field username    # EliasKaslan
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$S\Get-LoginCredential.ps1" -Account github -Field flags       # mfa=True auto_submit=False
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$S\Get-LoginCredential.ps1" -Account github -Field password -Reveal   # 只在要塞进密码框那一刻调用
-```
-
-下文写 `LoginGuard.ps1 -Action <x>` 时，一律按同一形状执行：
-`powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$S\LoginGuard.ps1" -Action check -Account github`。
-
-- 不带 `-Reveal` 时打印 `HIDDEN len=<n>` 并 **exit 4**——这是设计行为，不是报错。
-- 脚本是纯 ASCII（PS 5.1 会把无 BOM 的 UTF-8 中文按 GBK 解码成语法错，见 `pwsh-on-windows`）。
-- **绝不**把密码写进：skill 目录任何文件、ledger、命令历史、最终答复、commit。写进 skill 正文 = 公开。
-
-## 1. 防封号铁律（L1–L10，逐条都要能指出做了什么）
-
-- **L1 先复用登录态**：能确认已登录就**不登录**。Playwright MCP 用**持久 profile** `C:\Users\admin\AppData\Local\ms-playwright-mcp\mcp-chrome-a13d2a8`（实测本次 chrome 进程 `--user-data-dir` 就是它），cookie 跨会话保留 ⇒ 绝大多数"要登录"其实是伪需求。**新开 profile / 无痕 = 新设备指纹 = 风控加分**，是下策。
-- **L2 每账号 24h 最多 1 次密码提交**：由 `LoginGuard.ps1 -Action check` 强制，`DENY` 就停手交人，不许绕（改参数、删 ledger 都算绕）。
-- **L3 失败即停**：`fail` 之后 60 分钟冷却，期间再试一次都不行。**密码重试是触发锁号的头号原因。**
-- **L4 遇挑战立刻锁 24h**：任何验证码/2FA/风控页 → `LoginGuard.ps1 -Action lock -Reason <原文>`，然后交人，**不自行绕过**。
-- **L5 不并发**：同一账号同时只允许 1 个浏览器上下文/1 个会话。开第二个窗口同时登录是最危险的动作之一。
-- **L6 不换出口、不换指纹**：不切 VPN/代理/Tor 重试，不改 UA、不禁 JS、不清 cookie、不屏蔽 webdriver 特征。这些操作全部提高风控分，不是降。
-- **L7 2FA 只请用户报码**：不自己去邮箱翻验证码。
-- **L8 "密码错"只认明确文案**（见 §3）。超时、空白页、网络错误 **≠ 密码错**，不许重试。
-- **L9 不导出登录态**：不存 `storageState`、不复制 cookie 到文件、截图避开密码框与一次性验证码。
-- **L10 提交受 `auto_submit` 管**：`auto_submit=False` 的账号（microsoft / github 现在都是）**填完就停**，把回车交给用户。
-
-## 2. 标准流程（Playwright MCP）
-
-1. **过闸门**：`LoginGuard.ps1 -Action check -Account <key>` → 必须 `ALLOW`（rc=0）；`DENY`（rc=3）就停。
-2. **探登录态**：打开目标站的已登录页（如 `https://github.com/`），`browser_snapshot` 找头像/用户名。已登录 → 直接结束，**不碰登录页**。
-3. **开登录页**：`browser_navigate` 到 `login_url`，`browser_snapshot` 确认这是密码表单、不是挑战页。
-4. **填标识**：GitHub 是单页两栏，`browser_fill_form` 填邮箱 + 密码；**Microsoft 按两步处理**——先填邮箱 → 点 `Next` → 下一页才出密码框（本轮未实测该布局，以 `browser_snapshot` 实际内容为准，别硬等某个选择器）。
-5. **取密码并填入**：`Get-LoginCredential.ps1 -Field password -Reveal` → 立刻 `browser_type` 进密码框；**不复述、不写注释、不进后续消息**。
-6. **看 `flags`**：`auto_submit=False` → 停在这里，告诉用户"已填好，请确认后按回车"，然后等。
-7. **要提交时**：先 `LoginGuard.ps1 -Action attempt`（吃掉 24h 唯一额度，**只在点提交前记**，填完没提交不许记），再 `browser_click` 提交。
-8. **判结果**：`browser_snapshot` 按 §3 表处理，然后 `success` / `fail` / `lock` 记账。
-9. **GitHub 出现 passkey 弹窗**（`Sign in with a passkey`）：点 `Use password`；点不到就停手交人，别反复点。
-
-## 3. 判据表（看到的原文 → 判定 → 动作）
-
-| 页面原文（GitHub / Microsoft） | 判定 | 动作 |
-|---|---|---|
-| `Incorrect username or password` / `Your account or password is incorrect` / `We couldn't find your account` | 密码或账号错 | `fail` 记账 → 停 → 60 分钟冷却 → 让用户核对，**不重试** |
-| `Help us protect your account` / `Verify your identity` / `unusual activity` / `suspicious sign-in` | 风控挑战 | **`lock -Reason challenge` 24h** → 停手交人 |
-| `Enter code` / `Authenticator` / `two-factor` / 6 位数字框 | 2FA | 停 → 请用户报当前验证码；不自己去邮箱翻 |
-| `captcha` / 滑块 / `hCaptcha` / `I'm not a robot` | 人机验证 | 停手交人；自动化过码 = 高危 |
-| 出现头像 / 用户名 / `Dashboard` | 登录成功 | `success` 记账 |
-| 超时 / 空白页 / `net::ERR_*` / 未知页面 | **不是密码错** | 不记账 fail、不重试；重载一次仍不行 → 交人 |
-
-> 上表文案是两家登录页的常见原文，**本轮没有逐个触发实测**（不拿真号去试）。真正起作用的判据只有一条：**只有能明确读成"密码/账号错"的才算 `fail`，其余一律按挑战处理（停手 + `lock`）**。
-
-## 4. 为什么这两个账号不该走密码
-
-- **GitHub**：网页登录基本 100% 要 2FA/通行密钥；git 与 REST 的密码认证早已停用。**任何 API / 推送需求直接用 PAT**（`github-pr-flow.token`，实测有效），根本不进登录页。另注 `cordis.patch.yml` 里还硬编码了一个 fine-grained PAT，两类 token 的权限差异见 `github-pr-flow` §0——fine-grained 不能对上游仓建 PR。
-- **Microsoft（个人 MSA）**：从非惯用地/机房 IP 用密码登录，触发 `Help us protect your account` 的概率极高；一旦锁号要靠手机/备用邮箱解，代价远大于省下的那次输入。所以 `auto_submit=false`，**默认只填不提交**。
-
-## 5. 坑与修法（本轮实测）
-
-1. **别指望"脚本读密码、模型看不到"**：`browser_run_code_unsafe` 的沙箱里拿不到 fs，实测返回
-   `{"has_require":"undefined","has_process":"undefined","fs_ok":false,"err":"A dynamic import callback was not specified."}`
-   → 页面/代码上下文不是 Node 进程，`require` / `process` / 动态 `import` 全无。密码只能从 `-Reveal` 的输出进一次上下文；因此**每次登录只取一次、用完不再引用**。
-2. **`file:` 被 MCP 拦**：`Access to "file:" protocol is blocked. Attempted URL: file:///...`
-   → 本地自测用 `python -m http.server 8765 --bind 127.0.0.1 --directory <dir>` 起个 127.0.0.1 页面，再用 `browser_navigate http://127.0.0.1:8765/...`（本轮就是这样验通 fill+submit：返回 `{"submitted_ok":true}`）。现成的自测页与**假**凭据在本 skill 的 `assets\login-selftest.html` / `assets\selftest-accounts.sample.json`，复测不必碰真账号。
-3. **`attempt` 记早了白吃额度**：填完但没提交就记 `attempt`，24h 唯一额度会被用掉，真需要登录时反而 `DENY`。**只在 `browser_click` 提交前那一瞬记。**
-4. **`success` 不退额度**：24h 窗口是固定预算，成功也不清空（重复登录本身就是风控信号）。`success` 只清 `failCount` 与冷却。
-5. **`HIDDEN len=<n>` 不是截断**，是没给 `-Reveal` 的正常拒绝（exit 4）。
-6. **GitHub 的登录标识是邮箱不是用户名**：填 `identifier`（QQ 邮箱），别自己拼 `EliasKaslan@...`。
-7. **脚本一律纯 ASCII**：中文写进 `.ps1` → PS 5.1 按 GBK 解码 → `Unexpected token` / `Missing closing '}'`。
-8. **`icacls` 只对文件生效**：`accounts.json` 建好后必须 `/inheritance:r /grant:r "admin:(F)" "SYSTEM:(F)" "Administrators:(F)"`，否则继承父目录的 Everyone 读权限；改完用 `icacls <path>` 复核只剩三行。
-9. **本机 `& script.ps1` 直接被执行策略拦**（实测 `$PSVersionTable.PSVersion` = `5.1.26100.9711`，`Get-ExecutionPolicy` 为 `Restricted`）：
-   原文 `无法加载文件 ...\Get-LoginCredential.ps1，因为在此系统上禁止运行脚本。`（英文环境为 `cannot be loaded because running scripts is disabled`）
-   → 这不是脚本坏了，也**别去改全局 ExecutionPolicy**；一律用 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "<绝对路径>" <参数>`。
-
-## 6. 不要做什么
-
-- 不为了"省一次输入"把 `auto_submit` 改成 `true`；不改 `MaxAttemptsPer24h` 默认值（1）去"多试一次"。
-- 不用无痕/新 profile 反复试密码；不开两个浏览器上下文登同一账号；不切 VPN 换 IP 重试。
-- 不自动过验证码、不自动读邮箱取 2FA 码、不导出 cookie。
-- 不把密码/邮箱写进报告、日志、commit、skill 正文。
-- 不刻意"模拟人类"（随机延迟、乱动鼠标）——没有证据表明有效，反而制造异常节奏。
-
-## 7. 验收标准
-
-- 动手前：`LoginGuard.ps1 -Action check` 输出 `ALLOW`；`-Action status` 能读回 `attemptsUtc` / `failCount` / `lockedUntilUtc`。
-- 成功：`browser_snapshot` 里能看到头像/用户名，且 ledger `lastResult=success`。
-- 挑战：ledger `lockedUntilUtc` 非空，之后 24h 内 `check` 一律 `DENY ... locked_until=`。
-- 收尾自检：密码没有出现在 skill 目录任何文件、ledger、最终答复里（`grep` 密码字符串在 `~\.dsh\skills` 应零命中）。
-
-## 8. 维护
-
-- 换密码：只改 `accounts.json` 的 `password` 字段，然后重跑一次 ACL（`icacls` 三行）。
-- 新增站点：在 `accounts.json.accounts` 加键，同时把键名加进 `Get-LoginCredential.ps1` 的 `ValidateSet`（否则 `-Account` 直接被拒，原文 `does not belong to the set`）。
-- 清额度（确认是误记时）：删 `~\.dsh\.secrets\.login-ledger.json` 里对应账号的 `attemptsUtc` 项；**不要**整文件删了来绕过 `DENY`。
-
-## 账号身份取证：凭据库里没有该站时，先在本机反查
-
-`accounts.json` 里只登记 microsoft / github 这类少数键。要登一个没登记的站点（如 Google）、或用户说"忘了注册时填的名字所以查不到账号"时，**别先去猜**，先在本机反查账号身份。
-
-核心事实：**Chromium 密码库里用户名是明文，只有密码是密文**。所以"是哪个账号"这件事几乎总能查出来。
-
-## 一、Chromium 密码库（Chrome / Edge / Brave）
-
-- 位置：`%LOCALAPPDATA%\<vendor>\User Data\<Profile>\Login Data`，每个 profile 一个 SQLite。
-- 浏览器运行时文件被独占，**必须 copy 到 temp 再 open**，否则 `database is locked`（脚本里 copy2 → connect → 用完删）。
-- 关键列：`origin_url` / `username_value`（明文）/ `date_created` / `password_value`（DPAPI 密文，**不读**）。
-- 判"存没存密码"只需 `SELECT length(password_value)`，非 0 即存了，不必解密、不必进上下文。
-- `date_created` 是 1601 纪元微秒：`秒 = v/1e6 - 11644473600`（`datetime.utcfromtimestamp` 在新 Python 会告 DeprecationWarning，不影响结果）。
-- 拿到的 `origin_url` 常是 `https://<site>/v3/signin/challenge/pwd` 这类中间页，说明用户当时走到密码页并保存过。
-
-**存了密码就别走找回流程**：`edge://settings/passwords`（或 `chrome://settings/passwords`）→ 搜域名 → 点眼睛 → 输 Windows PIN/PIN 即可看回密码。这比任何账号找回都快，且完全不依赖"注册时填的姓名"。
-
-## 二、邮箱反查（Google 类站点尤其有效）
-
-- Google 的安全提醒/验证码邮件**标题里带完整账号地址**（实测 `Security alert for <name>@gmail.com`、`Critical security alert for <name>@gmail.com`）。
-- 用已接管的邮箱按发件人搜：`qqmail_search -from google`。纯 ASCII 关键词走**服务器端搜索**，比按中文搜的本地窗口覆盖深得多。
-- 若该邮箱长期收到某账号的 Google 安全提醒，基本可判定它就是那个账号的**恢复邮箱**——恢复时选"发到恢复邮箱"通常比"发短信"更稳（号码已被风控限流时更是如此）。
-
-## 三、拿到账号后别再纠结姓名
-
-- 「用手机号反查邮箱」入口（`accounts.google.com/signin/usernamerecovery`）识别号码后可能要求**账号上的姓与名**；答错直接回退成 `找不到您的 Google 账号`。这是判"你不拥有该账号"，**不是账号不存在**——别因此判定号已注销。
-- 已知邮箱就走 `accounts.google.com/signin/recovery`：它验证的是"能不能收到验证码"，通常不问姓名。
-  未验证：该入口是否在所有地区 / 所有风控档位下都不追问姓名。
-- 姓名连错的代价是限流（`尝试次数过多`），**一次只试一个、错了就停**；账号 ID 本身常是姓名的拼写线索（如 `<a><b>@gmail.com` → 试 名 a/姓 b 与 名 b/姓 a）。
-
-## 四、边界
-
-- 只做**只读取证**：`password_value` 一律保持密文，不把密码灌进上下文（见 §0 的字段读取规则）。
-- 这台机器上查不到 ≠ 账号不存在；用户可能是在手机上注册的，此时优先让他查手机"设置 → 账号"与本机各邮箱的 Google 邮件。
-- 不在自动化浏览器里登 Google：风控页概率高，且可能把号锁掉（§1 L4/L6）。
+本次已将原Get-LoginCredential.ps1和LoginGuard.ps1同路径替换为exit78的退役入口，不再读取账号库或写ledger。合法登录仍走已授权会话/密码管理器与人工验证；不要绕过退役入口去找旧备份执行。

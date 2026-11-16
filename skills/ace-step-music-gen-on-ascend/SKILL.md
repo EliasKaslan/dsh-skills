@@ -1,62 +1,20 @@
 ---
 name: ace-step-music-gen-on-ascend
-description: 用 ACE-Step 1.5 turbo 在 192.168.13.190 上 CPU 出整首歌：权重补齐、批量生成、母带。
+description: "在用户指定ACE-Step等自托管音乐模型时规划权重组件、CPU/NPU路径、批量生成与音频验收；适用于本地歌曲实验和生成排障，不依赖旧服务器固定目录。"
+whenToUse: "用户明确指定ACE-Step等本地或自托管音乐模型，需要部署、批量生成、CPU/NPU排障或音频验收。"
 disable-model-invocation: true
-warm-triggers: ACE-Step / AI 生成歌曲 / 出音乐 / 司凤版改编 / CPU 跑音乐模型
-warm-reason: 低频：只在"用 AI 生成歌曲/编曲"时用；本机无 GPU，CPU 路线已固化，留档备查即可。
 ---
 
-# ACE-Step 1.5 在昇腾机上用 CPU 出歌
+# 自托管音乐生成
 
-## 何时调用
+恢复目标模型版本、用户歌词/风格/时长、允许设备与计算预算。旧ACE-Step CPU案例只能说明当时一套组合跑通，不能推成NPU不可用、CPU永远够快、模型不能训练或云端必更好。
 
-- 要"用 AI 生成一首歌/编曲/人声"且只有本机能连的昇腾机（无 NVIDIA GPU）时。
-- 目标机：`root@192.168.13.190`（Atlas 800I A3，**64 核 / 1.38 TB RAM**，无可用 torch_npu 环境）。
-- 不适用：要高质量商用中文人声 → 走云端 Suno 类平台；要 LoRA 微调 → 本机 `torch 2.10.0+cpu` 不具备训练可行性。
+查当前仓库的组件清单、默认LM/VAE变体与初始化检查逻辑；缺可选/必需权重可能触发隐式重下载，开跑前用当前下载完成标记、索引和哈希确认。出现.incomplete只表示未完成线索，不比日志/校验更“权威”。配置所有缓存与输出到已核实的任务盘，防多次启动重复下载。
 
-## 已固化的路径
+小样本先验证加载设备、实际dtype、输出采样率/声道/时长和有限值，再按预算批量；加载一次复用可节省冷启动，但明确每版状态/seed和失败恢复。工具路径从已检查项目恢复，旧gen.py/master.py/run_batch.py不在该skill内，不可当作随附可执行入口。
 
-远端根：`/home/x00886548/music/`，env：`env/acestep/bin/python`（3.11.18 + torch 2.10.0+cpu）。
+音频验收同时看/听内容：时长、歌词/节奏/段落、静音、断裂、削波、左右声道与样本率；峰值/RMS/crest、LUFS、频谱和BPM估计只作辅助。onset自相关会有半速/倍速歧义，不能凭估计BPM断言不合格，也不能以clipping=0证明音乐质量。
 
-| 文件 | 作用 |
-|---|---|
-| `gen.py` | 单次生成 CLI（`--caption --lyrics-file --duration --bpm --keyscale --steps 8`） |
-| `run_batch.py` | 加载一次模型连跑多版，按 `specs*.json` 读 caption/BPM/调性/时长 |
-| `master.py` | 母带：削头静音 + 20ms 淡入 + 1.5s 淡出 + K 加权 LUFS 归一 + 峰值封顶 |
+母带处理按目标平台与用户要求选择响度、true peak、淡入淡出，避免无条件削头或改动态；记录处理前后，保留原音频。WAV/MP3等格式能力以当前编码器为准，缺ffmpeg不意味着只能某一固定格式。生成歌词使用用户提供或允许创作内容，不能继承旧项目的禁止词表来代替版权判断。
 
-关键：`gen.py` 靠自身位置推 `MUSIC_ROOT`，**必须放在 `/home/x00886548/music/`**，否则报
-`can't open file '/home/x00886548/music/gen.py': [Errno 2] No such file or directory`。
-
-Windows 侧三个助手（都验证过）：`music/_shared/rsh.ps1`（本地 .sh → base64 → 远端 bash）、
-`upsh.ps1`（本地文件 → 远端，回显 md5 对账）、`downsh.ps1`（scp 拉回）。
-
-## 实测性能（CPU，56 线程，8 步）
-
-- 模型加载：60–90 s（一次）
-- 10 s 音频：14.2 s
-- 168 s 成曲：扩散 120–142 s（≈6 s/步）+ tiled VAE 解码，端到端 136 s；最慢一版 326 s
-
-## 坑（全部有原文）
-
-1. **下权重时 `--exclude 'acestep-5Hz-lm-1.7B/*'` 会导致每次运行都重下 3.4 GB**
-   `MAIN_MODEL_COMPONENTS` 含 LM-1.7B，缺它 `check_main_model_exists()` 恒 False → 每次 `initialize_service` 打
-   `[initialize_service] Main model not found, starting auto-download...` 并再下一遍。
-   → 不要 exclude，或先下全再跑。`DEFAULT_LM_MODEL = "acestep-5Hz-lm-1.7B"`。
-2. **判存抢跑**：`model.safetensors` 还在 `.cache/huggingface/**/*.incomplete` 时检查就跑了，日志说"缺失"其实几分钟后已就位。
-   → 用 `find models/checkpoints/.cache -name '*.incomplete'` 判进度，比看日志准。
-3. **`check_vae_exists` 的参数是 `"official"` 不是 `"default"`**（`DEFAULT_VAE_VARIANT = "official"`），传错会误报 VAE 缺失。
-4. **没有 ffmpeg/lame**：只能出 WAV（48 kHz/16-bit/立体声，Peak 自动归一到 0.891≈-1 dBFS），要 MP3 得另想办法。
-5. 机器上**没有任何 env 能 `import torch`**，`/usr/local/Ascend/ascend-toolkit` 也不存在 → 别浪费时间试 NPU，CPU 够快。
-
-## 歌词红线
-
-官方词（如 HOYO-MiX 的《耀斑》）不可抄录。项目内 `music/_shared/validate_packages.py` 的 `FORBIDDEN`
-就是这道闸；生成用本项目自创词（`music/_shared/lyrics_fixed.txt`），要换词由用户自己提供文本落到远端
-`/home/x00886548/music/lyrics_fixed.txt` 后重跑 `run_batch.py`。
-
-## 客观验收口径（没有耳朵时）
-
-`compare.py` 一行一版：时长/峰值/RMS/crest/1s-RMS 动态范围/**onset 自相关估 BPM**/低中高频占比。
-BPM 自相关会出现半速读数（78.1≈156、84≈168），属正常歧义不是失败。
-`analyze.py` 出对数频谱 PNG，可肉眼确认段落塌陷与段落切换是否真的存在。
-削波看 `|x|>=0.999` 的采样点计数，必须为 0。
+交付文件、实际格式、生成参数、验收方式与未听审/未验证范围。来源：旧 ace-step-music-gen-on-ascend，2026-11-16审查；原远端脚本未附，当前未独立复跑音乐生成。

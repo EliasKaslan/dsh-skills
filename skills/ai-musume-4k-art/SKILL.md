@@ -1,8 +1,8 @@
-# 已归档：ai-musume-4k-art（2026-11-11）
+# AI 娘旧管线（归档）
 
-本目录**不再作为 skill 使用**。两条生图链路已拆分：
+本目录自2026-11-11起已归档，保留素材与历史脚本，不作为自动发现的skill入口。
 
-- MiniMax-H3-Image（4 die，正片广播画风，8 秒/张）→ 用 `minimax-ai-musume-4k-art`
-- Anima + AI 娘 LoRA（单 die，21 秒/张，LoRA 定制）→ 用 `anima-ai-musume-lora`
+- 角色参考、画风与验收：读 [minimax-ai-musume-4k-art](../minimax-ai-musume-4k-art/SKILL.md)。
+- 用户指定本地扩散模型、Anima或LoRA实验：读 [anime-art](../anime-art/SKILL.md)。
 
-保留 `scripts/`、`references/` 仅作历史留档；`SKILL.md` 已无 frontmatter，不参与 skill 目录加载。
+生成能力以当前DSH已配置工具或用户明确选择的自托管后端为准。旧脚本的固定服务器和模型状态不作为当前运行依据，旧重复素材暂保留。
