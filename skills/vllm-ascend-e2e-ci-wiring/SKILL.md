@@ -328,3 +328,34 @@ pytest 只加载**被收集测试文件的祖先目录**里的 `conftest.py`。�
 - 正确做法：需要"import 即生效"的环境变量放在被测试 import 的共享模块**模块级**（测试模块 import 时执行，早于 fixture 与引擎创建）；需要 per-test 的 autouse fixture 才放测试目录自己的 conftest。
 - `vllm.envs` 的值是 `__getattr__` 动态读环境（`enable_envs_cache()` 之后才缓存），因此在共享模块 import 时设置 `VLLM_BATCH_INVARIANT` 这类开关是有效的（未验证：某些入口在 import 更早阶段就读该值的情况）。
 - 判断环境是否真的生效，别只看用例绿：看日志里的分支打印（如 BI 的 `BATCH INVARIANCE MODE: Disabling custom all-reduce`）。
+
+## CI 红灯分诊：按门分类，并用三条证据证明"不是我的改动"
+
+## CI 红灯分诊：先分类，再证明"不是我的改动"
+
+**适用**：PR 的 CI 有多条红，需要判断哪些要改代码、哪些要找人、哪些是 main 侧的问题。
+
+### 先按门分类
+
+| 红灯 | 归因方式 |
+|---|---|
+| `pre-commit` | 代码问题，直接看 mypy/ruff 报错 |
+| `cpu-ut (vllm@<pin>)` | 分两条车道：main 车道跟 live main（会 rebase），release 车道跟 tag。**两条都挂**才更像自己的代码 |
+| `codeowner-approval` | 纯审批门。job 日志逐行列出 `path: waiting for approval from one of: @user`；文件换目录会换 owner（例如搬进 `tests/e2e/common/...` 可能要另一个 code owner 批） |
+| `ci-gate` | 聚合门。触碰源码时需要 `ready-precise` / `ready-all` / `main2main` 标签，`/e2e` 不能替代 |
+| `DCO` | commit 缺 `Signed-off-by` |
+
+### 判断"是不是 main 侧刚引入的"
+
+三条证据同时成立就可以下结论：
+
+1. 失败用例在 main 上**刚刚被改过**：
+   `GET /repos/{o}/{r}/commits?path=<failing test>&per_page=3` → 看最近提交的时间与 PR 号；
+2. 你的 diff 碰不到那块（本 PR 只动 e2e 测试 / 一个 classmethod / 时间表时，`BalanceScheduler` 之类的属性错误不可能是你引入的）；
+3. 同一时刻 release 车道（v0.33.0）通过，只有 main 车道挂——main 车道会 rebase 到 live main，并跟随 `.github/vllm-main-verified.commit` 的新 pin。
+
+再用 `GET /contents/<file>?ref=main` 确认 main 上该属性/方法是否真的缺失，就能把"主分支回归"钉死。处置：等 main 修复后 rebase 重跑，或找引入该提交的作者；不要在自己的 PR 里改无关代码去掩盖。
+
+### 硬件 e2e 与门禁要分开看
+
+`/e2e` 双车道绿只证明用例本身能跑；它不满足 `ci-gate`。汇报时把"用例验证"和"合并门禁"分开写，避免把流程红当成代码红。
