@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **64** 个 skill、**245** 个文件、**26870931** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **64** 个 skill、**245** 个文件、**26873267** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -65,7 +65,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 31 | [`dsh-skill-self-audit`](skills/dsh-skill-self-audit/SKILL.md) | skill 集合定时自检：YAML、交叉引用、重复正文、目录预算。适用于"自检我的 skill / 有没有该合并的重复 / 哪些 skill 触发不了 / skill 目录多久没动"。 | 6 |
 | 32 | [`external-buzz-magnitude-check`](skills/external-buzz-magnitude-check/SKILL.md) | 外部热度量级取证——这事在外网真的火吗（HN points/评论、HF likes/下载量、Artificial Analysis/OpenRouter 体验指标、社区情绪分级）——判某事在外网是否真热、某模型是否真难用，给可复现量级数字；... | 1 |
 | 33 | [`git-tag-diff-audit`](skills/git-tag-diff-audit/SKILL.md) | 两个 git tag 之间做实质变更审计——两 tag 无共同祖先时 merge-base 静默返回空、git log A...B 静默给出两段历史之和，取数一律改两点 git diff A B；用 name-status 的 A/M/D/... | 1 |
-| 34 | [`gitcode-pr-flow`](skills/gitcode-pr-flow/SKILL.md) | GitCode 仓提 PR：compile 门禁、双 CI、标签审计、OpenAPI、backport。适用于"向 GitCode 提 PR / 冲突 rebase / 补门禁 / pre-commit 抖动"。 | 4 |
+| 34 | [`gitcode-pr-flow`](skills/gitcode-pr-flow/SKILL.md) | GitCode 仓：提 PR 门禁/双 CI/标签审计，冲突 rebase，以及按 commit 元数据溯源代码作者与合入人 | 4 |
 | 35 | [`github-org-delta-watch`](skills/github-org-delta-watch/SKILL.md) | GitHub 组织增量 + 发行差集：pushed_at、releases、compare 取证。适用于"基线日后谁在动 / 主线有哪些没发版 / 这仓是不是死仓"。 | 1 |
 | 36 | [`github-pr-flow`](skills/github-pr-flow/SKILL.md) | GitHub 上游仓提 PR：PAT/DCO/建 PR/CI 判读、AI 评审意见处理与回帖、blocked 逐条判定、force-with-lease 强推 | 1 |
 | 37 | [`korea-official-source-research`](skills/korea-official-source-research/SKILL.md) | 韩国（济州）官方一手信息源抓取与端点配方——web_fetch 对韩国站点普遍不可用，python urllib 按站点分档，pwsh 直连最稳；含出入境/入境申告官方源结构（e-AC 的 bbsId=文章id / flId=附件id、列表... | 3 |

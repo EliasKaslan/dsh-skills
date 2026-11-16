@@ -1,6 +1,6 @@
 ---
 name: gitcode-pr-flow
-description: GitCode 仓提 PR：compile 门禁、双 CI、标签审计、OpenAPI、backport。适用于"向 GitCode 提 PR / 冲突 rebase / 补门禁 / pre-commit 抖动"。
+description: GitCode 仓：提 PR 门禁/双 CI/标签审计，冲突 rebase，以及按 commit 元数据溯源代码作者与合入人
 whenToUse: 要在 GitCode 上的任意仓（Ascend/MindSpeed-Ops、Ascend/MindSpeed-Agent 及其他昇腾社区仓）提交/更新/跟进 PR、修冲突或 rebase、补门禁标签、backport 到版本分支，判 pre-commit FAILED 该不该改代码，或原生 actions 流水线挂了要定位到哪个 stage/job 并本地按同版本 hook 复现时使用。
 ---
 
@@ -931,3 +931,43 @@ python -m bandit --configfile <cfg> -f txt <file>  # 仓库配置
 - 排除规则（`exclude_dirs`）与启用规则集（`tests = [...]`）是两回事，不要在同一处混改。
 
 **不适用**：想调整启用哪些 bandit 检查规则 → 那是 `tests` 列表，与本节无关。
+
+## 溯源：代码是谁合的（commit body 的 MR 元数据 + 浅克隆坑）
+
+## 溯源：这段代码是谁合的（commit body 就是 MR 档案）
+
+GitCode 的合入 commit（squash / no-merge-commit）把 MR 元数据整段写进 commit body，直接读即可，不用查 API：
+
+```bash
+git log -1 <sha> --format='author %an <%ae>%ncommitter %cn <%ce>%n---body---%n%b'
+```
+
+body 里固定出现四行：
+
+- `Created-by: <账号>` —— **MR 创建人**（与代码作者可以不是同一人）
+- `Commit-by: <账号>` —— 实际提交代码的人
+- `Merged-by: <账号>` —— 点合入的人，通常是 `ascend-robot`（机器人代合，不代表人工结论）
+- `See merge request: Ascend/<repo>!<号>` —— MR 号，可直接拼 `https://gitcode.com/Ascend/<repo>/merge_requests/<号>`
+
+回答"谁合入的"时把三个账号分开说：作者看 commit `%an`，创建人看 `Created-by`，合入人看 `Merged-by`（多为机器人，别当成真人把关）。commit 的 `%cn` 一般也是 `ascend-robot`，不能用来判断人工合入。
+
+## 定位"哪次提交引入的"：先排除 worktree / 浅克隆
+
+工作副本很可能是 **worktree + 浅克隆** 的组合：`.git` 是个文件（`gitdir: <主仓>/.git/worktrees/<name>`），且 `git rev-parse --is-shallow-repository` 为 `true`。此时：
+
+- `git log --oneline -- <file>` 只剩两三条；
+- `git blame` 给整块未改动代码打上带 `^` 前缀的**边界 commit**——看起来像"某个 docs 提交引入了这个函数"，是假象；
+- `git log -S "<符号>" -- <file>` 同样只落在边界 commit 上。
+
+正确姿势：
+
+```bash
+git -C <worktree> rev-parse --is-shallow-repository   # true 就别信 blame
+# 在同一 workspace 里找非浅克隆（多个 PR / 备份目录常是完整克隆）
+for d in */ .git; do ...; done   # 或逐个 git rev-parse --is-shallow-repository
+git -C <非浅克隆> log -S "<符号名>" --format='%h|%an|%ad|%s' --date=short -- <file>
+```
+
+拿到真正引入的 sha 后，再回到 worktree/任意副本 `git log -1 <sha> --format=...%b` 取 MR 元数据。注意其它分支副本（老版本、PR 分支）里 `setup.py` 之类文件的历史更完整，也是可用的取证源。
+
+判据：`git blame` 出现 `^` 前缀 + `git log -- <file>` 条目数远小于预期 → 立即换非浅克隆，不要据此下"谁引入的"结论。
