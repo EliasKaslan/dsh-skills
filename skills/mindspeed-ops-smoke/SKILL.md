@@ -460,3 +460,31 @@ docker run --rm -it --privileged --network host \
 1. **CLA 按「提交作者邮箱」判定，不是账号**。用 `git -c user.email="agent@local"` 提交 → PR 立刻 `ascend-cla/no` 并阻断合入。正确做法：`git config user.email eliaskaslan@outlook.com`（与历史已签提交一致），作者与提交者**都要改**：`git rebase origin/master --exec 'git commit --amend --no-edit --reset-author'`；改完断言 `git log --format='%T'` 的 tree OID 逐字不变（证明只动身份）。改身份后强推，CLA 秒级回填 `ascend-cla/yes`。
 2. **SCA（开源片段检查）是本仓最容易凭空红的门禁**：日志必须登录才能看（`actions/runs/<id>/job/<id>` 页面写「登录后可查看日志」），机器人也不发原因评论。判读只能靠 `pipeline-dag-job--failed` 的 CSS 类定位到**哪个子任务**红（用浏览器 `document.querySelectorAll('button')` 抓 `className`）。本次 Antipoison / pre-commit / API_SCAN 全过、**只有 SCA 红**，UT 因前置失败没跑。
 3. **提交前先在本地把 pre-commit 的 hook 全跑一遍**，别赌 CI：`ruff check`/`ruff format --check`（**`--config pre-commit/pyproject.toml`**，我第一轮就挂在新文件没格式化）、`pylint --rcfile=pre-commit/pyproject.toml`（会抓 `inconsistent-return-statements`、`ungrouped-imports`、`used-before-assignment`——`except PlatformNotSupported` 里用到的名字**必须在 try 之前 import**）、`bandit --config=...`、`codespell`（注意 hook 的 `--skip` 跳过 `*.py`，只有非 py 文件会被查）。
+
+## 13. 26.0.0 空档：没有对口的 Ops 版本，UT 会在前置就挂（静态核查）
+
+被问"Ops 在 MindSpeed 26.0.0 配套环境下 UT 能不能跑"时，先查这一节，不要直接按 26.2.0 的经验答。
+
+**Ops 没有 26.0.0 分支/tag**：`git ls-remote --heads origin` 只有 `26.1.0`、`26.2.0`、`master`（tag 也只有 v26.1.0/v26.2.0）。26.0.0 侧也从未声明 Ops（MindSpeed 仓全仓 `MindSpeed-Ops` 零命中，`mindspeed_ops` 的命中都是局部变量名）。
+
+| 线 | CANN | torch | torch_npu | triton-ascend | Python |
+|---|---|---|---|---|---|
+| MindSpeed 26.0.0（`26.0.0_core_r0.12.1`） | 9.0.0 | 2.7.1 | 26.0.0 | **`/`（官方不适用）** | 3.10 |
+| MindSpeed 26.1.0 | 9.1.0 | 2.7.1 | 26.1.0 | `/` | 3.10 |
+| MindSpeed 26.2.0 | 9.2.0 | 2.10.0 | 26.2.0 | 3.6.0 | 3.12 |
+| Ops 26.1.0 | README 9.1.0 / docker 9.0.0-beta.2 | >=2.7.1 / docker 2.7.1 | 2.7.1 | README+requirements 3.2.2 / docker 3.2.1 | >=3.10 |
+| Ops master·26.2.0 | docker 9.1.0 / release notes 9.2.0 | docker 2.10.0 | docker 2.10.0 | requirements 3.2.2 / release notes 3.6.0 | 3.12 |
+
+**同一组件在 Ops 内三四处互相打脸，判绿前先钉死用哪一处**：26.2.0 的 `docs/zh/release_notes_ops.md` 写 TA 3.6.0，`requirements.txt`/`pyproject.toml`/`docker/Dockerfile` 全钉 3.2.2；26.1.0 docker 默认 3.2.1，README/requirements 写 3.2.2。另 26.2.0 的 README 写 Python3.10.x、release_notes 写 3.12。
+
+**UT 的真实前置**（不做这步，pytest 失败全无意义）：`ci/MindSpeed_Ops_ut.sh` 先 `source ascend-toolkit/set_env.sh` + `nnal/atb/set_env.sh`、补 ninja，再 `MINDSPEED_BUILD_CATLASS=1 pip install -e . --no-build-isolation --no-deps`，然后才 pytest。**缺 `.so` 时 `mindspeed_ops/__init__.py` 只打 WARNING 不抛**，失败延后到调用点 → "collect 通过"不等于环境 OK。
+
+**版本不匹配一律硬失败，没有优雅 skip**（`tests/` 里 `packaging`/`version_info`/`LooseVersion` 守卫 = 0）：
+- Triton 用例要 TA ≥3.2.1：`arch32/triton/sort_chunks_by_idx.py` 无 try，回退 `from triton.language.extra.cann.extension import get_element`，老 TA 收集期 ImportError（对照 `arch32/triton/convolution.py` 是有 `try/except` 的安全 shim）。
+- `api/triton/utils.py` 取 `driver.active.utils.get_device_properties(dev)["num_vectorcore"]`，老 TA 缺键即 KeyError；同文件 `get_available_device()` 承包 `except BaseException`，可能退化成 cpu 静默跳过。
+- aclnn 126 个参数化 case 直接 `RuntimeError: No such operator`；atb 只把含 `cann-nnal` 的 RuntimeError 转 skip；catlass 有 `skipif(hasattr(torch.ops.mindspeed_ops, ...))` 才是真 skip。
+- **不需要装 MindSpeed 训练框架**：`tests/` 里 `import mindspeed` = 0 命中 → 坏的一定是环境栈，不是跨仓 API。
+
+**结论口径**：26.0.0 配套环境（CANN 9.0.0 + torch 2.7.1 + 无 Triton 配套）跑 master 基本跑不通；要试只能退到 **Ops 26.1.0 分支**（其 docker 默认就是 CANN 9.0.0-beta.2 + torch 2.7.1 + TA 3.2.1，说明在 9.0 线上构建过），并把 TA 装成 3.2.2。
+
+未验证：CANN 9.0.0 上 `pip install -e .` 是否真编不过——csrc 的 CMake 引用 `pkg_inc/op_common`、`include/experiment/*`、`include/ascendc/basic_api`（9.1+ 目录布局），属静态推断，需真机复验。
