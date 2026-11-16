@@ -626,3 +626,39 @@ powershell -NoProfile -ExecutionPolicy Bypass -File vpnctl.ps1 -Action Switch -P
 - 别把 Application 日志里的 `Application Hang` (Id 1002) 直接当成 VPN 崩溃证据——本轮那条指向 `codex-windows-sandbox-setup.exe`；**VPN 进程崩溃在这台机的 Application 日志里没有记录**。
 
 **A5 没有自愈**：`UVP002Service` 是 Manual、无 auto-start 项，进程被杀后就是静默掉线，没人拉起。要长期在线得自己盯（或保留托盘进程）。**A3 侧不一样**：原件掉线后会自行重连（虚拟 IP 会变，本轮 `192.168.206.148` → `.177`），判据仍是 `192.168.0.0/16` 经 `本地连接`。
+
+## 蓝区（原件）客户端整个不见了：一条 Start-Process 就够，别上 vpnctl Connect
+
+**现象（2026-11-16 实测）**：`177.x`（A5）全通，但 `192.168.13.188/.190` 的 22 不通。判读三件套一次看清：
+
+```powershell
+# ① 进程：只有 UVP002 那套，原件 UniVPN/UniVPNCS 一个都没有
+Get-Process | ? ProcessName -match 'UniVPN|UVP\d*' | select ProcessName,Id
+# ② TAP：本地连接(原件)=Disconnected，本地连接 2(A5 实例)=Up
+Get-NetAdapter -EA 0 | ? InterfaceDescription -match 'TAP-Windows' | select Name,ifIndex,Status
+# ③ 路由：没有 192.168.0.0/16，只有 177/170.70/197/1.2.16 经实例那张
+@(Get-NetRoute -AF IPv4 | ? DestinationPrefix -eq '192.168.0.0/16').Count
+```
+
+**结论**：这不是「草图坏 / TAP 丢 / 认证失败」，是**原件 GUI 进程消失**（`UiRunning=False`）。TAP 设备与 `sysconfig.ini` 里的 `AutoLogin=1` + `ClientLastAccessSession=<蓝区>.ini` 都还在 ⇒ **只 `Start-Process` 即可，别调 `vpnctl -Action Connect`**（它会做点条目/点连接，多一段无谓的 UIA 风险）。
+
+```powershell
+Start-Process 'C:\Program Files (x86)\UniVPN\UniVPN.exe'
+# 实测 15:59:43 启动 → 15:59:50 AUTH_MSGCODE_LOGIN_SUCCESS → 15:59:57 Cnem succed!
+# 本地连接(ifIndex 14) 从 169.254.255.40 变 192.168.207.166，192.168.0.0/16 经该卡下发
+```
+
+**验收（缺一不可）**：`@(Get-NetRoute ... 192.168.0.0/16).Count = 1` 且 `InterfaceIndex` = 原件那张（本轮 14）；`.188/.190` 的 ICMP + TCP 22 都 True；**顺带看 A5 没被影响**（`177.8.21.1:22` 仍 True，`本地连接 2` 仍 Up）。
+
+**别被这两点骗**：
+- 断开后 TAP 仍挂着上一个虚拟 IP、`本地连接` 也可能还显示 Up ⇒ 只认**网段级路由**，不认 IP/状态文字。
+- 新 UI 日志里出现 `Loginkey ui send the last connect name is <配置>.ini` 是正常流程，成功标志是同一行里的 `AUTH_MSGCODE_LOGIN_SUCCESS`；出现 `AUTH_MSGCODE_LOGIN_FAIL` 立刻停手问人（会锁号）。
+
+**中文 profile 名连命令行都不用写**：全 ASCII 的包装脚本里，按网关地址从配置文件反查 BaseName，天然躲开代码页：
+
+```powershell
+$cfg = @(Get-ChildItem "$env:APPDATA\UniVPN\config\*.ini" | ? { [IO.File]::ReadAllText($_.FullName) -match [regex]::Escape('123.60.114.225') })
+$profile = $cfg[0].BaseName     # = 蓝区网关（A5 用 120.46.228.63 反查）
+```
+
+⇒ `.ps1` 可以纯 ASCII、不用 BOM，也不需要 `[char]0xFEFF` 那套；下游 `vpnctl.ps1 -Profile $profile` 传变量同样安全。本轮成品 `D:\workspace\tmp\vpn\reconnect-blue.ps1`（含 before/after 快照与 75 s 等待，失败才回落 `vpnctl Connect`）。
