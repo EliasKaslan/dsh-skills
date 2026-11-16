@@ -1,6 +1,6 @@
 ---
 name: ascend-server-access
-description: A5 隧道不通时：先数 TAP 张数，实例2 TAP 丢失就用原件 Switch 到 A5 应急
+description: A5 隧道不通时先数 TAP 张数、用原件 Switch 应急；双开 VPN 后 codex/ChatGPT 连不上先查 VPN 注入的 DNS
 whenToUse: 昇腾服务器清单、凭据、可达性判据与 UniVPN 准入/双开（在册见 §12：A3×2 + A5×4）；模型看不到本节。
 ---
 
@@ -662,3 +662,52 @@ $profile = $cfg[0].BaseName     # = 蓝区网关（A5 用 120.46.228.63 反查�
 ```
 
 ⇒ `.ps1` 可以纯 ASCII、不用 BOM，也不需要 `[char]0xFEFF` 那套；下游 `vpnctl.ps1 -Profile $profile` 传变量同样安全。本轮成品 `D:\workspace\tmp\vpn\reconnect-blue.ps1`（含 before/after 快照与 75 s 等待，失败才回落 `vpnctl Connect`）。
+
+## 双开 VPN 后 codex / ChatGPT 连不上：VPN 注入的 114 抢了系统解析器（2026-11-16 实测）
+
+**触发**：同时连「蓝区网关」+「A5」两个实例后，codex / ChatGPT 桌面版连不上（单开任一个正常）。**先查 DNS，别查路由。**
+
+### 判据顺序（缺一不可）
+
+1. `Get-DnsClientServerAddress -AddressFamily IPv4` —— 蓝区 TAP（`本地连接`）被注入 `114.114.114.114`。
+2. `Get-NetIPInterface -AddressFamily IPv4` —— 该 TAP `InterfaceMetric = 1`，物理 `以太网` = 25 ⇒ Windows 优先用 114。
+3. `Resolve-DnsName chatgpt.com` 与 `-Server 8.8.8.8` 对比：投毒答案形如 `162.125.34.133`（Dropbox 段）+ 假 AAAA `2001::76b8:1a71`；8.8.8.8 给 `104.18.32.47 / 172.64.155.209`（正确 Cloudflare）。
+
+**已排除，别在这上面浪费轮次**：OpenAI 的 4 个 IPv4 全部命中物理默认路由 `0.0.0.0/0`（`Find-NetRoute` 逐个核过，纯路由不拦 OpenAI）；无 `0.0.0.0/1`、`128.0.0.0/1` 半默认路由；无代理与 hosts 干扰；无全局 IPv6（`::/0` 0 条）⇒ AAAA 不会被优先，`curl -6` 失败属正常。
+
+### 修复（提权一次，幂等）
+
+`scripts\fix-vpn-openai-dns.ps1`：按 `192.168.0.0/16` 路由反查蓝区 TAP（**不写死 ifIndex**）→ 解析器换 `8.8.8.8,1.1.1.1` → 加 5 条 NRPT（`.chatgpt.com` `.openai.com` `.oaistatic.com` `.oaiusercontent.com` `.openai.org`）→ flush。
+
+```powershell
+Start-Process powershell -Verb RunAs -Wait -ArgumentList `
+  '-NoProfile -ExecutionPolicy Bypass -File "C:\Users\admin\.dsh\skills\ascend-server-access\scripts\fix-vpn-openai-dns.ps1"'
+```
+
+**为什么必须用 NRPT，而不是只改接口 DNS**：蓝区会话每约 5m45s 被网关 `KICKOUT` 重连一次，重连会重新注入 114；NRPT 客户端不碰，重连与重启后都还在。
+
+### 验收
+
+```powershell
+curl.exe -s -o NUL -w "http=%{http_code} tls=%{time_appconnect}s`n" --max-time 15 https://chatgpt.com/backend-api/me
+# 预期 http=401（未带 key）tls≈0.26s；https://api.openai.com/v1/models 同理 401
+Test-NetConnection 192.168.13.190 -Port 22 -InformationLevel Quiet   # True，蓝区未被误伤
+Test-NetConnection 177.8.21.1 -Port 22 -InformationLevel Quiet       # True
+```
+
+### 坑（全踩过）
+
+- **投毒是瞬时的，复现不出来不等于没发生。** 修完后 `Resolve-DnsName chatgpt.com -Server 114.114.114.114` 连问三次全给**正确**答案（`114.114.114.114/32` 隧道路由当时完好）；只有路由抖动窗口里查询漏到物理链路才拿到投毒答案。⇒ 判据用「8.8.8.8 与 114 的答案是否一致」，不要用「现在复现不出来」下结论。
+- **`Set-NetIPInterface -InterfaceIndex <蓝区TAP> -InterfaceMetric 5000` 不生效**：命令回 OK，随后 `Get-NetIPInterface` 仍是 `1`（`AutomaticMetric = Disabled`）。别指望抬 metric 解决，要动 DNS/NRPT。A5 那张 TAP 改得动（→5000），但那张本来不注入 DNS。
+- **`Start-Process 'C:\Program Files (x86)\UniVPN\UniVPN.exe'` 可能连不上**：UI 日志 `[ UI startup process failed!][process exist]`，TAP 停在 `169.254.255.40`，`vpnctl.ps1 -Action State` 回 `Connected=False / Ready=False`。此时必须 `-Action Connect -Profile <名>`；中文配置名按网关 IP 从 `%APPDATA%\UniVPN\config\*.ini` 反查 BaseName（成品 `vpn-connect.py`），别走命令行。
+- **蓝区 TAP 上的 `192.168.30.0/24`（物理 LAN 段）抢了物理网关**：`Test-Connection 192.168.30.1` 回 `False`；`Remove-NetRoute` 摘掉后几秒内被客户端抢回（日志每 6s 一条 `[Delete Unsafe Route Failed]`）。根因是蓝区推的 `192.168.0.0/16` 本身就覆盖物理 LAN，**不影响出网**（curl 全线 200/401），别去修这个。
+- **本机 `-Verb RunAs` 静默提权可用**（脚本内 `elevated=True`，无 UAC 弹窗）；但**不能与 `-RedirectStandardOutput` 同用** ⇒ 日志写进脚本自己（`Out-File`），外层只 `Start-Process ... -Verb RunAs -Wait -PassThru`。
+- 动网络前先判「codex 是否在跑」：`Get-NetAdapterStatistics` 采样 5 秒，本机空闲仍有约 1.2 KB 底噪，**>300 KB/5s 才说明有任务在跑**。
+
+### 回滚
+
+```powershell
+# 提权
+Get-DnsClientNrptRule | Remove-DnsClientNrptRule -Force
+Set-DnsClientServerAddress -InterfaceIndex <蓝区TAP> -ResetServerAddresses
+```

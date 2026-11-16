@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
-  "file_count": 244,
-  "total_bytes": 26856559,
+  "file_count": 245,
+  "total_bytes": 26865140,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -92,9 +92,9 @@
     {
       "name": "ascend-server-access",
       "path": "skills/ascend-server-access",
-      "description": "A5 隧道不通时：先数 TAP 张数，实例2 TAP 丢失就用原件 Switch 到 A5 应急",
-      "files": 6,
-      "bytes": 118385
+      "description": "A5 隧道不通时先数 TAP 张数、用原件 Switch 应急；双开 VPN 后 codex/ChatGPT 连不上先查 VPN 注入的 DNS",
+      "files": 7,
+      "bytes": 126966
     },
     {
       "name": "ascend-server-layout",
