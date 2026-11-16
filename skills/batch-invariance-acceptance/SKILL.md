@@ -965,3 +965,20 @@ accuracy 两侧同为 0.2260，**500/500 预测文本逐字节相同、两份文
 - `docker exec` 里**别用最小 PATH**（只给 `/usr/local/python3.12.16/bin:/usr/bin:...`）：会丢 CANN/triton 路径，vllm 的 `_prepare_rope_positions_kernel[(grid,)](...)` 退化成普通函数 → `TypeError: 'function' object is not subscriptable`。正确写法是 `export PATH=/usr/local/python3.12.16/bin:$PATH`（在脚本里写 `$PATH` 让它运行时展开，别写 `\$PATH`）。
 - 该镜像仍有 `NPU Triton causal_conv1d_update is unavailable ... stalls ACL graph capture at decode-FULL` 警告，但 capture 仍 2/2 成功、decode 确实走图；GDN conv1d 回退是后续性能项，不是开图阻塞项。
 - PR #21176 在 `releases/v0.32.0rc` 上 `git apply --3way` 会被拒（rc 与 main 上下文漂移），按 PR 三处改动手工落地即可，务必留 sha256 前后值与落地 diff。
+
+## 影响面判定：按三条件（env / 线性层 / 自派 backend），别按模型名猜
+
+## 影响面判定：按三条件，别按模型名猜
+
+**适用**：BI 下报 `VLLM batch_invariant mode is not supported for XXX` 时，判断"为什么只有这个模型中招 / 别的模型为什么没事"。
+
+一条完整判据是三个条件同时成立，缺一条就没事：
+
+1. **`VLLM_BATCH_INVARIANT=1`**。两处检查都被它门控：`vllm/v1/worker/gpu/attn_utils.py:236`（逐层）与 `vllm/v1/attention/selector.py:245`（mamba 选择器）。仓库 e2e 里只有少数文件设置它（BI 用例、部分 context-parallel / sampler 用例）；没设的 CI 即使模型有线性注意力层也永远不会触发。
+2. **模型含线性/SSM 层**。别按模型名猜：
+   - Qwen3 系列（dense/MoE，如 `Qwen3-30B-A3B`）是**全 full attention**：`vllm/model_executor/models/qwen3_moe.py` 里注意力是 `Qwen3MoeAttention`，全文件无 `gdn|gated_delta`，配置也没有 hybrid `layer_types`；
+   - GDN 在 **Qwen3-Next**（`qwen3_next.py` 的 `QwenGatedDeltaNetAttention`，约 :509）和 **Qwen3.5**（`qwen3_5.py:148`）；
+   - 快速判据：`git grep -n "gated_delta\|GatedDeltaNetAttention" -- vllm/model_executor/models/<model>.py`，再看 `layer_types` 是否含 `linear_attention`。
+3. **该层 backend 由插件自派且未声明**。Ascend 的 GDN 家族（`AscendGDNFusedAttentionBackend` ⊂ `AscendGDNAttentionBackend` ⊂ 上游 `GDNAttentionBackend`）此前没有 `supports_batch_invariance`，而 Qwen3.5 的 GDN 层被 `patch_qwen3_5` 改成直返该类 → 绕开 selector，只在 `init_attn_backend` 被拦。普通 full-attention 层用 `AscendAttentionBackend`，已声明 `True`（`attention_v1.py:85-88`），所以不受影响。
+
+推论：Qwen3 的 BI 用例一直能过，是因为条件 2 不成立（不是 GDN 模型）；即使换成 Qwen3-Next，只要不开 BI（条件 1 不成立）CI 也不会报。未暴露的同构风险：Qwen3-Next 在 Ascend 上开 BI 同样会命中该缺口；CUDA 上则由 selector 门拒（上游 #48613）。
