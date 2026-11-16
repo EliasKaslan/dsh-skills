@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 244,
-  "total_bytes": 26847144,
+  "total_bytes": 26848835,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -213,7 +213,7 @@
       "path": "skills/dsh-skill-authoring",
       "description": "skill 契约与跨 harness 分发：触发字段、预算、拒载键、导出到 ChatGPT 的清洗规则。适用于\"skill 没被触发 / description 超限 / 想给 ChatGPT 用\"",
       "files": 3,
-      "bytes": 45655
+      "bytes": 47346
     },
     {
       "name": "dsh-skill-self-audit",

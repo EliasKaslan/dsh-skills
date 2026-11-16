@@ -238,7 +238,7 @@ warm-reason: "为什么冷备（过期/低频/兴趣）"
 
 ```powershell
 cd D:\workspace\agent\skill\cross-harness
-.\sync-agents-skills.cmd                     # 日常只用这条，等价于 --prune（--check 只查不写）
+.\sync-agents-skills.cmd                     # 仅当「要让 Codex 看见」时才跑（默认不跑，等价于 --prune；--check 只查不写）
 python .\render_agents_skills.py --dry-run     # 看计划：new/update/same + 被丢弃的键
 python .\render_agents_skills.py --prune       # 写 %USERPROFILE%\.agents\skills
 python .\render_agents_skills.py --check       # 有漂移 exit 1（可挂计划任务/回合钩子）
@@ -253,3 +253,14 @@ python .\render_agents_skills.py --zip-dir .\out\chatgpt-upload   # 要网页/�
 - **反向是免费的**：往 `~/.agents/skills` 丢标准 skill，DSH 不用配置就能用（rank 500）。
 - OpenAI 对未知顶层键是否硬拒**未证实**（官方只说"按 Agent Skills 规范校验"）→ 按严格清洗走，不赌。
 - 完整方案与全部取证：`D:\workspace\agent\skill\cross-harness\README.md`。
+
+## 11. 跨 harness 副本：默认关，按需开
+
+**上一节讲"能不能共享"，这一节讲"该不该默认共享"——答案是：不该。**
+
+- `~/.agents/skills` 是**共享的用户级目录**：Codex / ChatGPT 桌面 app 把它当自己的 skill 源。一旦把 DSH 的 skill 放进去，影响是**双向**的——你给它的它全收，而且这些条目的 `name`+`description` 会注入它**每一次请求**（吃它的上下文预算），正文还会改变它的行为。**没有"只让 DSH 导出、不让对方接收"的单向模式。**
+- 所以「后台常驻同步 / 一次性部署好就一直开着」是错的做法：共享必须 **opt-in**。落地前先明确问用户或自己确认——「另一套 harness 要不要看见这些 skill？」不要因为"技术上能共享"就默认开。
+- 开：`.\sync-agents-skills.cmd`（= `render_agents_skills.py --prune`）。关：`rmdir /s /q "%USERPROFILE%\.agents"`。产物全部可再生，删掉不丢东西。
+- **删之前先核对**：目录里只能有本流程写的条目（用 `.render-manifest.json` 对一遍），别误删别人或别的工具放的 skill；`~/.agents` 若是这次才建的空壳，连壳一起删才算真正回退。
+- 回退时把"默认关"这件事同时写回文档和包装器（`.cmd` 头注释 + 末尾提示改成 `ENABLED … Codex WILL now see these skills`），否则下次双击只会以为是在"刷新"。
+- 只把门开给"确实要跨端用"的少数几条方法论 skill；把绑本机的运维 skill（内网、NPU、`~/.dsh`、凭据）一起推进去，等于给另一套 harness 灌无关上下文，比不放更糟。
