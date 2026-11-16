@@ -15,6 +15,7 @@ whenToUse: 昇腾服务器清单、凭据、可达性判据与 UniVPN 准入/双
 - 要确认「现在有哪些服务器可用 / 各走哪个 VPN / 凭据在哪」，或要连 / 断开 / 切换 VPN。
 - 目标机 `192.168.13.188`（a3）、`192.168.13.190`（a3b）或 `177.8.21.1`（a5）连不上，怀疑 VPN 没连对 / 路由没下发 / 主机刚重装。
 - 要同时访问 A3 与 A5（双实例），或要自动化驱动 UniVPN 界面（读状态、点连接、切配置）。
+- **同时连「蓝区网关」+「A5」后 codex / ChatGPT / openai.com 连不上**（TLS 失败、App 卡住，单开任一个正常）→ 直接看文末「双开 VPN 后 codex / ChatGPT 连不上：VPN 注入的 114 抢了系统解析器」。
 - VPN 卡在一直连不上、报认证失败、或界面「点什么都没反应」需要救回来。
 
 **不要用本 skill（转交）：**
@@ -149,6 +150,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File univpn-instance.ps1 -Action 
 ```powershell
 python scripts\install-pubkey.py 192.168.13.190 177.8.21.1
 ```
+
+**OpenAI/ChatGPT DNS 修复脚本**：`scripts\fix-vpn-openai-dns.ps1`（纯 ASCII、幂等、需提权；日志 `%TEMP%\fix-vpn-openai-dns.log`）。它把蓝区 TAP 的解析器换成 `8.8.8.8,1.1.1.1` 并写 5 条 NRPT —— 什么时候需要、为什么必须是 NRPT 而不是改接口 DNS，见文末「双开 VPN 后 codex / ChatGPT 连不上」。
 
 **`State` 输出的含义**：`Connected` / `Ready` / `Profile` / `VirtualIP` / `AuthStatus` / `TapRoutes` / `WindowLive`。`WindowLive=False` 表示界面在托盘里——正常现象，此时 `User`/`AuthStatus` 读不到（Qt 不可见时不建辅助功能子树），`Profile` 改由**路由指纹**判定（见下）。
 
@@ -703,6 +706,14 @@ Test-NetConnection 177.8.21.1 -Port 22 -InformationLevel Quiet       # True
 - **蓝区 TAP 上的 `192.168.30.0/24`（物理 LAN 段）抢了物理网关**：`Test-Connection 192.168.30.1` 回 `False`；`Remove-NetRoute` 摘掉后几秒内被客户端抢回（日志每 6s 一条 `[Delete Unsafe Route Failed]`）。根因是蓝区推的 `192.168.0.0/16` 本身就覆盖物理 LAN，**不影响出网**（curl 全线 200/401），别去修这个。
 - **本机 `-Verb RunAs` 静默提权可用**（脚本内 `elevated=True`，无 UAC 弹窗）；但**不能与 `-RedirectStandardOutput` 同用** ⇒ 日志写进脚本自己（`Out-File`），外层只 `Start-Process ... -Verb RunAs -Wait -PassThru`。
 - 动网络前先判「codex 是否在跑」：`Get-NetAdapterStatistics` 采样 5 秒，本机空闲仍有约 1.2 KB 底噪，**>300 KB/5s 才说明有任务在跑**。
+
+### 脚本自身的行为（读脚本才知道；运维判读按这个来）
+
+- **日志**：`%TEMP%\fix-vpn-openai-dns.log`。首行 `elevated=True/False`，其后每条动作带 `OK` / `SKIP` / `FAIL` 前缀，末尾是 `--- verify ---`（`chatgpt.com` / `api.openai.com` 的解析结果）、`--- nrpt ---`、`--- resolvers ---` 三段。**没提权时脚本不会报错退出**，只会留下 `elevated=False` + `FAIL set TAP resolver` + `FAIL nrpt ...` ⇒ 跑完先看首行。
+- **蓝区没连也能跑**：没有 `192.168.0.0/16` 路由时打 `SKIP blue-zone tunnel not up (no 192.168.0.0/16 route); NRPT only`，**NRPT 照常写**。⇒ 可以提前跑；等蓝区连上后再补跑一次（那一步只重设 TAP 解析器）。
+- **幂等**：已存在的命名空间直接 `SKIP nrpt <n> (present)`，只补缺的；TAP 解析器**每次都重设**为 `8.8.8.8,1.1.1.1`——重连把 114 注入回来后，靠这一步纠正。
+- **重连之后只需做一件判断**：NRPT 不用重跑（客户端不碰它）；若 `Get-DnsClientServerAddress -InterfaceIndex <蓝区TAP>` 又看到 `114.114.114.114`，重跑脚本一次即可。
+- **5 条命名空间写死在脚本第 54 行**（`.chatgpt.com` `.openai.com` `.oaistatic.com` `.oaiusercontent.com` `.openai.org`）：新增 OpenAI 域名要**同时**改脚本与本节清单，只改文档不生效。
 
 ### 回滚
 

@@ -298,3 +298,53 @@ python .\render_agents_skills.py --zip-dir .\out\chatgpt-upload   # 要网页/�
 `sha256sum -c MANIFEST.sha256` 全 OK；独立 verify 0 problem；更正表每条都有可重复命令；文档中不出现会话专属路径与日志；审计结论与「我复核过的」在结构上分开。
 
 未验证：随材料给出的 PowerShell 版逐行校验代码没有在本轮实跑（实跑的是 Python verify）；`sha256sum -c` 依赖 git bash/WSL，未在纯 Windows 上验证。
+
+## 接手另一个 agent 刚改过的 skill：先对账，再只补缺口
+
+触发信号：用户说「我刚让某个 agent 更新了 X（脚本/章节），你把这块加进 skill」「这个改动同步到 skill 里」，或发现 `~/.dsh/skills` 里某个文件被外部进程改过。**默认先假设它可能已经写进去了** —— 直接新开一节是最常见的重复正文来源。
+
+## 对账（先花 2 分钟，别写）
+
+```powershell
+git -C $env:USERPROFILE\.dsh log --oneline -4 -- skills/<name>   # 谁在什么时候动了它
+git -C $env:USERPROFILE\.dsh show --stat <sha>                   # 改了哪几个文件、+/- 多少行
+git -C $env:USERPROFILE\.dsh status --short -- skills/<name>     # 还有没有未提交的
+```
+
+`~/.dsh` 有自动快照提交，所以「外部改动」通常就是一个 `auto <日期时间>` 的 commit，能直接看出新增了哪个脚本、正文加在哪几行。再 `Select-String -Pattern '^## '` 看新增章节落在第几节、是不是已经覆盖了用户描述的内容。
+
+## 已经写过了怎么办（本次实际走的路）
+
+1. **逐条比对「用户/脚本说法」与「文档说法」**：脚本里的命名空间清单、判定条件（按路由反查还是写死 ifIndex）、日志路径、幂等语义、跳过分支，一条条核。文档通常缺的正是**脚本内部行为**（日志在哪、没提权会怎样、哪个分支会 SKIP）。
+2. **只补缺口，并在两处加指针**：一节正文（`### <脚本自身的行为>` 这类子节，挂在已有 H2 下）+ 工具清单里的一行入口（`## 用脚本操作` 之类）+「何时调用」的一条触发。**不要新开 H2**——同一事实只留一份正文。
+3. 用户描述与脚本不一致时以脚本为准（它是真跑的东西），把差异写进正文而不是照抄用户措辞。
+
+## 只读复核"它真的生效了"
+
+改文档前先确认机制在工作，否则会把「照文档写的」当成「已验证」：
+
+```powershell
+Get-DnsClientNrptRule | Select Namespace,NameServers
+Get-DnsClientServerAddress -AddressFamily IPv4 | ? { $_.ServerAddresses.Count -gt 0 }
+curl.exe -s -o NUL -w "http=%{http_code} tls=%{time_appconnect}s`n" --max-time 15 https://<目标>/
+```
+
+判据用**返回码 + 握手耗时**这类可对照的量，别用「打开网页看看」。文档里若写了预期值（如 `401`、`tls≈0.26s`），实测撞上才算对齐，撞不上就改文档。
+
+## 改完的校验清单
+
+- `git -C ~/.dsh diff --stat -- skills/<name>`：只有预期文件、行数与预期一致。
+- 自己 parse frontmatter：开头 `---` 闭合、`name`/`description`/`whenToUse` 三键在、`description` 单行且 <=120 字符、**文件无 BOM**（`open(p,'rb').read()[:3] == b'\xef\xbb\xbf'` 必须 False）。
+- 重复标题：`Select-String -Pattern '^### <新标题>'` 只能命中一次。
+- 改动约 2 分钟内会被 `skill_publish` 自动发布，别手工再推。
+
+## 坑
+
+- **`dsh_guard.py verify --dir <skills>` 的 PASS 不能当验证通过**：本轮它对 `~/.dsh/skills` 报 `skill 0 个 | frontmatter 坏 0` 然后 `结论: PASS` —— 它没数到任何 skill，等于什么都没验。frontmatter 自己 parse 一遍。
+- 别把「用户说 agent 改过」当成「skill 里还没有」：先 `git log`，否则你会在已有章节旁边再写一遍，两处真相从此不一致。
+- 补正文时最容易漏的是**幂等/跳过分支**与**日志位置**——这两样恰恰是下次排障最先要用的。
+- 改 `.ps1` 不归这里：脚本编码（BOM）、执行策略、`-Verb RunAs` 参数集等坑走 `pwsh-on-windows`。
+
+## 验收
+
+用户问「加进来了吗」时，能回答三件事：它在 skill 的哪一节（行号）、与脚本逐条对得上、以及只读命令拿到的实测值。

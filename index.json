@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 245,
-  "total_bytes": 26865140,
+  "total_bytes": 26870931,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -94,7 +94,7 @@
       "path": "skills/ascend-server-access",
       "description": "A5 隧道不通时先数 TAP 张数、用原件 Switch 应急；双开 VPN 后 codex/ChatGPT 连不上先查 VPN 注入的 DNS",
       "files": 7,
-      "bytes": 126966
+      "bytes": 128943
     },
     {
       "name": "ascend-server-layout",
@@ -213,7 +213,7 @@
       "path": "skills/dsh-skill-authoring",
       "description": "skill 契约与跨 harness 分发：触发字段、预算、拒载键、导出到 ChatGPT 的清洗规则。适用于\"skill 没被触发 / description 超限 / 想给 ChatGPT 用\"",
       "files": 3,
-      "bytes": 51319
+      "bytes": 55133
     },
     {
       "name": "dsh-skill-self-audit",
