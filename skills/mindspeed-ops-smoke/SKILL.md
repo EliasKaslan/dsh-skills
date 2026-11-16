@@ -485,11 +485,9 @@ docker run --rm -it --privileged --network host \
 - aclnn 126 个参数化 case 直接 `RuntimeError: No such operator`；atb 只把含 `cann-nnal` 的 RuntimeError 转 skip；catlass 有 `skipif(hasattr(torch.ops.mindspeed_ops, ...))` 才是真 skip。
 - **不需要装 MindSpeed 训练框架**：`tests/` 里 `import mindspeed` = 0 命中 → 坏的一定是环境栈，不是跨仓 API。
 
-**结论口径**：26.0.0 配套环境（CANN 9.0.0 + torch 2.7.1 + 无 Triton 配套）跑 master 基本跑不通；要试只能退到 **Ops 26.1.0 分支**（其 docker 默认就是 CANN 9.0.0-beta.2 + torch 2.7.1 + TA 3.2.1，说明在 9.0 线上构建过），并把 TA 装成 3.2.2。
+**结论口径**：26.0.0 配套环境（CANN 9.0.0 + torch 2.7.1 + 无 Triton 配套）跑 master 不推荐（master 的 `ci/Dockerfile` 已是 CANN 9.1.0 + TA 3.2.2，9.0.0 上无人验证；代码层没有硬拦，但必须自己拼栈又没先例可对照）；要试就退到 **Ops 26.1.0 分支**（其 `ci/Dockerfile` / `docker/image_build.sh` / `docker/OVERVIEW.md` 默认就是 CANN 9.0.0-beta.2 + torch 2.7.1 + torch_npu 2.7.1.post6 + TA 3.2.1 + py3.11），**TA 就装 3.2.1**、并且 `pip install -e .` 必须带 `--no-deps`（否则被 requirements 的 `==3.2.2` 覆盖），换栈前先删旧 `mindspeed_ops_C*.so`（`__init__.py` 的 `load_library` 无 try/except）。
 
 未验证：CANN 9.0.0 上 `pip install -e .` 是否真编不过——csrc 的 CMake 引用 `pkg_inc/op_common`、`include/experiment/*`、`include/ascendc/basic_api`（9.1+ 目录布局），属静态推断，需真机复验。
-
-## 26.0.0 配套栈下跑 Ops UT 的判定（代码检视，未实跑）
 
 ## 26.0.0 配套栈下跑 Ops UT 的判定（2026-11-16，代码检视，未实跑）
 
@@ -499,14 +497,14 @@ docker run --rm -it --privileged --network host \
 
 1. **26.0.0 配套里没有 triton-ascend。** 配套表在 `docs/zh/release_notes_core.md:44`（CANN 9.0.0 / PyTorch 2.7.1 / PTA 2.7.1 / Python3.10）；镜像默认 py3.11（`docker/Dockerfile:11,20-21`）；`requirements.txt` 无 triton，`docker/Dockerfile:97` 只装 `torch + torch_npu`。而 Ops UT 顶层硬依赖：`mindspeed_ops/api/triton/utils.py:8-9` `import torch / import triton`，37 个 test 文件顶部 import `mindspeed_ops` 子模块 ⇒ 缺 TA 时整批 collect error。
 2. **手装 TA 被 CANN 锁死。** TA 官方配套表：`3.2.2` 配 CANN 9.1.0；CANN 9.0.0 只有 `3.2.1` 或 `3.2.2.post2`（后者要 torch_npu 2.7.1.post11，26.0.0 是 post4）。Ops 的 `requirements.txt:1` / `pyproject.toml:10` 钉 `triton-ascend==3.2.2`，`pip install -r` 直接装成不配套版本。
-3. **代码用了 3.2.x 没有的扩展 API，且无 fallback。** `arch32/triton/convolution.py:34` `from triton.language.extra.cann.extension import extract_slice, insert_slice`，失败 `pass`，`:132` 仍调 `tl.extract_slice(...)`。TA 官方 tag `v3.2.1` / `v3.2.2` / `v3.2.2.post2` 的 `python/triton/language/__init__.py` 均无 `extract_slice`，`triton/language/extra/` 只有 `libdevice.py`（无 `cann/` 子包）⇒ kernel 编译期 `AttributeError`。`tests/` 无 TA 版本 skip（只有 `is_arch35`/device 条件 skip）⇒ 记 failed，不记 skip。
+3. **扩展 API 不在 3.2.x 缺失，此前的反面判断是误判（2026-11-16 复核推翻）。** `arch32/triton/convolution.py:34` 等 5 个文件 `from triton.language.extra.cann.extension import extract_slice, insert_slice / get_element` 是对的：该包由**构建期软链**提供——源码在 `third_party/ascend/language/cann/extension/`，`python/setup.py` 的 `add_link_to_backends()` 把 `third_party/ascend/language/*` 链成 `python/triton/language/extra/*` 并打进 wheel。所以 **tag 树里 `python/triton/language/extra/` 只有 `__init__.py`+`libdevice.py`（无 `cann/`）是假象，不代表安装后没有**；`v3.2.1` 的 `third_party/ascend/language/cann/extension/__init__.py` 实测导出 `insert_slice / extract_slice / get_element / sort / flip / cast`。同理 `enable_auto_bind_sub_block` 在 `third_party/ascend/backend/compiler.py@v3.2.1` 的 `NPUOptions` 里已有（`parse_options()` 按 dataclass 字段过滤，传 `False` 合法）。⇒ 判"某 tl 扩展 API 在某版本有没有"必须看 `third_party/ascend/language/`，不能只看 `python/triton/language/extra/`。`tests/` 无 TA 版本 skip（只有 `is_arch35`/device 条件 skip）这一点仍然成立。
 
 **分档预期**
 
 | 环境 | 预期 |
 |---|---|
 | 26.0.0 官方镜像原样 | 37 个 UT 全 collect error，零通过 |
-| 手装 TA 3.2.1 / 3.2.2.post2 + 升 torch_npu | 基础 tl API 算子（rmsnorm、部分 chunk）可能过；用 `extract_slice/insert_slice/get_element` 的（causal_conv1d、部分 mhc/gdn/sinkhorn）失败 |
+| 手装 TA 3.2.1 / 3.2.2.post2 + 升 torch_npu | **代码层无硬拦**（扩展 API 与编译选项 3.2.1 都有）；卡点在 `pip install -e .` 的 pin 与 torch_npu patch 版口径（见上条与 §13 表） |
 | 要全绿 | 换 26.2.0 配套：CANN 9.2.0 + TA 3.6.0 + torch_npu 2.10.0.post7 + py3.12 |
 
 **一行判档（目标机）**
@@ -516,6 +514,6 @@ python -c "import triton, triton.language as tl; print(triton.__version__, hasat
 python -c "from triton.language.extra.cann.extension import extract_slice; print('ok')"
 ```
 
-第一条 False 或第二条 ImportError = 3.2.x 不全档；第一条就 ImportError = 无 TA 档。
+第一条 `False` **是 3.2.x 的正常态**（`extract_slice` 已挪进 `extra.cann.extension`），不是缺档信号；只有**第二条 ImportError** 才说明扩展包不在。第一条本身就 ImportError = 没有 triton-ascend。
 
-**未验证**：TA 3.2.x 的 **wheel** 是否与 GitHub tag 源码一致（源码树无 `cann/`，但 wheel 由 CI 构建；没有下载 wheel 核实）。真要落结论前，在目标机 `python -c "import triton.language.extra.cann.extension"` 实测一次。
+**已核实 / 仍未核实**：3.2.1 的 `third_party/ascend/language/cann/extension/__init__.py` 确有这几个符号（源码级）；wheel 打包由 `python/setup.py` 的 `add_link_to_backends()`/`get_language_extra_packages()` 完成，但**未解包 wheel 核对其字节**。落结论前在目标机跑上面第二条即可闭环。

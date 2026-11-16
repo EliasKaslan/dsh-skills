@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 244,
-  "total_bytes": 26848835,
+  "total_bytes": 26852586,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -115,7 +115,7 @@
       "path": "skills/ascend-triton-ascend",
       "description": "triton-ascend 装/验/排障：3.2.2 走 osinfra 源、覆盖式共存。适用于\"装 triton-ascend / import 版本不对 / 被 pip -U triton 覆盖后崩\"。",
       "files": 1,
-      "bytes": 14335
+      "bytes": 16900
     },
     {
       "name": "ascend-vllm-serve",
@@ -297,7 +297,7 @@
       "path": "skills/mindspeed-ops-smoke",
       "description": "MindSpeed-Ops 冒烟：按版本矩阵建环境、UT + ATK 精度双读判绿。适用于\"跑 26.2.0 冒烟 / ATK 精度怎么判 / 冒烟全绿了吗 / 冒烟在 26.0.0 配套能不能跑\"",
       "files": 1,
-      "bytes": 46931
+      "bytes": 48117
     },
     {
       "name": "mindspeed-ops-whl-build",

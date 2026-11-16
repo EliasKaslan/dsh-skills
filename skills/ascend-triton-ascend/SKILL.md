@@ -119,3 +119,26 @@ pip uninstall -y triton triton-ascend && pip install triton-ascend==3.2.2 --extr
 ## 维护记录
 
 - **2026-09-23（定向修正，原判据不准确）**：原「用 `triton/backends/ascend` 目录是否存在判可用 / 被覆盖后变 `False`」被新证据推翻——`pip install -U triton`（装 3.8.0，342s）后 `triton_ascend 3.2.2` 的 dist-info 与 `triton/backends/ascend/` **都还在（孤儿残留）**，真正症状是 `import triton` 抛 `ModuleNotFoundError: No module named 'triton._C.libtriton.ascend'; 'triton._C.libtriton' is not a package`；判据改为「`import triton` 成功 **且** `triton.__version__ == 3.2.0`」，恢复命令实测 5 秒恢复。同批补：坑 2 的 RECORD 级覆盖证据（376/249/重叠 73、ascend 目录 0 vs 111、覆盖 `triton/__init__.py`）、坑 8（华为云 `ascend/repos/pypi` 非 PEP503 index）、坑 7 的 3.2.2 无 gitcode tag/release 存疑项。证据包：`D:\workspace\agent\skill\_recon\torch_stack_verified.md` §6（RECORD 级覆盖关系）/ 附录 A（破坏/恢复实测）。
+
+## 坑 9｜`--system-site-packages` + `--no-deps` 装出的混合树会伪造版本结论
+
+## 坑 9｜`--system-site-packages` + `--no-deps` 装出的混合树会伪造版本结论
+
+**症状**：为了对比两个 triton-ascend 版本，用下面这种"省事"做法建 venv，然后在低版本上 import 某个算子模块失败、kernel 编译报缺符号，于是把原因记成"低版本没有这个 API"。
+
+```bash
+python -m venv --system-site-packages /tmp/v321
+/tmp/v321/bin/pip install --no-deps --no-index /tmp/wheels/triton_ascend-3.2.1-*.whl
+```
+
+**为什么结论不可信**：triton-ascend 是"覆盖式共存"——wheel 覆盖同名 `triton/` 目录，但**只覆盖它 RECORD 里有的文件**。`--system-site-packages` 让 venv 继续从 system 继承其余文件（典型是 `triton/_C/libtriton*.so` 与 `triton/backends/ascend` 的部分二进制），`--no-deps` 又不装/不校验 `triton` 依赖版本（x86 要 `triton==3.2.0`、arm 要 `triton==3.5.0`）。结果得到的是「A 版本的 Python 层 + B 版本的 C 扩展」混合树，import 失败、`AttributeError`、`ModuleNotFoundError: No module named 'triton._C.libtriton.ascend'` 都可能只是混合造成的，与目标版本无关。
+
+**正确做法（版本对比实验）**：
+1. 干净 venv（**不要** `--system-site-packages`），按目标版本重装整条栈：`torch` → `torch_npu` → `triton-ascend==X`（顺序不能换）。
+2. `pip install triton-ascend==X` 时**不要**加 `--no-deps`，让它把 `triton` 依赖按架构带进来；装完核 `pip list | grep -i triton` 两项都在。
+3. 复用已有系统栈时，要么整树复制到独立目录后 `PATH`/`PYTHONPATH` 指过去，要么直接换机器，不要用 `--system-site-packages` 做"半覆盖"。
+4. 结论落盘前先证明"没有混合"：`python -c "import triton;print(triton.__file__, triton.__version__)"` 与 `ls site-packages | grep -i triton` 都指向同一个 site-packages。
+
+**顺带的判据修正**：查"某个 `tl` 级扩展 API 在版本 X 有没有"时，**不要只看 tag 的 `python/triton/language/extra/`**——`cann/` 是构建期软链（`python/setup.py` 的 `add_link_to_backends()` 把 `third_party/ascend/language/*` 链进 `triton/language/extra/*`），tag 树里看不到。要看 `third_party/ascend/language/`（如 `cann/extension/__init__.py`）与 `third_party/ascend/backend/compiler.py`（编译选项如 `NPUOptions.enable_auto_bind_sub_block`）。最终仍以目标机 `python -c "from triton.language.extra.cann.extension import ..."` 为准。
+
+**未验证**：本轮没有在干净 venv 里重跑该版本对比，混合树的失败清单未逐条复核。
