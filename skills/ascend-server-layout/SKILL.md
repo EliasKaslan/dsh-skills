@@ -41,3 +41,53 @@ config 的 dtype 不证明每个张量的存储精度，首分片也不代表全
 长任务按需求保存 checkpoint/RNG、逐样本 uid 或追加结果，验证恢复点后再长跑。清理只针对本任务明确记录的 PID/文件；不 prune 共享 Docker、不 reset 他人设备。
 
 历史现场线索与来源见 [references/site-and-sources.md](references/site-and-sources.md)。
+
+## 判空卡取证：进程名 ≠ 占卡，落 Davies fd 与设备级进程表
+
+判"某张卡现在能不能用"时，**先分清"主机上有 vLLM/ray 进程"和"卡上有进程"**——这两件事在多租户 A5 上几乎总是同时出现，但含义完全相反。
+
+### 判据顺序（三重独立信号，缺一即 UNKNOWN）
+
+1. **设备级进程表**：`npu-smi info -t proc-mem -i <id>`（A5 单 chip，`-i` 就是卡号；A3 双 chip 要 `-i <npu> -c <chip>`）。空卡返回 `No process in device.`。
+2. **HBM 绝对量**：`npu-smi info` 里 `<used> / 98304`（A5）或 `/ 65536`（A3）。A5 空机实测落在 4.8G 量级、A3 落在 2.9~3.2G 量级——**只作旁证，不当判据**（历史阈值 3500/6000 会漏掉低占用任务）。
+3. **Health**：`OK` 才可调度；`Alarm`（含 UB/RAS `Error Code 81AF8000` 一类的链路告警）按 UNKNOWN，不是"空卡可用"。
+
+### 关键：进程名会骗人，要看它有没有 davinci fd
+
+同一台机器上常年挂着别人的 `VLLM::Worker_TP` / `VLLM::Worker_DP` / `ray::IDLE`（etimes 可达数天），`ps` 一眼看过去像"整机被占"。真实判据是**这个进程有没有打开设备**：
+
+```bash
+pid=$(ps -eo pid,comm | grep -F 'VLLM::Worker_TP' | head -1 | awk '{print $1}')
+ls -l /proc/$pid/fd | grep -c davinci          # 0 = 没占卡；>0 = 占着
+cat /proc/$pid/cgroup | head -2                # 13:misc:/ 12:devices:/ = 宿主 cgroup，不是容器内设备占用
+ps -o etime= -p $pid
+```
+
+实测：`davinci_fds=0` + 宿主 cgroup + etime 数天的 worker，与 `proc-mem` 的 `No process in device.` 完全一致 ⇒ **确实是残留，卡是空的**。反过来，只要某个 pid 的 `davinci` fd 数 > 0，就按"卡被占用"整卡让路。
+
+容器侧可以用 `docker inspect -f '{{range .HostConfig.Devices}}{{.PathOnHost}}\n{{end}}' <ctr> | grep -c davinci` 看"谁挂了设备"，但**挂了设备 ≠ 正在用**（大量 running 容器挂着设备却空跑），不能拿它判占用。
+
+### 受支持的采集入口
+
+```powershell
+python C:\Users\admin\.dsh\skills\ascend-server-access\scripts\probe_hosts.py --inventory root@177.11.27.1
+```
+
+`probe_hosts.py` 只做**显式目标**的只读采集：要求 `user@IPv4-or-hostname`（不接受选项/元字符），走系统 `ssh -n -o BatchMode=yes -o StrictHostKeyChecking=yes`（只用既有 key 与已验证 host key），`--inventory` 采 `hostname; uname -m; nproc; df -h / /home /mnt/share /mnt/weight; npu-smi info`，输出 JSON，`exit 0` 表示所有目标 `ssh_rc=0`。**它不给出 free-card 分类**，"空/占用/UNKNOWN"要按上面三条自己判。
+
+### 从 Windows 驱动远端采证的固定写法
+
+PowerShell 5.1 里把带引号/反引号的 bash 内联进 `ssh host "..."` 会在**解析期**直接失败（`UnexpectedToken`，整条命令一行都不执行），不要拼转义。固定做法：
+
+```powershell
+$b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("D:\tmp\probe.sh"))   # 本地写好 .sh（LF）
+ssh -n -o BatchMode=yes root@<ip> "echo $b64 | base64 -d > /tmp/p.sh; bash /tmp/p.sh; rm -f /tmp/p.sh" 2>$null
+```
+
+配套两个坑：`2>$null` 而不是 `2>&1`（登录横幅走 stderr，会往 stdout 插一行 `System.Management.Automation.RemoteException`）；用 `>` 把 python 输出重定向到文件时 PS 5.1 写的是 **UTF-16LE**，下一位 `json.load` 会报 `UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0`——读的时候先看 BOM（`ff fe` → `utf-16`）。
+
+### 坑
+
+- A5（`npu-smi 25.1.rc3`）**没有 `-t proc` 子命令**：`npu-smi info -t proc -i 0` 报 `Error parameter of -t`。设备级进程用 `-t proc-mem`。
+- `npu-smi info -t usages` 的 `HBM Usage Rate(%)` 与 `info` 的 MB 口径不一致（实测约 2 倍差），别拿百分比下判断。
+- 未验证：容器内进程打开设备时，宿主侧 `/proc/<pid>/fd` 是否总能直接看到 davinci 句柄（本轮抽到的都是宿主 cgroup 进程）。

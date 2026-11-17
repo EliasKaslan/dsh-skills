@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 299,
-  "total_bytes": 25463048,
+  "total_bytes": 25470746,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -101,7 +101,7 @@
       "path": "skills/ascend-server-layout",
       "description": "在共享昇腾服务器上选择项目、环境、缓存与权重落点，核实磁盘、NPU 占用及 safetensors 分片完整性；适用于写哪盘、找真权重、挑空卡和容器挂载问题。",
       "files": 6,
-      "bytes": 15714
+      "bytes": 19647
     },
     {
       "name": "ascend-torch-npu",
@@ -129,7 +129,7 @@
       "path": "skills/batch-invariance-acceptance",
       "description": "昇腾批次不变性与训推数值一致性适配、定位、验证及知识归档。适用于\\\"验模型批次不变性 / 训推logprob对不上 / prefill和decode不同 / 梯度怎么验证 / 更新后不同步\\\"。不适用：仅启动推理服务 → 用 `ascend-vllm-serve`。",
       "files": 17,
-      "bytes": 84172
+      "bytes": 87937
     },
     {
       "name": "batch-invariant-weekly-digest",
