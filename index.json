@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 299,
-  "total_bytes": 25478340,
+  "total_bytes": 25486725,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -127,9 +127,9 @@
     {
       "name": "batch-invariance-acceptance",
       "path": "skills/batch-invariance-acceptance",
-      "description": "昇腾批次不变性与训推数值一致性适配、定位、验证及知识归档。适用于\\\"验模型批次不变性 / 训推logprob对不上 / prefill和decode不同 / 梯度怎么验证 / 更新后不同步\\\"。不适用：仅启动推理服务 → 用 `ascend-vllm-serve`。",
+      "description": "昇腾批次不变性与训推数值一致性适配、定位、验证。适用于\\\"验批次不变性 / 训推logprob对不上 / prefill和decode不同 / 梯度怎么验证 / 更新后不同步\\\"。不适用：仅启动推理服务→ascend-vllm-serve。",
       "files": 17,
-      "bytes": 91018
+      "bytes": 95014
     },
     {
       "name": "batch-invariant-weekly-digest",
@@ -423,7 +423,7 @@
       "path": "skills/vllm-ascend-source-install",
       "description": "将指定 checkout 的 vLLM 与 vLLM Ascend 从源码配对构建到已有昇腾环境，控制依赖替换、编译器与 BI 算子产物；适用于源码安装、重编和 build dependency 错误。",
       "files": 2,
-      "bytes": 4853
+      "bytes": 9242
     },
     {
       "name": "vuln-scan-report-verification",
