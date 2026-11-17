@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 299,
-  "total_bytes": 25448849,
+  "total_bytes": 25450801,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -213,7 +213,7 @@
       "path": "skills/dsh-skill-authoring",
       "description": "编写、验证和精简DSH skill；核对触发字段、调用策略、资源路由、去重归档、目录预算与批量发布边界。",
       "files": 6,
-      "bytes": 18982
+      "bytes": 20934
     },
     {
       "name": "dsh-skill-self-audit",

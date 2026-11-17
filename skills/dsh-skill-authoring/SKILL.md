@@ -33,3 +33,19 @@ whenToUse: "编写、验证和精简DSH skill；核对触发字段、调用策�
 Python模板只能逐文件显式声明，例如 `--python-template tilelang-op-generator/assets/compare_template.py --python-template tilelang-op-generator/assets/test_template.py`。声明必须是根内现存UTF-8 `.py`文件并含字面token `{op}`；检查器只将该token替换成`validation_op`后做AST解析，记录`TEMPLATE_RENDER_PARSE_PASS`及“未执行”，原文件hash仍按未渲染字节计算。未声明模板及普通语法错误照常拒绝；非法路径、缺文件、非`.py`或没有token的声明也拒绝。此结果只证明替换后的Python语法，不证明模板生成逻辑、依赖、运行或算子正确。
 
 旧check-skill-frontmatter.ps1和diff-skills.ps1本次同路径退役并返回exit78；用本入口的只读Python checker和原始字节摘要替代。旧self-audit的daily runner也已退役，纯gate/scan/budget脚本需按当前参数单独审查后使用。
+
+## 重构后验收：五查
+
+批量删改 skill 后，"体积降了九成"不等于"内容搬对了"。下面五查全部只读，按顺序做，能挡住"只删不验"留下的空指针。
+
+1. 导航链接 ≠ 散文路径。markdown 链接（`](...)`）通常会被工具校验；反引号里的 `references/x.md`、`scripts/y.py` 不会被任何检查器发现，真正的断链藏在这里（典型：少写 `../兄弟-skill/` 前缀、路径按散文相对当前文件解析）。逐个 stat，路径不存在时再查同名文件是否在本 skill 内，区分"写法松"与"真悬空"。
+
+2. 转交型入口做空指针扫描。正文很短、首跳指向兄弟 SKILL.md 的入口，要确认目标文件里真有被点名的章节（如"模式为 X"）。只看链接能解析不够——链接指向的文件可能在裸转交，被指的章节根本不存在。
+
+3. 退役脚本三件套。脚本换成失败桩后，正文必须留墓碑（为什么退役、调用会怎样），且**退出码与正文写的一致**；同类桩不要混用多个退出码，否则调用方按文档判断会误判成功。
+
+4. 预算与索引同源。description 字符预算、热目录条目数、冷备 `INDEX.json` 的 hotCount/warmCount/catalogChars 是同一组事实，改完要为同一时刻对账；索引头部数字最容易在批量改描述后漂移。
+
+5. 命令与实现对账。正文出现的每条 `python x.py --flag`、每个参数名，用该脚本的 argparse/`--help` 核一遍；脚本默认路径不能硬编码 `C:\Users\<某人>\`，否则换机器或换用户即失效。检查器/扫描器还要查它默认调用的下游工具是否已退役——指向墓碑的扫描器会稳定产出假绿报告。
+
+坑：净丢失只能靠"减法"看出来。把入口正文的减少量与 references 的增加量相减，差额就是被删且无人承接的量；差额大时不要相信"内容只是搬到 references 了"的说法。
