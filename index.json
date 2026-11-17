@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 299,
-  "total_bytes": 25486725,
+  "total_bytes": 25489216,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -129,7 +129,7 @@
       "path": "skills/batch-invariance-acceptance",
       "description": "昇腾批次不变性与训推数值一致性适配、定位、验证。适用于\\\"验批次不变性 / 训推logprob对不上 / prefill和decode不同 / 梯度怎么验证 / 更新后不同步\\\"。不适用：仅启动推理服务→ascend-vllm-serve。",
       "files": 17,
-      "bytes": 95014
+      "bytes": 97505
     },
     {
       "name": "batch-invariant-weekly-digest",
