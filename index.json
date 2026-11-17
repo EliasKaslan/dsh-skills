@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 299,
-  "total_bytes": 25450801,
+  "total_bytes": 25463048,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -94,7 +94,7 @@
       "path": "skills/ascend-server-access",
       "description": "诊断 Windows 经 UniVPN 访问昇腾服务器时的隧道、路由、TCP、SSH 与跨机通信问题；适用于机器连不上、A3/A5 双隧道和 SSH 握手卡住，不处理 CANN 安装。",
       "files": 11,
-      "bytes": 17053
+      "bytes": 17743
     },
     {
       "name": "ascend-server-layout",
@@ -239,9 +239,9 @@
     {
       "name": "gitcode-pr-flow",
       "path": "skills/gitcode-pr-flow",
-      "description": "GitCode PR交付、门禁与评审跟进，使用当前配置认证。适用于\\\"GitCode提PR / 双CI怎么判 / PR冲突了 / 门禁标签缺了 / backport怎么验\\\"。不适用：仅核实代码是否等价 → 用 `pr-change-equivalence-audit`。",
+      "description": "GitCode PR交付、门禁与评审跟进。适用于\\\"GitCode提PR / 双CI怎么判 / PR冲突 / 门禁标签 / backport\\\"。不适用：仅核实代码是否等价 → pr-change-equivalence-audit。",
       "files": 4,
-      "bytes": 34453
+      "bytes": 36722
     },
     {
       "name": "github-org-delta-watch",
@@ -295,9 +295,9 @@
     {
       "name": "mindspeed-ops-smoke",
       "path": "skills/mindspeed-ops-smoke",
-      "description": "MindSpeed-Ops接口兼容、wheel验收及UT和ATK冒烟。适用于\\\"跑Ops冒烟 / ATK精度怎么判 / UT全绿了吗 / wheel能用吗 / 跨仓接口兼容吗\\\"。不适用：基础CANN环境故障 → 用 `ascend-cann-env`。",
+      "description": "MindSpeed-Ops接口兼容、wheel验收及UT/ATK冒烟（含A3双机26.2.0配套）。适用于\\\"跑Ops冒烟 / ATK精度怎么判 / UT全绿了吗 / 跨仓接口兼容吗\\\"。",
       "files": 4,
-      "bytes": 8723
+      "bytes": 16240
     },
     {
       "name": "mindspeed-ops-whl-build",
@@ -367,7 +367,7 @@
       "path": "skills/pwsh-on-windows",
       "description": "在 Windows 排查 PowerShell 版本、编码/BOM、原生命令参数与退出码、管道和文本计数问题；用于脚本行为与观察不一致，先区分 Windows PowerShell 5.1 和当前 pwsh。",
       "files": 2,
-      "bytes": 4372
+      "bytes": 6143
     },
     {
       "name": "qq-mail-control",

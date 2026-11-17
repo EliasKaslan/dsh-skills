@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **64** 个 skill、**299** 个文件、**25450801** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **64** 个 skill、**299** 个文件、**25463048** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -65,7 +65,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 31 | [`dsh-skill-self-audit`](skills/dsh-skill-self-audit/SKILL.md) | DSH skill集合体检入口；审查字段、引用、重复、预算与文件摘要，转作者技能的周期体检模式。 | 6 |
 | 32 | [`external-buzz-magnitude-check`](skills/external-buzz-magnitude-check/SKILL.md) | 核查事件或模型的外部热度、社区反馈与体验量级，区分平台计数、实测、转述和检索缺口；适用于真的火吗、社区口碑和速度抱怨取证，不以仓库提交活性代替外部影响。 | 1 |
 | 33 | [`git-tag-diff-audit`](skills/git-tag-diff-audit/SKILL.md) | Git版本与PR实质变更审计，区分树差、历史归因和等价性。适用于\"两个tag改了什么 / 无共同祖先能比吗 / 接口删了吗 / 是纯重构吗 / 精度性能变了吗\"。不适用：提交或跟进PR → 用 `github-pr-flow`。 | 1 |
-| 34 | [`gitcode-pr-flow`](skills/gitcode-pr-flow/SKILL.md) | GitCode PR交付、门禁与评审跟进，使用当前配置认证。适用于\"GitCode提PR / 双CI怎么判 / PR冲突了 / 门禁标签缺了 / backport怎么验\"。不适用：仅核实代码是否等价 → 用 `pr-change-equ... | 4 |
+| 34 | [`gitcode-pr-flow`](skills/gitcode-pr-flow/SKILL.md) | GitCode PR交付、门禁与评审跟进。适用于\"GitCode提PR / 双CI怎么判 / PR冲突 / 门禁标签 / backport\"。不适用：仅核实代码是否等价 → pr-change-equivalence-audit。 | 4 |
 | 35 | [`github-org-delta-watch`](skills/github-org-delta-watch/SKILL.md) | GitHub组织与发行差集入口，按既有基线追踪仓库、PR、commit和release变化。 | 1 |
 | 36 | [`github-pr-flow`](skills/github-pr-flow/SKILL.md) | GitHub及GitCode PR交付、评审处置与当前head的CI核验。适用于\"帮我提PR / 更新PR正文 / CI为什么红 / 处理评审意见 / 修PR冲突\"。不适用：仅审版本实质差异 → 用 `git-tag-diff-audi... | 1 |
 | 37 | [`korea-official-source-research`](skills/korea-official-source-research/SKILL.md) | 检索韩国与济州的主管机关、交通及旅游一手资料，核对现行政策、时刻表、营业与票价信息；适用于官方信息难抓取、日期与废止状态不清，历史端点只作线索。 | 4 |
@@ -73,7 +73,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 39 | [`login-credential-autofill`](skills/login-credential-autofill/SKILL.md) | 在用户授权的账号登录流程中复用已登录会话、辨认失败阶段和处理验证码/二次验证交接；适用于网页登录卡住或已有登录守护脚本审查，凭据填充须匹配用户指定账号和当前授权，验证码交接给用户。 | 6 |
 | 40 | [`lora-weekly-report`](skills/lora-weekly-report/SKILL.md) | 按明确时间窗和基线核查GitHub组织、仓库、LoRA或批次不变性进展并生成增量简报；适用于周报、观察点变化和已合入清单，生成报告不自动发信或创建定时任务。 | 8 |
 | 41 | [`mindspeed-ops-interface-compat-audit`](skills/mindspeed-ops-interface-compat-audit/SKILL.md) | MindSpeed-Ops跨仓接口兼容与实际调用核查。适用于\"接口兼容吗 / 周边仓能调用吗 / 导入通过算过吗 / 新增了哪些算子 / 别名绑定对吗\"。不适用：只做版本树差 → 用 `git-tag-diff-audit`。 | 1 |
-| 42 | [`mindspeed-ops-smoke`](skills/mindspeed-ops-smoke/SKILL.md) | MindSpeed-Ops接口兼容、wheel验收及UT和ATK冒烟。适用于\"跑Ops冒烟 / ATK精度怎么判 / UT全绿了吗 / wheel能用吗 / 跨仓接口兼容吗\"。不适用：基础CANN环境故障 → 用 `ascend-can... | 4 |
+| 42 | [`mindspeed-ops-smoke`](skills/mindspeed-ops-smoke/SKILL.md) | MindSpeed-Ops接口兼容、wheel验收及UT/ATK冒烟（含A3双机26.2.0配套）。适用于\"跑Ops冒烟 / ATK精度怎么判 / UT全绿了吗 / 跨仓接口兼容吗\"。 | 4 |
 | 43 | [`mindspeed-ops-whl-build`](skills/mindspeed-ops-whl-build/SKILL.md) | MindSpeed-Ops wheel构建与独立环境验收。适用于\"打Ops的whl / CMake报错 / 编译器太旧 / SOC怎么选 / 验证wheel\"。不适用：只配置CANN运行环境 → 用 `ascend-cann-env`。 | 1 |
 | 44 | [`minimax-ai-musume-4k-art`](skills/minimax-ai-musume-4k-art/SKILL.md) | 整理AI娘角色参考、身份与画风并验收插画；生成时使用当前DSH已配置图像工具，指定H3等自托管后端时另核接口与设备。 | 54 |
 | 45 | [`model-endpoint-identity-audit`](skills/model-endpoint-identity-audit/SKILL.md) | 比较多个模型端点或model id的行为、能力、缓存和性能，评估是否共享服务路径及身份声明的证据强度；适用于渠道是否同模型、兼容性和速度成本测试，不从行为指纹断言权重相同。 | 1 |

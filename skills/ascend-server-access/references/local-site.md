@@ -11,6 +11,8 @@
 
 2026-11-16 本轮只读复核：两条目标路由均存在；四台 A5 用现有公钥及严格 host-key 校验执行只读命令成功，包括旧快照称不可达的 177.8.21.1。A3 两台 TCP 探测成功，OpenSSH 连接超时；随后 Paramiko 加载现有 known_hosts、RejectPolicy 与现有私钥，两台均成功执行只读命令。不能写成“蓝区隧道没连接”“认证失败”或直接认定 MTU 根因。后续状态以本轮重新采集为准。
 
+2026-11-17 补充（A3 两台，只读 + 微基准实测）：两台芯片同档（soc 253 / 16 die / 65536MB HBM·die⁻¹ / 按 PCI 19E5:D803 识别），差异在宿主与通道——188 为 Debian 10、256 线程且长期被他人 vLLM E2E 占满 CPU、`/` 仅剩约 177G；190 为 openEuler 22.03、64 线程、基本空闲、`/home` 有 TB 级余量，CANN 装在 `/mnt/share/cann/...` 而非 `/usr/local/Ascend`。**推论：需要跑冒烟或压测时优先 190；188 的 sshd 还会拒绝 sftp put 与较长 inline 命令（只接受短单行）**。性能实测数字与跑法见 skill `mindspeed-ops-smoke` 的「A3 双机跑 26.2.0 商发配套冒烟」，此处不重复。
+
 原材料提到凭据保存在用户目录 `.dsh/.secrets/ascend-servers.txt`。本轮未读取、迁移或测试口令；它只是待用户现有凭据机制确认的来源线索。旧 skill 目录内的 credentials.txt 已过时，不作 fallback。
 
 UniVPN 旧版本的特殊表现只作排障假设：托盘态 Qt 可能不暴露控件；视觉选中不等于内部切配置；操作后 UI 对象会重建；日志会滚动，读取最近文件。需操作 UI 时用当前DSH可用的Windows界面工具，先查看当前界面与实际结果，不复用裸 Win32 注入脚本。
