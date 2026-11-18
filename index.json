@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 312,
-  "total_bytes": 25513759,
+  "total_bytes": 25517027,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -269,7 +269,7 @@
       "path": "skills/llm-landscape-recon",
       "description": "多厂商模型能力与价格对比入口，统一官方来源、版本、effort与计费口径。",
       "files": 1,
-      "bytes": 5771
+      "bytes": 7599
     },
     {
       "name": "login-credential-autofill",
@@ -409,7 +409,7 @@
       "path": "skills/upstream-docs-refresh-audit",
       "description": "上游文档与需求、代码、参数、导航及多语言一致性审计。适用于\\\"这批需求有文档吗 / docs要刷新吗 / 参数主线有没有 / 内部代号叫什么 / 导航漏页面了吗\\\"。不适用：启动推理服务 → 用 `ascend-vllm-serve`。",
       "files": 5,
-      "bytes": 19713
+      "bytes": 21153
     },
     {
       "name": "vllm-ascend-e2e-ci-wiring",

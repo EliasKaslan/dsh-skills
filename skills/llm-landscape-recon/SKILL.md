@@ -63,3 +63,24 @@ whenToUse: "需要比较多家模型的当前能力、上下文、价格与评�
 ## 价目做成数据表
 
 - 把型号 × 输入 / 输出 / 缓存命中 / 写缓存 / 长上下文加价规则写成脚本里的数据表，改一行即可重算全部场景。手算或复制粘贴表格，改口径时必错。
+
+## Codex 推理档位（max / ultra）与本地取证
+
+## Codex 推理档位（max / ultra）与本地取证
+
+问"Codex 里某模型支持哪些推理档、max 和 ultra 是什么"时，**先读本机客户端缓存**（客户端按账号下发的清单，比官网/博客准且离线可用），不要靠 `codex --version`（桌面版常常不在 PATH，Exe 在 WindowsApps 下）。
+
+取证位置：
+- `~/.codex/models_cache.json` → `models[].supported_reasoning_levels[].effort` + 每档 `description`，以及 `default_reasoning_level`
+- `~/.codex/config.toml` → `model`、`model_reasoning_effort`（当前生效值）
+- 读法：`Get-Content -Encoding utf8 ... -Raw | ConvertFrom-Json`，或直接 grep `"effort"` / `"slug"`；文件几百 KB，先看命中行再定点 read
+
+档位梯度：`low → medium → high → xhigh(Extra high) → max → ultra`。两档都不是模型版本：
+
+- `max` = 把**同一条推理链**推到最深（"Maximum reasoning depth for the hardest problems"）
+- `ultra` = 最大推理 + **自动任务委派**（"Maximum reasoning with automatic task delegation"）：客户端自动拆子任务、起 subagent 并行后汇总。按 Codex SDK 的说明，ultra 属 CLI/客户端行为，不作为 API `reasoning.effort` 值传递；服务端阶梯能否接受 `max` 随版本变化（未验证：本机无法验证服务端接受度）
+
+坑：
+- 别假设"最高档一定存在"：旗舰档（sol / astra / terra）才到 ultra，luna 档、reserve、auto-review 只到 max，按 `supported_reasoning_levels` 判。
+- ultra 会真起 subagent，token 与延迟显著高于 max；任务不能拆块时用 max 更划算，日常停在 high 即可。
+- 部分版本默认隐藏 Max，需在 Settings → Configuration → Model features 勾选（未验证：本机未见该开关）。
