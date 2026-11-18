@@ -31,3 +31,38 @@ CI按当前head SHA、run/job、配置和所有必需车道核对。PR标签、�
 交付PR链接、完整head、改动/验证/未覆盖、当前门禁与需要维护者动作。创建PR不自动授权合并、发release、回合并版本分支或给其他人发消息；已授权的交付步骤直接完成，不重复增加确认流程。
 
 来源：DSH github-pr-flow、gitcode-pr-flow及其3份历史reference；2026-11-16去除固定仓权限、凭据URL、平台接口与门禁时延假设。具体API/标签从目标仓当前规范和一手文档读取。
+
+## 跨 fork 提 PR 被 403：先读 x-accepted-github-permissions
+
+## 跨 fork 提 PR 被 403：先读 x-accepted-github-permissions
+
+分支能 push 成功、`GET /repos/{base}` 显示 `permissions.pull=true`，都不代表能建 PR。fine-grained PAT 只被授权到自己的 fork 时，`git push` 与读 base 仓都正常，只有写 PR 会被拒：
+
+```text
+HTTP 403 POST /repos/{owner}/{repo}/pulls
+{"message":"Resource not accessible by personal access token",
+ "documentation_url":"https://docs.github.com/rest/pulls/pulls#create-a-pull-request","status":403}
+```
+
+判据看响应头而不是猜账号权限：`x-accepted-github-permissions: pull_requests=write` 就是缺这一项（`GET /repos/{base}` 的 `permissions` 里 `pull: true` 只是可读）。对照 `GET /repos/{fork}` 看 `permissions.admin/push`，能立刻分辨「令牌只覆盖 fork」还是「账号本身无权限」。
+
+出路三选一，按代价排序：
+
+1. 换一份对 base 仓有 `pull_requests: write` 的凭据（classic 令牌的 `repo` scope 也够）。别自行给现有令牌提权。
+2. 把 compare 链接交给用户点一次：`https://github.com/{owner}/{repo}/compare/{base}...{forkOwner}:{branch}?expand=1&quick_pull=1&title=<quote>&body=<quote>`，title/body 用 `urllib.parse.quote(..., safe="")` 编码，4KB 量级的 body 仍可用。用户提交后回读校验。
+3. 浏览器代点需要该浏览器已登录；未登录时 GitHub 不渲染 "Create pull request"，`browser_find` 会返回空——这本身就是「没登录」的证据，别反复重试。
+
+push 侧不要为绕开这个问题把令牌塞进 URL 或 `.git/config`。用进程级环境变量传认证头：
+
+```python
+env.update({"GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "http.https://github.com/.extraheader",
+            "GIT_CONFIG_VALUE_0": "AUTHORIZATION: basic " + base64.b64encode(b"x-access-token:" + token).decode()})
+subprocess.run(["git", "push", "https://github.com/{fork}.git", f"{local}:refs/heads/{remote}"], env=env)
+```
+
+坑：
+
+- fork 名可能不等于仓名（`<user>/<repo>` 不存在时先读既有 PR 的 `head.repo.full_name`，或 `GET /repos/<user>/<repo>` 一个个试），别假设。
+- `git push` 时本地分支名与期望的远端分支名不同，refspec 要写 `{local}:refs/heads/{remote}`；直接写远端名会得到 `src refspec ... does not match any`。
+- 建 PR 后必须回读 `base.sha`/`head.sha`/`changed_files`/`additions` 与本地 `git rev-parse`，机器人还会自动加标签、补 `- vLLM version:` 尾行。
