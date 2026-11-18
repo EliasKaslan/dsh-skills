@@ -56,3 +56,18 @@ git credential fill      # stdin: protocol=https / host=gitcode.com / 空行
 - 取证据：`GET /repos/{owner}/{repo}/pulls/{n}` 里 `labels[].updated_at` 就是每枚标签的落地时间。三种 CI 状态可区分：`ci-pipeline-running`（在跑）、`ci-pipeline-passed`（已绿）、两者都没有（当前 head 从未跑过）。
 - `stat/needs-squash` 不阻塞合入（已合入的 #246 就带着它）。`mergeable_state.merged_by_user_passed=false` 附 "protected branch, you do not have MERGE permission" 只是查询令牌账号没有合并权，不是 PR 的阻塞项。
 - Actions 没有对外的 runs 列表端点：`/repos/{owner}/{repo}/actions/runs`、`/actions/workflows`、`/pulls/{n}/check` 均 404；run id 只能从 PR 评论里 AtlasAccount 的链接取。
+
+## 评审意见定点取证：diff_comment 锚点与按 sha 读原文
+
+## 评审意见定点取证：diff_comment 锚点与按 sha 读原文
+
+用于「确认某条评审意见是否成立 / PR 是否还需改」。GitCode 的接口形状与 GitHub 不同：
+
+- 取评审意见：`GET https://gitcode.com/api/v5/repos/{owner}/{repo}/pulls/{n}/comments`（公共仓免鉴权可读）。`/pulls/{n}/reviews` 在 GitCode 直接 404，别照 GitHub 心智找 reviews 端点。
+- 行内意见是 `comment_type=diff_comment` 的条目：锚点看 `diff_position.start_new_line`/`end_new_line`，闭环状态看 `resolved`（布尔）。`reply[]` 里那句 “changed this line on <sha>” 是平台在强推后**自动生成**的，不等于作者解释、更不等于已修复——必须回读该 sha 的实际 diff。
+- 不 clone 也能定点比对：`https://raw.gitcode.com/{owner}/{repo}/raw/{sha}/{仓库内路径}` 可读任意提交的文件，PR base（`base.sha`）、上一版 head、当前 head 都能取；fork 的 head sha 也常能从目标仓按 sha 读到。落到磁盘后做 difflib/unified diff，才能分辨「这行是被修正还是被回退」。
+- 判「文档写法有没有原始实现依据」时，以 **PR base 那份实现源码**为准（`GET .../pulls/{n}` 拿 `base.sha` 后按上一条 URL 取文件），找对应变量的真实语句；不要只读 head 的文档，也别拿本地 checkout 的 HEAD 冒充 base（本地可能没有该对象，`git cat-file` 会失败）。
+
+坑：
+- 短时间连发多次 API 会 `HTTP Error 429: Too Many Requests`，重试也照样 429，冷却需数分钟。一个脚本一次性批量取完（detail/files/comments/commits），需要再看门禁就隔几分钟单次调用，别写轮询。
+- 平台自动回复挂在评论的 `reply[]` 里而不是新增一条 comment，只按 comments 列表的时间线读会误判成「作者没回应」。
