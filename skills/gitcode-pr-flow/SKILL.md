@@ -46,3 +46,13 @@ git credential fill      # stdin: protocol=https / host=gitcode.com / 空行
 - `mergeable_state` 里的 `reason.merged_by_user_passed` 提示 "do not have PUSH permission" 只反映当前账号无合并权，不影响 PR 本身可合并性。
 
 完整字段还包括 `can_merge_check`、`approval_approvers_required_passed`；`stat/needs-squash` 表示合入时要 squash。
+
+## ascend-robot 自动合入的门禁集合（MindSpeed-Ops 实测 2026-11）
+
+判定「已有 approve 为什么没合入」时，不要只看 approve，按标签集合逐项对：
+
+- 自动合入由 `ascend-robot` 执行，条件是 `approved` + `lgtm` + `ci-pipeline-passed`（外加 `ascend-cla/yes`、`docs-ci-pipeline-success`）同时存在。它在最后落地的那道门禁之后几乎同刻动手：MindSpeed-Ops 近 20 个已合入 PR 全部在末道标签 +7~10s 内合入（如 #246 `/approve` 15:19:52 → 15:20:14 合入）。
+- **代码更新会清掉 `ci-pipeline-passed`**，robot 会在 PR 评论 `### Notification This pull request has been changed(code update) or closed, so removes the following label(s): ci-pipeline-passed.`。此后必须在 PR 评论 `compile` 才会在新的 head 上重跑 UT 流水线（AtlasAccount 回 `CI 流水线已启动` + `actions/runs/{id}` 链接）。典型卡点：先 push、隔天再 approve，approve 时绿标已不在 → 不自动合入；补 `compile` 等绿即可，**不需要重新 /approve**（#135、#234 就是 approve 早于绿标，绿标落地 9 秒内合入）。
+- 取证据：`GET /repos/{owner}/{repo}/pulls/{n}` 里 `labels[].updated_at` 就是每枚标签的落地时间。三种 CI 状态可区分：`ci-pipeline-running`（在跑）、`ci-pipeline-passed`（已绿）、两者都没有（当前 head 从未跑过）。
+- `stat/needs-squash` 不阻塞合入（已合入的 #246 就带着它）。`mergeable_state.merged_by_user_passed=false` 附 "protected branch, you do not have MERGE permission" 只是查询令牌账号没有合并权，不是 PR 的阻塞项。
+- Actions 没有对外的 runs 列表端点：`/repos/{owner}/{repo}/actions/runs`、`/actions/workflows`、`/pulls/{n}/check` 均 404；run id 只能从 PR 评论里 AtlasAccount 的链接取。

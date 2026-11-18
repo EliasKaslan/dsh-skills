@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 299,
-  "total_bytes": 25495843,
+  "total_bytes": 25497688,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -241,7 +241,7 @@
       "path": "skills/gitcode-pr-flow",
       "description": "GitCode PR交付、门禁与评审跟进。适用于\\\"GitCode提PR / 双CI怎么判 / PR冲突 / 门禁标签 / backport\\\"。不适用：仅核实代码是否等价 → pr-change-equivalence-audit。",
       "files": 4,
-      "bytes": 36722
+      "bytes": 38567
     },
     {
       "name": "github-org-delta-watch",
