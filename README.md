@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **64** 个 skill、**299** 个文件、**25497688** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **64** 个 skill、**307** 个文件、**25503047** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -49,7 +49,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 15 | [`ascend-torch-npu`](skills/ascend-torch-npu/SKILL.md) | 昇腾torch与torch_npu的版本配对、动态库和NPU可用性排障；使用当前运行栈的分层判据。 | 1 |
 | 16 | [`ascend-triton-ascend`](skills/ascend-triton-ascend/SKILL.md) | 昇腾Triton同名文件覆盖、版本来源与真实kernel验证；使用运行栈的Triton章节。 | 1 |
 | 17 | [`ascend-vllm-serve`](skills/ascend-vllm-serve/SKILL.md) | 在已安装的昇腾 vLLM 环境中做离线推理、启动 OpenAI 服务及定位 OOM/初始化失败，并验证 sleep、唤醒与权重更新；不负责源码安装或训练数值一致性适配。 | 2 |
-| 18 | [`batch-invariance-acceptance`](skills/batch-invariance-acceptance/SKILL.md) | 昇腾批次不变性与训推数值一致性适配、定位、验证。适用于\"验批次不变性 / 训推logprob对不上 / prefill和decode不同 / 梯度怎么验证 / 更新后不同步\"。不适用：仅启动推理服务→ascend-vllm-serve。 | 17 |
+| 18 | [`batch-invariance-acceptance`](skills/batch-invariance-acceptance/SKILL.md) | 昇腾批次不变性与训推数值一致性适配、定位、验证。适用于\"验批次不变性 / 训推logprob对不上 / prefill和decode不同 / 梯度怎么验证 / 更新后不同步\"。不适用：仅启动推理服务→ascend-vllm-serve。 | 22 |
 | 19 | [`batch-invariant-weekly-digest`](skills/batch-invariant-weekly-digest/SKILL.md) | BI批次不变性周报与窗口内已合入PR清单。适用于\"跑BI周报 / 不变性有什么进展 / 这周合了哪些PR / 周报改成列表 / 查确定性进展\"。不适用：模型数值验收 → 用 `batch-invariance-acceptance`。 | 1 |
 | 20 | [`dingxiang-slider-captcha`](skills/dingxiang-slider-captcha/SKILL.md) | 顶象滑块验证码的合法交互与故障识别入口；转登录流程的人工交接模式，保留加载/iframe观察，停止脚本绕过。 | 1 |
 | 21 | [`dsh-agent-customization`](skills/dsh-agent-customization/SKILL.md) | DSH配置、插件与运行时维护总纲；定位改哪层、何时生效、隔离验证、preset取证与守护恢复，按模式转入具体参考。 | 9 |
@@ -67,13 +67,13 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 33 | [`git-tag-diff-audit`](skills/git-tag-diff-audit/SKILL.md) | Git版本与PR实质变更审计，区分树差、历史归因和等价性。适用于\"两个tag改了什么 / 无共同祖先能比吗 / 接口删了吗 / 是纯重构吗 / 精度性能变了吗\"。不适用：提交或跟进PR → 用 `github-pr-flow`。 | 1 |
 | 34 | [`gitcode-pr-flow`](skills/gitcode-pr-flow/SKILL.md) | GitCode PR交付、门禁与评审跟进。适用于\"GitCode提PR / 双CI怎么判 / PR冲突 / 门禁标签 / backport\"。不适用：仅核实代码是否等价 → pr-change-equivalence-audit。 | 4 |
 | 35 | [`github-org-delta-watch`](skills/github-org-delta-watch/SKILL.md) | GitHub组织与发行差集入口，按既有基线追踪仓库、PR、commit和release变化。 | 1 |
-| 36 | [`github-pr-flow`](skills/github-pr-flow/SKILL.md) | GitHub及GitCode PR交付、评审处置与当前head的CI核验。适用于\"帮我提PR / 更新PR正文 / CI为什么红 / 处理评审意见 / 修PR冲突\"。不适用：仅审版本实质差异 → 用 `git-tag-diff-audi... | 1 |
+| 36 | [`github-pr-flow`](skills/github-pr-flow/SKILL.md) | GitHub/GitCode PR 交付与 CI 核验：提 PR、改正文、修冲突、看红。适用于\"提PR / 改PR正文 / CI为什么红 / 修PR冲突 / 处理评审意见\"。不适用：仅审版本差异 → git-tag-diff-audit... | 1 |
 | 37 | [`korea-official-source-research`](skills/korea-official-source-research/SKILL.md) | 检索韩国与济州的主管机关、交通及旅游一手资料，核对现行政策、时刻表、营业与票价信息；适用于官方信息难抓取、日期与废止状态不清，历史端点只作线索。 | 4 |
 | 38 | [`llm-landscape-recon`](skills/llm-landscape-recon/SKILL.md) | 多厂商模型能力与价格对比入口，统一官方来源、版本、effort与计费口径。 | 1 |
 | 39 | [`login-credential-autofill`](skills/login-credential-autofill/SKILL.md) | 在用户授权的账号登录流程中复用已登录会话、辨认失败阶段和处理验证码/二次验证交接；适用于网页登录卡住或已有登录守护脚本审查，凭据填充须匹配用户指定账号和当前授权，验证码交接给用户。 | 6 |
 | 40 | [`lora-weekly-report`](skills/lora-weekly-report/SKILL.md) | 按明确时间窗和基线核查GitHub组织、仓库、LoRA或批次不变性进展并生成增量简报；适用于周报、观察点变化和已合入清单，生成报告不自动发信或创建定时任务。 | 8 |
 | 41 | [`mindspeed-ops-interface-compat-audit`](skills/mindspeed-ops-interface-compat-audit/SKILL.md) | MindSpeed-Ops跨仓接口兼容与实际调用核查。适用于\"接口兼容吗 / 周边仓能调用吗 / 导入通过算过吗 / 新增了哪些算子 / 别名绑定对吗\"。不适用：只做版本树差 → 用 `git-tag-diff-audit`。 | 1 |
-| 42 | [`mindspeed-ops-smoke`](skills/mindspeed-ops-smoke/SKILL.md) | MindSpeed-Ops接口兼容、wheel验收及UT/ATK冒烟（含A3双机26.2.0配套）。适用于\"跑Ops冒烟 / ATK精度怎么判 / UT全绿了吗 / 跨仓接口兼容吗\"。 | 4 |
+| 42 | [`mindspeed-ops-smoke`](skills/mindspeed-ops-smoke/SKILL.md) | MindSpeed-Ops接口兼容、wheel验收及UT/ATK冒烟（含A3双机26.2.0配套）。适用于\"跑Ops冒烟 / ATK精度怎么判 / UT全绿了吗 / 跨仓接口兼容吗\"。 | 7 |
 | 43 | [`mindspeed-ops-whl-build`](skills/mindspeed-ops-whl-build/SKILL.md) | MindSpeed-Ops wheel构建与独立环境验收。适用于\"打Ops的whl / CMake报错 / 编译器太旧 / SOC怎么选 / 验证wheel\"。不适用：只配置CANN运行环境 → 用 `ascend-cann-env`。 | 1 |
 | 44 | [`minimax-ai-musume-4k-art`](skills/minimax-ai-musume-4k-art/SKILL.md) | 整理AI娘角色参考、身份与画风并验收插画；生成时使用当前DSH已配置图像工具，指定H3等自托管后端时另核接口与设备。 | 54 |
 | 45 | [`model-endpoint-identity-audit`](skills/model-endpoint-identity-audit/SKILL.md) | 比较多个模型端点或model id的行为、能力、缓存和性能，评估是否共享服务路径及身份声明的证据强度；适用于渠道是否同模型、兼容性和速度成本测试，不从行为指纹断言权重相同。 | 1 |
@@ -88,9 +88,9 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 54 | [`sedimenting-skills`](skills/sedimenting-skills/SKILL.md) | DSH经验沉淀入口；决定融合已有根或新建skill、保留验证经验并压缩目录成本，转作者技能沉淀选址模式。 | 1 |
 | 55 | [`skill-archive`](skills/skill-archive/SKILL.md) | DSH冷备skill索引入口；核实索引、路径和正文再加载，转作者技能归档查找模式。 | 1 |
 | 56 | [`subagent-toolset-precheck`](skills/subagent-toolset-precheck/SKILL.md) | DSH子代理工具预检入口；以实际schema和只读probe核对网络/命令/落盘能力，转总纲工具能力预检模式。 | 1 |
-| 57 | [`tilelang-op-generator`](skills/tilelang-op-generator/SKILL.md) | TileLang-Ascend算子开发及内存同步、独立golden和性能验证。适用于\"用TileLang写算子 / 算子迁到NPU / 修kernel精度 / 尾块越界吗 / 怎么测性能\"。不适用：环境安装故障 → 用 `ascend-... | 18 |
+| 57 | [`tilelang-op-generator`](skills/tilelang-op-generator/SKILL.md) | TileLang-Ascend 算子开发：内存同步、独立 golden、性能验证。适用于\"写算子 / 迁到NPU / 修kernel精度 / 尾块越界 / 测性能\"。不适用：环境安装 → 用 ascend-cann-env。 | 18 |
 | 58 | [`upstream-docs-refresh-audit`](skills/upstream-docs-refresh-audit/SKILL.md) | 上游文档与需求、代码、参数、导航及多语言一致性审计。适用于\"这批需求有文档吗 / docs要刷新吗 / 参数主线有没有 / 内部代号叫什么 / 导航漏页面了吗\"。不适用：启动推理服务 → 用 `ascend-vllm-serve`。 | 5 |
-| 59 | [`vllm-ascend-e2e-ci-wiring`](skills/vllm-ascend-e2e-ci-wiring/SKILL.md) | vLLM Ascend E2E用例目录、时长、marker和硬件CI车道核验。适用于\"新增E2E怎么落位 / CI报MISSING / 时长怎么登记 / 用例进哪条车道 / 本地收集全吗\"。不适用：源码安装与重编 → 用 `vllm-a... | 1 |
+| 59 | [`vllm-ascend-e2e-ci-wiring`](skills/vllm-ascend-e2e-ci-wiring/SKILL.md) | vLLM Ascend E2E：用例落位、时长登记、marker 与 CI 车道。适用于\"新增E2E / CI报MISSING / 时长登记 / 本地收集全吗\"。不适用：源码安装 → vllm-ascend-source-install... | 1 |
 | 60 | [`vllm-ascend-source-install`](skills/vllm-ascend-source-install/SKILL.md) | 将指定 checkout 的 vLLM 与 vLLM Ascend 从源码配对构建到已有昇腾环境，控制依赖替换、编译器与 BI 算子产物；适用于源码安装、重编和 build dependency 错误。 | 2 |
 | 61 | [`vuln-scan-report-verification`](skills/vuln-scan-report-verification/SKILL.md) | 第三方漏洞扫描报告的基线、可达性、攻击输入和严重性复核。适用于\"这个高危是真的吗 / 行号对不对 / 注入能用吗 / 定级高不高 / 有没有漏报\"。不适用：仅审文档扫描分数 → 用 `aidd-report-reader`。 | 1 |
 | 62 | [`web-ui-contrast-audit`](skills/web-ui-contrast-audit/SKILL.md) | 定位网页主题切换后文字与背景难辨的问题，按实际渲染背景计算WCAG文本对比并复测修复；适用于浅色/深色主题可读性，不以静态颜色值替代复杂背景检查。 | 2 |

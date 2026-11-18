@@ -49,3 +49,18 @@ Python模板只能逐文件显式声明，例如 `--python-template tilelang-op-
 5. 命令与实现对账。正文出现的每条 `python x.py --flag`、每个参数名，用该脚本的 argparse/`--help` 核一遍；脚本默认路径不能硬编码 `C:\Users\<某人>\`，否则换机器或换用户即失效。检查器/扫描器还要查它默认调用的下游工具是否已退役——指向墓碑的扫描器会稳定产出假绿报告。
 
 坑：净丢失只能靠"减法"看出来。把入口正文的减少量与 references 的增加量相减，差额就是被删且无人承接的量；差额大时不要相信"内容只是搬到 references 了"的说法。
+
+## 正文预算与去臃肿
+
+成本有两层：目录行（每请求都发）与**正文**（每次加载全文进上下文）。`distill_skill` 在写入时强制：
+
+- 热目录 ≤40 条 / ≤7000 字符；单条 description ≤120 字符。
+- 正文：热 ≤8000 字节 / ≤8 个 `##` 段；冷备 ≤16000 字节。
+- 追加章节与已有章节相似度 ≥55% 时必须改用 `mode=replace`，否则追加被拒。
+
+正文只放“路由 + 判据 + 坑”。长命令序列/清单/附录放 `references/`（`references:[{path,content}]`，写到 `<skill>/references/`，不计预算、不自动加载），正文留一行指针。
+
+同一主题已有章节 → `mode=replace + targetSection=<标题>` 改写，不要追加。
+超预算按代价整改：① replace ② 移 references ③ 拆总纲+子 skill ④ 降 warm。
+
+体检：`python %USERPROFILE%\.dsh\skills\dsh-skill-self-audit\scripts\skill_budget.py`（只读，0=预算内）。

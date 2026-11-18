@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
-  "file_count": 299,
-  "total_bytes": 25497688,
+  "file_count": 307,
+  "total_bytes": 25503047,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -128,8 +128,8 @@
       "name": "batch-invariance-acceptance",
       "path": "skills/batch-invariance-acceptance",
       "description": "昇腾批次不变性与训推数值一致性适配、定位、验证。适用于\\\"验批次不变性 / 训推logprob对不上 / prefill和decode不同 / 梯度怎么验证 / 更新后不同步\\\"。不适用：仅启动推理服务→ascend-vllm-serve。",
-      "files": 17,
-      "bytes": 97505
+      "files": 22,
+      "bytes": 98221
     },
     {
       "name": "batch-invariant-weekly-digest",
@@ -213,14 +213,14 @@
       "path": "skills/dsh-skill-authoring",
       "description": "编写、验证和精简DSH skill；核对触发字段、调用策略、资源路由、去重归档、目录预算与批量发布边界。",
       "files": 6,
-      "bytes": 20934
+      "bytes": 21887
     },
     {
       "name": "dsh-skill-self-audit",
       "path": "skills/dsh-skill-self-audit",
       "description": "DSH skill集合体检入口；审查字段、引用、重复、预算与文件摘要，转作者技能的周期体检模式。",
       "files": 6,
-      "bytes": 60911
+      "bytes": 63316
     },
     {
       "name": "external-buzz-magnitude-check",
@@ -253,9 +253,9 @@
     {
       "name": "github-pr-flow",
       "path": "skills/github-pr-flow",
-      "description": "GitHub及GitCode PR交付、评审处置与当前head的CI核验。适用于\\\"帮我提PR / 更新PR正文 / CI为什么红 / 处理评审意见 / 修PR冲突\\\"。不适用：仅审版本实质差异 → 用 `git-tag-diff-audit`。",
+      "description": "GitHub/GitCode PR 交付与 CI 核验：提 PR、改正文、修冲突、看红。适用于\\\"提PR / 改PR正文 / CI为什么红 / 修PR冲突 / 处理评审意见\\\"。不适用：仅审版本差异 → git-tag-diff-audit。",
       "files": 1,
-      "bytes": 3895
+      "bytes": 3889
     },
     {
       "name": "korea-official-source-research",
@@ -269,7 +269,7 @@
       "path": "skills/llm-landscape-recon",
       "description": "多厂商模型能力与价格对比入口，统一官方来源、版本、effort与计费口径。",
       "files": 1,
-      "bytes": 5766
+      "bytes": 5771
     },
     {
       "name": "login-credential-autofill",
@@ -296,8 +296,8 @@
       "name": "mindspeed-ops-smoke",
       "path": "skills/mindspeed-ops-smoke",
       "description": "MindSpeed-Ops接口兼容、wheel验收及UT/ATK冒烟（含A3双机26.2.0配套）。适用于\\\"跑Ops冒烟 / ATK精度怎么判 / UT全绿了吗 / 跨仓接口兼容吗\\\"。",
-      "files": 4,
-      "bytes": 16240
+      "files": 7,
+      "bytes": 17615
     },
     {
       "name": "mindspeed-ops-whl-build",
@@ -400,9 +400,9 @@
     {
       "name": "tilelang-op-generator",
       "path": "skills/tilelang-op-generator",
-      "description": "TileLang-Ascend算子开发及内存同步、独立golden和性能验证。适用于\\\"用TileLang写算子 / 算子迁到NPU / 修kernel精度 / 尾块越界吗 / 怎么测性能\\\"。不适用：环境安装故障 → 用 `ascend-cann-env`。",
+      "description": "TileLang-Ascend 算子开发：内存同步、独立 golden、性能验证。适用于\\\"写算子 / 迁到NPU / 修kernel精度 / 尾块越界 / 测性能\\\"。不适用：环境安装 → 用 ascend-cann-env。",
       "files": 18,
-      "bytes": 166265
+      "bytes": 166233
     },
     {
       "name": "upstream-docs-refresh-audit",
@@ -414,9 +414,9 @@
     {
       "name": "vllm-ascend-e2e-ci-wiring",
       "path": "skills/vllm-ascend-e2e-ci-wiring",
-      "description": "vLLM Ascend E2E用例目录、时长、marker和硬件CI车道核验。适用于\\\"新增E2E怎么落位 / CI报MISSING / 时长怎么登记 / 用例进哪条车道 / 本地收集全吗\\\"。不适用：源码安装与重编 → 用 `vllm-ascend-source-install`。",
+      "description": "vLLM Ascend E2E：用例落位、时长登记、marker 与 CI 车道。适用于\\\"新增E2E / CI报MISSING / 时长登记 / 本地收集全吗\\\"。不适用：源码安装 → vllm-ascend-source-install。",
       "files": 1,
-      "bytes": 3906
+      "bytes": 3849
     },
     {
       "name": "vllm-ascend-source-install",

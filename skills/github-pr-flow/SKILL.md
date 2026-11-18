@@ -1,6 +1,6 @@
 ---
 name: "github-pr-flow"
-description: "GitHub及GitCode PR交付、评审处置与当前head的CI核验。适用于\"帮我提PR / 更新PR正文 / CI为什么红 / 处理评审意见 / 修PR冲突\"。不适用：仅审版本实质差异 → 用 `git-tag-diff-audit`。"
+description: "GitHub/GitCode PR 交付与 CI 核验：提 PR、改正文、修冲突、看红。适用于\"提PR / 改PR正文 / CI为什么红 / 修PR冲突 / 处理评审意见\"。不适用：仅审版本差异 → git-tag-diff-audit。"
 whenToUse: "处理GitHub及GitCode PR交付、评审处置与当前head的CI核验时加载；模型看不到本节，触发以description为准。"
 ---
 

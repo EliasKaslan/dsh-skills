@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Skill catalog budget checker (read-only unless --write-index).
+"""Skill budget checker (read-only unless --write-index).
 
-The DSH skill catalog is injected as one user message and re-sent with every
-request, so hot entries are a fixed cost. This script measures that cost and
-regenerates the warm-tier index.
+Two budgets, because two different costs:
+
+* catalog: every hot skill contributes one `name: description` line to a user
+  message that is re-sent with every request.
+* body: the whole SKILL.md text enters the context whenever the skill is
+  loaded, so the body must stay a router plus the facts that matter. Long
+  detail belongs in references/.
 
 Usage:
-    python skill_budget.py                 # report hot/warm + catalog chars
+    python skill_budget.py                 # report
     python skill_budget.py --json          # machine-readable
-    python skill_budget.py --write-index   # rewrite skills-archive/INDEX.json, then report
+    python skill_budget.py --top 10        # list this many largest bodies
+    python skill_budget.py --write-index   # rewrite skills-archive/INDEX.json
 
-Exit codes: 0 = within budget, 1 = over budget (hot count / chars / description),
-2 = usage error.
+Exit codes: 0 = within budget, 1 = over budget, 2 = usage error.
 """
 
 import argparse
@@ -24,6 +28,9 @@ import sys
 HOT_LIMIT = 40
 CHAR_LIMIT = 7000
 DESC_LIMIT = 120
+BODY_LIMIT = 8000
+WARM_BODY_LIMIT = 16000
+SECTION_LIMIT = 8
 
 
 def dsh_home() -> str:
@@ -58,10 +65,16 @@ def scan(home: str):
             continue
         for name in sorted(os.listdir(root)):
             directory = os.path.join(root, name)
-            path = os.path.join(directory, "SKILL.md") if os.path.isdir(directory) else directory
-            if not os.path.isfile(path) or not name.endswith(".md") and not os.path.isdir(directory):
+            is_dir = os.path.isdir(directory)
+            if is_dir:
+                path = os.path.join(directory, "SKILL.md")
+            elif name.endswith(".md"):
+                path = directory
+            else:
                 continue
-            skill_name = name if os.path.isdir(directory) else name[:-3]
+            if not os.path.isfile(path):
+                continue
+            skill_name = name if is_dir else name[:-3]
             if skill_name in seen:
                 continue
             with io.open(path, "r", encoding="utf-8", newline="") as handle:
@@ -73,6 +86,7 @@ def scan(home: str):
                 problems.append(f"{skill_name}: 无合法 YAML frontmatter（不会被加载）")
                 continue
             frontmatter = match.group(1)
+            body = text[match.end():]
             description = field(frontmatter, "description")
             declared = field(frontmatter, "name")
             if not description:
@@ -86,6 +100,8 @@ def scan(home: str):
                 "path": path,
                 "description": description,
                 "descLen": len(description),
+                "bodyBytes": len(body.encode("utf-8")),
+                "sections": len(re.findall(r"^## ", body, re.M)),
             }
             if field(frontmatter, "disable-model-invocation").lower() == "true":
                 entry["triggers"] = field(frontmatter, "warm-triggers") or description
@@ -97,16 +113,34 @@ def scan(home: str):
     return hot, warm, chars, problems
 
 
+def over_body(entries, limit):
+    return [
+        item
+        for item in entries
+        if item["bodyBytes"] > limit or item["sections"] > SECTION_LIMIT
+    ]
+
+
 def main(argv) -> int:
-    parser = argparse.ArgumentParser(description="DSH skill catalog budget checker")
+    parser = argparse.ArgumentParser(description="DSH skill budget checker")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--write-index", action="store_true")
+    parser.add_argument("--top", type=int, default=8)
     parser.add_argument("--home", default=None)
     args = parser.parse_args(argv)
 
     home = os.path.abspath(args.home) if args.home else dsh_home()
     hot, warm, chars, problems = scan(home)
-    over = [item for item in hot if item["descLen"] > DESC_LIMIT]
+    over_desc = [item for item in hot if item["descLen"] > DESC_LIMIT]
+    over_hot_body = over_body(hot, BODY_LIMIT)
+    over_warm_body = over_body(warm, WARM_BODY_LIMIT)
+    ok = (
+        len(hot) <= HOT_LIMIT
+        and chars <= CHAR_LIMIT
+        and not over_desc
+        and not over_hot_body
+        and not over_warm_body
+    )
 
     if args.write_index:
         archive = os.path.join(home, "skills-archive")
@@ -131,7 +165,6 @@ def main(argv) -> int:
         with io.open(os.path.join(archive, "INDEX.json"), "w", encoding="utf-8", newline="") as handle:
             handle.write(json.dumps(index, ensure_ascii=False, indent=2) + "\n")
 
-    ok = len(hot) <= HOT_LIMIT and chars <= CHAR_LIMIT and not over
     report = {
         "ok": ok,
         "home": home,
@@ -141,23 +174,49 @@ def main(argv) -> int:
         "catalogChars": chars,
         "catalogCharLimit": CHAR_LIMIT,
         "descLimit": DESC_LIMIT,
-        "overDescLimit": [{"name": item["name"], "descLen": item["descLen"]} for item in over],
+        "overDescLimit": [{"name": item["name"], "descLen": item["descLen"]} for item in over_desc],
+        "bodyLimit": BODY_LIMIT,
+        "warmBodyLimit": WARM_BODY_LIMIT,
+        "sectionLimit": SECTION_LIMIT,
+        "overBody": [
+            {"name": item["name"], "bodyBytes": item["bodyBytes"], "sections": item["sections"], "warm": False}
+            for item in over_hot_body
+        ]
+        + [
+            {"name": item["name"], "bodyBytes": item["bodyBytes"], "sections": item["sections"], "warm": True}
+            for item in over_warm_body
+        ],
+        "largest": [
+            {"name": item["name"], "bodyBytes": item["bodyBytes"], "sections": item["sections"], "warm": False}
+            for item in sorted(hot, key=lambda x: -x["bodyBytes"])[: args.top]
+        ],
         "problems": problems,
     }
+
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
-        print(f"hot {len(hot)}/{HOT_LIMIT}  warm {len(warm)}  catalog {chars}/{CHAR_LIMIT} chars")
-        if over:
+        print(f"catalog: hot {len(hot)}/{HOT_LIMIT}  warm {len(warm)}  chars {chars}/{CHAR_LIMIT}")
+        print(f"body:    hot <= {BODY_LIMIT} B / {SECTION_LIMIT} 段   warm <= {WARM_BODY_LIMIT} B")
+        if over_desc:
             print("description 超预算:")
-            for item in over:
+            for item in over_desc:
                 print(f"  - {item['name']}: {item['descLen']} > {DESC_LIMIT}")
+        if over_hot_body or over_warm_body:
+            print("正文超预算（先精简再用 distill_skill 写）:")
+            for item in over_hot_body:
+                print(f"  - {item['name']}: {item['bodyBytes']} B / {item['sections']} 段（热上限 {BODY_LIMIT} B / {SECTION_LIMIT} 段）")
+            for item in over_warm_body:
+                print(f"  - {item['name']}（冷备）: {item['bodyBytes']} B / {item['sections']} 段（上限 {WARM_BODY_LIMIT} B）")
+        if args.top > 0:
+            print(f"最大正文 top{args.top}:")
+            for item in sorted(hot, key=lambda x: -x["bodyBytes"])[: args.top]:
+                print(f"  - {item['name']}: {item['bodyBytes']} B / {item['sections']} 段")
         if problems:
             print("其它问题:")
             for item in problems:
                 print("  - " + item)
-        if ok:
-            print("预算内 ✓")
+        print("预算内 ✓" if ok else "超预算 ✗")
     return 0 if ok else 1
 
 

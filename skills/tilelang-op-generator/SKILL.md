@@ -1,6 +1,6 @@
 ---
 name: "tilelang-op-generator"
-description: "TileLang-Ascend算子开发及内存同步、独立golden和性能验证。适用于\"用TileLang写算子 / 算子迁到NPU / 修kernel精度 / 尾块越界吗 / 怎么测性能\"。不适用：环境安装故障 → 用 `ascend-cann-env`。"
+description: "TileLang-Ascend 算子开发：内存同步、独立 golden、性能验证。适用于\"写算子 / 迁到NPU / 修kernel精度 / 尾块越界 / 测性能\"。不适用：环境安装 → 用 ascend-cann-env。"
 whenToUse: "处理TileLang-Ascend算子开发及内存同步、独立golden和性能验证时加载；模型看不到本节，触发以description为准。"
 ---
 
