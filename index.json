@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
-  "file_count": 307,
-  "total_bytes": 25503047,
+  "file_count": 312,
+  "total_bytes": 25504123,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -100,8 +100,8 @@
       "name": "ascend-server-layout",
       "path": "skills/ascend-server-layout",
       "description": "在共享昇腾服务器上选择项目、环境、缓存与权重落点，核实磁盘、NPU 占用及 safetensors 分片完整性；适用于写哪盘、找真权重、挑空卡和容器挂载问题。",
-      "files": 6,
-      "bytes": 24160
+      "files": 9,
+      "bytes": 24914
     },
     {
       "name": "ascend-torch-npu",
@@ -422,8 +422,8 @@
       "name": "vllm-ascend-source-install",
       "path": "skills/vllm-ascend-source-install",
       "description": "将指定 checkout 的 vLLM 与 vLLM Ascend 从源码配对构建到已有昇腾环境，控制依赖替换、编译器与 BI 算子产物；适用于源码安装、重编和 build dependency 错误。",
-      "files": 2,
-      "bytes": 9242
+      "files": 4,
+      "bytes": 9564
     },
     {
       "name": "vuln-scan-report-verification",

@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **64** 个 skill、**307** 个文件、**25503047** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **64** 个 skill、**312** 个文件、**25504123** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -45,7 +45,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 11 | [`ascend-model-adaptation-recon`](skills/ascend-model-adaptation-recon/SKILL.md) | 核实指定模型及变体在昇腾推理或训练生态中的实现、跨仓分工、硬件/精度支持与未闭合缺口；适用于能否跑、适配成熟度、镜像和 Day-0 宣称取证。 | 1 |
 | 12 | [`ascend-moe-ep-capacity-planning`](skills/ascend-moe-ep-capacity-planning/SKILL.md) | 在昇腾 MoE 部署前核算每 rank 权重、KV/线性注意力状态与运行峰值，筛选合法 TP/DP/PCP/EP 组合；适用于需要几张卡、并行配置和显存余量，不替代真机可运行验收。 | 4 |
 | 13 | [`ascend-server-access`](skills/ascend-server-access/SKILL.md) | 诊断 Windows 经 UniVPN 访问昇腾服务器时的隧道、路由、TCP、SSH 与跨机通信问题；适用于机器连不上、A3/A5 双隧道和 SSH 握手卡住，不处理 CANN 安装。 | 11 |
-| 14 | [`ascend-server-layout`](skills/ascend-server-layout/SKILL.md) | 在共享昇腾服务器上选择项目、环境、缓存与权重落点，核实磁盘、NPU 占用及 safetensors 分片完整性；适用于写哪盘、找真权重、挑空卡和容器挂载问题。 | 6 |
+| 14 | [`ascend-server-layout`](skills/ascend-server-layout/SKILL.md) | 在共享昇腾服务器上选择项目、环境、缓存与权重落点，核实磁盘、NPU 占用及 safetensors 分片完整性；适用于写哪盘、找真权重、挑空卡和容器挂载问题。 | 9 |
 | 15 | [`ascend-torch-npu`](skills/ascend-torch-npu/SKILL.md) | 昇腾torch与torch_npu的版本配对、动态库和NPU可用性排障；使用当前运行栈的分层判据。 | 1 |
 | 16 | [`ascend-triton-ascend`](skills/ascend-triton-ascend/SKILL.md) | 昇腾Triton同名文件覆盖、版本来源与真实kernel验证；使用运行栈的Triton章节。 | 1 |
 | 17 | [`ascend-vllm-serve`](skills/ascend-vllm-serve/SKILL.md) | 在已安装的昇腾 vLLM 环境中做离线推理、启动 OpenAI 服务及定位 OOM/初始化失败，并验证 sleep、唤醒与权重更新；不负责源码安装或训练数值一致性适配。 | 2 |
@@ -91,7 +91,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 57 | [`tilelang-op-generator`](skills/tilelang-op-generator/SKILL.md) | TileLang-Ascend 算子开发：内存同步、独立 golden、性能验证。适用于\"写算子 / 迁到NPU / 修kernel精度 / 尾块越界 / 测性能\"。不适用：环境安装 → 用 ascend-cann-env。 | 18 |
 | 58 | [`upstream-docs-refresh-audit`](skills/upstream-docs-refresh-audit/SKILL.md) | 上游文档与需求、代码、参数、导航及多语言一致性审计。适用于\"这批需求有文档吗 / docs要刷新吗 / 参数主线有没有 / 内部代号叫什么 / 导航漏页面了吗\"。不适用：启动推理服务 → 用 `ascend-vllm-serve`。 | 5 |
 | 59 | [`vllm-ascend-e2e-ci-wiring`](skills/vllm-ascend-e2e-ci-wiring/SKILL.md) | vLLM Ascend E2E：用例落位、时长登记、marker 与 CI 车道。适用于\"新增E2E / CI报MISSING / 时长登记 / 本地收集全吗\"。不适用：源码安装 → vllm-ascend-source-install... | 1 |
-| 60 | [`vllm-ascend-source-install`](skills/vllm-ascend-source-install/SKILL.md) | 将指定 checkout 的 vLLM 与 vLLM Ascend 从源码配对构建到已有昇腾环境，控制依赖替换、编译器与 BI 算子产物；适用于源码安装、重编和 build dependency 错误。 | 2 |
+| 60 | [`vllm-ascend-source-install`](skills/vllm-ascend-source-install/SKILL.md) | 将指定 checkout 的 vLLM 与 vLLM Ascend 从源码配对构建到已有昇腾环境，控制依赖替换、编译器与 BI 算子产物；适用于源码安装、重编和 build dependency 错误。 | 4 |
 | 61 | [`vuln-scan-report-verification`](skills/vuln-scan-report-verification/SKILL.md) | 第三方漏洞扫描报告的基线、可达性、攻击输入和严重性复核。适用于\"这个高危是真的吗 / 行号对不对 / 注入能用吗 / 定级高不高 / 有没有漏报\"。不适用：仅审文档扫描分数 → 用 `aidd-report-reader`。 | 1 |
 | 62 | [`web-ui-contrast-audit`](skills/web-ui-contrast-audit/SKILL.md) | 定位网页主题切换后文字与背景难辨的问题，按实际渲染背景计算WCAG文本对比并复测修复；适用于浅色/深色主题可读性，不以静态颜色值替代复杂背景检查。 | 2 |
 | 63 | [`win-scheduled-task-forensics`](skills/win-scheduled-task-forensics/SKILL.md) | 在 Windows 只读追查定时弹窗、后台进程和开机启动来源，关联计划任务、Run 项、启动目录、服务与 WMI，并在明确授权后验证单项禁用或恢复。 | 1 |
