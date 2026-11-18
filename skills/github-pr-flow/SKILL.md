@@ -66,3 +66,16 @@ subprocess.run(["git", "push", "https://github.com/{fork}.git", f"{local}:refs/h
 - fork 名可能不等于仓名（`<user>/<repo>` 不存在时先读既有 PR 的 `head.repo.full_name`，或 `GET /repos/<user>/<repo>` 一个个试），别假设。
 - `git push` 时本地分支名与期望的远端分支名不同，refspec 要写 `{local}:refs/heads/{remote}`；直接写远端名会得到 `src refspec ... does not match any`。
 - 建 PR 后必须回读 `base.sha`/`head.sha`/`changed_files`/`additions` 与本地 `git rev-parse`，机器人还会自动加标签、补 `- vLLM version:` 尾行。
+
+## CI 门禁红：先分「等评审」与「真失败」
+
+## CI 门禁红：先分「等评审」与「真失败」
+
+`codeowner-approval` 类的失败常常不是脚本坏了，而是审批没到位。判读顺序：
+
+1. 先看 gate 脚本而不是 job 日志。vllm-ascend 的 `.github/workflows/scripts/codeowner_gate.py` 里 `check_approvals()` 写清了规则：PR 改到的每个文件都要有该路径 CODEOWNERS owner 的 APPROVED；没有 owner 的路径（`unclaimed`）与「作者本人是唯一 owner、无法自批」（`self_owned`）按策略只记 notice，不算门禁失败。读这一段就能得到 "waiting for approval from one of: ..." 的准确含义。
+2. 自建 check 的 `GET /repos/{o}/{r}/check-runs/{id}` 经常 `output.summary` 为空、只给 conclusion（实测 codeowner-approval 就是空 title/summary）。空 summary ≠ 失败原因缺失，去读仓里的 gate 脚本或 workflow，比下载 job 日志快得多。
+3. 找 owner 用 CODEOWNERS 语义解析被改路径：gitignore 式前缀匹配 + **最后一条匹配规则生效**，别用一条通配拍全体；`/docs @someone` 这种粗规则通常就是文档 PR 的实际 owner。
+4. 汇报时把「等谁的 approve」单独列出来，与「真的失败」分开；`cpu-ut`/矩阵类 check 仍在跑时也照实写，不要把 pending 说成绿。
+
+请求 codeowner 评审会给人发通知：这是对外的写操作，按本次沟通授权决定发不发，别默认代发。

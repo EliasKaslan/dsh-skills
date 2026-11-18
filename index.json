@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 312,
-  "total_bytes": 25512279,
+  "total_bytes": 25513759,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -255,7 +255,7 @@
       "path": "skills/github-pr-flow",
       "description": "GitHub/GitCode PR 交付与 CI 核验：提 PR、改正文、修冲突、看红。适用于\\\"提PR / 改PR正文 / CI为什么红 / 修PR冲突 / 处理评审意见\\\"。不适用：仅审版本差异 → git-tag-diff-audit。",
       "files": 1,
-      "bytes": 6444
+      "bytes": 7924
     },
     {
       "name": "korea-official-source-research",
