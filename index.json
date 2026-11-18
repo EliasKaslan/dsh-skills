@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 299,
-  "total_bytes": 25492299,
+  "total_bytes": 25494004,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -269,7 +269,7 @@
       "path": "skills/llm-landscape-recon",
       "description": "多厂商模型能力与价格对比入口，统一官方来源、版本、effort与计费口径。",
       "files": 1,
-      "bytes": 4061
+      "bytes": 5766
     },
     {
       "name": "login-credential-autofill",
