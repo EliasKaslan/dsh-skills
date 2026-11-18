@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **64** 个 skill、**313** 个文件、**25521578** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **64** 个 skill、**314** 个文件、**25524717** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -52,7 +52,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 18 | [`batch-invariance-acceptance`](skills/batch-invariance-acceptance/SKILL.md) | 昇腾批次不变性与训推数值一致性适配、定位、验证。适用于\"验批次不变性 / 训推logprob对不上 / prefill和decode不同 / 梯度怎么验证 / 更新后不同步\"。不适用：仅启动推理服务→ascend-vllm-serve。 | 22 |
 | 19 | [`batch-invariant-weekly-digest`](skills/batch-invariant-weekly-digest/SKILL.md) | BI批次不变性周报与窗口内已合入PR清单。适用于\"跑BI周报 / 不变性有什么进展 / 这周合了哪些PR / 周报改成列表 / 查确定性进展\"。不适用：模型数值验收 → 用 `batch-invariance-acceptance`。 | 1 |
 | 20 | [`dingxiang-slider-captcha`](skills/dingxiang-slider-captcha/SKILL.md) | 顶象滑块验证码的合法交互与故障识别入口；转登录流程的人工交接模式，保留加载/iframe观察，停止脚本绕过。 | 1 |
-| 21 | [`dsh-agent-customization`](skills/dsh-agent-customization/SKILL.md) | DSH配置、插件与运行时维护总纲；定位改哪层、何时生效、隔离验证、preset取证与守护恢复，按模式转入具体参考。 | 9 |
+| 21 | [`dsh-agent-customization`](skills/dsh-agent-customization/SKILL.md) | DSH配置、插件与运行时维护总纲；定位改哪层、何时生效、隔离验证、preset取证与守护恢复，按模式转入具体参考。 | 10 |
 | 22 | [`dsh-agent-preset-live-verification`](skills/dsh-agent-preset-live-verification/SKILL.md) | DSH preset在线验收入口；核对persona、权威工具清单、子代理provider/model与父turn/end，转总纲preset-live模式。 | 1 |
 | 23 | [`dsh-agent-preset-verification`](skills/dsh-agent-preset-verification/SKILL.md) | DSH preset/overlay离线验证入口；核对当前loader、组合、配置语义与工具策略，转总纲preset-offline模式。 | 1 |
 | 24 | [`dsh-home-guard`](skills/dsh-home-guard/SKILL.md) | DSH home守护与恢复入口；检查外置备份、自愈失败、隔离恢复和内容核验，转总纲守护恢复模式。 | 1 |

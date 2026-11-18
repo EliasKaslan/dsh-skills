@@ -69,3 +69,7 @@ whenToUse: "DSH配置、插件与运行时维护总纲；定位改哪层、何�
 **验证手法（可复用）**：把插件 `index.js` 复制进一个带 `@deepseek-ai/*` stub 的 harness 目录，`process.env.DSH_HOME` 指向临时 home，再直接调 `registered.tool.execute(args, {agent})`，对磁盘上的真实文件断言各分支（超预算拒绝、replace 改写、相似度拒绝、references 写入、路径穿越拒绝）。这次就是靠它发现"闸门没接线"的——纯读代码看不出 `undefined`。
 
 同类教训：`failedTurns` 初始化成 `Set` 却用 `.get()`（Map API）→ turn-stopping 抛 `state.failedTurns.get is not a function`。**声明、初始化、消费三处的类型/字段必须对齐，并且事件监听器要自带 try/catch**（否则插件 bug 会表现为「本轮运行失败」）。
+
+## 模型兼容：system 指令被改写成 developer（400）
+
+切到某个推理模型后本轮**第一个**请求就 400 `developer is not one of ['system', 'assistant', 'user', 'tool', 'function']`：不是 DSH 自己的 `developer/message`（适配器会转成 system），而是 pi-ai 对未知 OpenAI 兼容网关把 system 指令下发成 `developer`。修法：在该模型条目加 `compat: { supportsDeveloperRole: false }`，重启 DSH 生效。判据、代码行、对照实测与验证命令见 [llm-role-compat.md](references/llm-role-compat.md)。
