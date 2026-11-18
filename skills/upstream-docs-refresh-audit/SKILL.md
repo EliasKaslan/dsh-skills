@@ -61,3 +61,14 @@ git push --force-with-lease=refs/heads/<branch>:<old_sha> <remote> <local>:refs/
 ```
 
 只对自有 PR 分支这么做；交付里说明「已改写历史」「旧 head → 新 head」，别让 reviewer 拿旧 sha 对不上。判断依据是 `git diff --stat <base> HEAD` 的文件数，不是提交数。
+
+## 图模式取证：Runtime Mode 不等于 cudagraph_mode
+
+## 图模式取证：`Runtime Mode` ≠ `cudagraph_mode`
+
+引擎 CUDAGraph Stats 的 `Runtime Mode = FULL` 是"重放了被捕获的整图"，不是 `cudagraph_mode=FULL`；`cudagraph_mode=<...FULL_DECODE_ONLY...>` 与它可同时出现。据此写"支持 FULL"会被评审打回。
+
+- 边界：`FULL_DECODE_ONLY` 只捕 decode 整图；`FULL` 让 prefill 也进图；`FULL_AND_PIECEWISE` 只覆盖 decode 半边，不能替代 FULL；BI 用例常走默认 mode。
+- 升级矩阵格子前，先在 tests 里找显式设置该 mode 且开 `VLLM_BATCH_INVARIANT` 的用例；没有 mode × 硬件实测就保持 🟡。
+- capture 行、吞吐跃升、Runtime Mode 计数只证明"图在跑"，不证明策略与 prefill 入图；实现无 gating 也不等于已验证。
+- 文档声称某 mode 而矩阵仍 🟡 会被当成矛盾；收窄措辞优于抬高矩阵。

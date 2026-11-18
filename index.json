@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 313,
-  "total_bytes": 25520652,
+  "total_bytes": 25521578,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -409,7 +409,7 @@
       "path": "skills/upstream-docs-refresh-audit",
       "description": "上游文档与需求、代码、参数、导航及多语言一致性审计。适用于\\\"这批需求有文档吗 / docs要刷新吗 / 参数主线有没有 / 内部代号叫什么 / 导航漏页面了吗\\\"。不适用：启动推理服务 → 用 `ascend-vllm-serve`。",
       "files": 5,
-      "bytes": 21153
+      "bytes": 22079
     },
     {
       "name": "vllm-ascend-e2e-ci-wiring",
