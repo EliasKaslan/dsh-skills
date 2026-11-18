@@ -53,3 +53,19 @@ whenToUse: "DSH配置、插件与运行时维护总纲；定位改哪层、何�
 - **拿旧备份整体还原**：若这期间文件有过别的改动，还原即回滚别人的改动。除非能证明期间无人改过，否则一律外科摘除。
 - **只核 YAML 可解析**：解析通过不证明"没了"，多留一行 `- id: ...` 仍是有效 YAML，而且会静默继续覆盖配置。
 - **回滚默认值 ≠ 关掉已开启的会话**：默认值只影响之后新建的会话；已经开了的会话是它自己日志里的状态，要单独在会话菜单里关（见上一节）。
+
+## 插件闸门静默失效：Config 新增字段必须同步到 settings（实测）
+
+写 host 插件时，`Config` 里新增字段**只是声明**；消费它的 `settings` 对象（`apply()` 开头那段 `config?.x ?? DEFAULT_X`）必须逐个同步，否则默认值变 `undefined`，比较恒 false，闸门**静默失效**。
+
+实测：给插件加正文预算 `bodyLimitBytes` / `sectionLimit` 时只改了 `Config`，漏了 `settings`；工具回执出现
+
+```
+正文：14160 / undefined 字节，2 / undefined 段
+```
+
+不抛错、不告警，超预算的写入照常落盘。修法：`Config` 每个字段都在 `settings` 里解一次；**把预算数字打进工具回执**（`X / limit`），`undefined` 一眼可见。
+
+**验证手法（可复用）**：把插件 `index.js` 复制进一个带 `@deepseek-ai/*` stub 的 harness 目录，`process.env.DSH_HOME` 指向临时 home，再直接调 `registered.tool.execute(args, {agent})`，对磁盘上的真实文件断言各分支（超预算拒绝、replace 改写、相似度拒绝、references 写入、路径穿越拒绝）。这次就是靠它发现"闸门没接线"的——纯读代码看不出 `undefined`。
+
+同类教训：`failedTurns` 初始化成 `Set` 却用 `.get()`（Map API）→ turn-stopping 抛 `state.failedTurns.get is not a function`。**声明、初始化、消费三处的类型/字段必须对齐，并且事件监听器要自带 try/catch**（否则插件 bug 会表现为「本轮运行失败」）。
