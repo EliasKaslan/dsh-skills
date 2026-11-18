@@ -1,6 +1,6 @@
 ---
 name: llm-landscape-recon
-description: "多厂商模型能力与价格对比入口，统一官方来源、版本、effort与计费口径。"
+description: 模型对比与速度取证入口：官方来源、effort档、tok/s口径与计费。
 whenToUse: "需要比较多家模型的当前能力、上下文、价格与评测，按日期和精确版本取证。"
 ---
 
@@ -68,19 +68,14 @@ whenToUse: "需要比较多家模型的当前能力、上下文、价格与评�
 
 ## Codex 推理档位（max / ultra）与本地取证
 
-问"Codex 里某模型支持哪些推理档、max 和 ultra 是什么"时，**先读本机客户端缓存**（客户端按账号下发的清单，比官网/博客准且离线可用），不要靠 `codex --version`（桌面版常常不在 PATH，Exe 在 WindowsApps 下）。
+问「Codex 里某模型支持哪些档、max / ultra 是什么」时，**先读本机 `~/.codex/models_cache.json`**（客户端按账号下发，比官网/博客准且离线可用），不要靠 `codex --version`（桌面版常不在 PATH）。用 Python `json.load` 逐 model 打印，别把几百 KB 整份读进对话。
 
-取证位置：
-- `~/.codex/models_cache.json` → `models[].supported_reasoning_levels[].effort` + 每档 `description`，以及 `default_reasoning_level`
-- `~/.codex/config.toml` → `model`、`model_reasoning_effort`（当前生效值）
-- 读法：`Get-Content -Encoding utf8 ... -Raw | ConvertFrom-Json`，或直接 grep `"effort"` / `"slug"`；文件几百 KB，先看命中行再定点 read
+取这些字段：`supported_reasoning_levels[].effort` + `description`、`default_reasoning_level`、`service_tiers`、`additional_speed_tiers`、`context_window`、`multi_agent_reasoning_effort`；当前生效值看 `~/.codex/config.toml` 的 `model_reasoning_effort`。
 
-档位梯度：`low → medium → high → xhigh(Extra high) → max → ultra`。两档都不是模型版本：
+梯度 `low→medium→high→xhigh→max→ultra`：`max` 把同一条推理链推到最深；`ultra` = max + 自动任务委派（真起 subagent，子代理跑 `multi_agent_reasoning_effort`，常见 xhigh）。
 
-- `max` = 把**同一条推理链**推到最深（"Maximum reasoning depth for the hardest problems"）
-- `ultra` = 最大推理 + **自动任务委派**（"Maximum reasoning with automatic task delegation"）：客户端自动拆子任务、起 subagent 并行后汇总。按 Codex SDK 的说明，ultra 属 CLI/客户端行为，不作为 API `reasoning.effort` 值传递；服务端阶梯能否接受 `max` 随版本变化（未验证：本机无法验证服务端接受度）
+- 2026-11-18 本机实测（client 0.169.0）：astra / sol 均 6 档、**默认 `low`**——没手动改档时谈「快/慢」的结论无效；只下发 Fast（`2x speed, increased usage`），Ultrafast（≤4.5×）在网页/Work 端与部分 20x 计划；astra `context_window` 272k、sol 500k，两者 `max_context_window` 872k。
+- **tok/s 别照抄**：reasoning token 计入 output token，厂商/网关 tps ≠ 你的出字速度；Codex 无内置 tok/s（statusline 34 项里没有 throughput，社区数字来自 magpie / cc switch 之类反代看板）；网关 p50 是跨 effort、provider、tier 的混合值，不能读成「max 档」。
+- 中文社区页 Cloudflare 403 时，`web_fetch(https://r.jina.ai/<URL>)` 能拿正文并保留楼层（nodeseek 对该代理封禁，只能引用搜索索引片段并标注非直读）。
 
-坑：
-- 别假设"最高档一定存在"：旗舰档（sol / astra / terra）才到 ultra，luna 档、reserve、auto-review 只到 max，按 `supported_reasoning_levels` 判。
-- ultra 会真起 subagent，token 与延迟显著高于 max；任务不能拆块时用 max 更划算，日常停在 high 即可。
-- 部分版本默认隐藏 Max，需在 Settings → Configuration → Model features 勾选（未验证：本机未见该开关）。
+四条口径的原文取证与社区实测表 → `references/throughput-metric-pitfalls.md`
