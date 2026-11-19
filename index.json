@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
-  "file_count": 315,
-  "total_bytes": 25532620,
+  "file_count": 316,
+  "total_bytes": 25536445,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -100,8 +100,8 @@
       "name": "ascend-server-layout",
       "path": "skills/ascend-server-layout",
       "description": "在共享昇腾服务器上选择项目、环境、缓存与权重落点，核实磁盘、NPU 占用及 safetensors 分片完整性；适用于写哪盘、找真权重、挑空卡和容器挂载问题。",
-      "files": 9,
-      "bytes": 24914
+      "files": 10,
+      "bytes": 28739
     },
     {
       "name": "ascend-torch-npu",

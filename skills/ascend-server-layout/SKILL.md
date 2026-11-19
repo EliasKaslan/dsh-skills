@@ -66,3 +66,14 @@ python inspect_weights.py /path/to/model > weights-report.json
 - 容器内 `docker exec` 跑的东西不会进 `ps` 之外的容器外视图，别用"宿主 `ps` 没有 python"就断言"没人操作"——要看 `docker events` 的 exec 记录。
 - `watch -n 1.0 npu-smi info` 这类常驻轮询会让 `/var/log/nputools_LOG_INFO.log` 持续增长、`journalctl | grep -c npu` 到十万级：**那是查询噪声，不是占用证据**，别拿命中数当活跃度。
 - `npu-smi info -t proc` 在 A5 25.1.rc3 不存在（`Error parameter of -t`），设备级进程用 `-t proc-mem`。
+
+## 从 npu-smi 进程名反查真实服务（含 proc-mem 判据）
+
+判「卡上在跑什么」不能只看 `npu-smi` 的 `Process name`：它是内核 comm、截断到 15 字符（`sglangschedul` 同时代表 `sglang::scheduler_TP0..N`），读不出模型、TP、端口。要点：
+
+1. 用 `ps -eo pid,ppid,etime,args` 取全量命令行与父进程，才拿到 `--model-path` / `--tp-size` / `--port` / `--mem-fraction-static`。
+2. 用 `cat /proc/<pid>/cgroup` 的 64 位 ID 前 12 位对 `docker ps`，判是宿主还是容器；容器内进程的 `Process id in container` 可能仍是 `NA`。
+3. `curl /health` + `/get_model_info` 才证明服务在服务；`Util 0%` 只表示此刻没请求。
+4. **判「谁占卡」以设备级 `npu-smi info -t proc-mem -i N` 为准**；`-lname '*davinci*'` 扫描会误中 `<defunct>` 与跨机等待的 `torchrun bench_*`，它们持 fd 但不占 HBM，列为「吃 CPU 不占卡」单说。
+
+完整命令、实测样例与判读见 [前向取证](references/serve-forensics.md)。
