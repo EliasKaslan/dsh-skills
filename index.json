@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 315,
-  "total_bytes": 25530727,
+  "total_bytes": 25532620,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -31,7 +31,7 @@
       "path": "skills/aidd-report-reader",
       "description": "读取AIDD等文档质量扫描报告，校验分页、项目范围与问题聚合，并将报告命中对账到仓库交付件；适用于扫描分数、fatal/critical清单和公网地址声明覆盖核查。",
       "files": 2,
-      "bytes": 4227
+      "bytes": 6120
     },
     {
       "name": "anima-ai-musume-lora",

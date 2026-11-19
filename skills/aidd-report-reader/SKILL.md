@@ -26,3 +26,22 @@ disable-model-invocation: true
 把每条命中的文件/位置/地址/用途与声明逐项关联；位置可能是chunk相对offset，需还原到目标commit。报告xlsx按关系表定位sheet和单元格类型，不固定Q/R/L列或假定sheetN；复杂表格交给当前DSH可用表格解析能力（先检查实际工具schema）。
 
 修改时沿用仓库规范，URL可达不等于引用正确，失效URL也不宜为过门禁盲删。没有既有文件时按任务要求创建，不能因旧“最小改动口径”禁止补必要文件。只读审计请求不自动授权提交/发布。
+
+## 2026-11 现场复核：树层级、接口与「未处理」判读
+
+站点 `https://aidd.huawei.blue`。登录由浏览器密码库填充后点「立即登录」，无验证码；令牌约 1 小时有效（JWT iat/exp 差 3600），401 是过期不是接口下线，重登即可。取数据用页面上下文 `fetch` + `Authorization: Bearer <localStorage.authToken>`，只发 GET。
+
+## 层级与接口
+
+- 层级是 `领域(昇腾=16) → 全部产品 → 产品 → 版本 → 项目`。MindSpeed-Ops 是「产品 MindSpeed / 版本 26.2.0 或 master / 项目」，在"全部产品"下找不到同名产品。
+- 树：`/api/v1/file-management/projects?group_id=16&include_all_projects=true`，看 `node_type` 区分 group/product/version/project。
+- 问题：`/api/v1/issues/global?project_ids=<proj_id>&validity=valid|all&view=current|history`；聚合用同参数的 `/counts-by-project`、`/counts-by-file`。
+- 任务组：`/api/v1/detection-tasks/groups?sort_by=created_at&sort_order=desc`；文件表：`/api/v1/file-management/projects/all-files?project_id=`。
+
+## 判读坑（实测）
+
+- `project_id=`（单数）在 issues/global 会被忽略，返回"我可见的全量问题"，容易把别的项目问题算到本项目头上；必须用 `project_ids=`。
+- 必须显式 `cache:'no-store'`：否则浏览器缓存返回 `items:[]` 或 `{}`，`total` 却正常，误读成零问题。
+- `page_size=200` 可能返回空 items（total 仍正确），改 100 分页。
+- 「未处理」= `feedback_status=pending`，但先看 `validity=all`：pending 可能全是 `validity≠valid` 的失效条目，UI「有效问题」只算 valid，两边数字不一致属正常。
+- `403 {"detail":{"code":"PERMISSION_DENIED","permission":"project:read","reason":"default_deny"}}` 常见于产品/版本节点，不代表子项目不可读；权限按项目成员判定，逐项目试。
