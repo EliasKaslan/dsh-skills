@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
-  "skill_count": 64,
-  "file_count": 316,
-  "total_bytes": 25536445,
+  "skill_count": 65,
+  "file_count": 317,
+  "total_bytes": 25540757,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -46,6 +46,13 @@
       "description": "维护用户明确选择的SDXL、Anima/ComfyUI、H3等自托管图像与LoRA工作流，核对版本、设备、生成与训练结果。",
       "files": 18,
       "bytes": 130230
+    },
+    {
+      "name": "app-release-version-recon",
+      "path": "skills/app-release-version-recon",
+      "description": "核查某 App 今天是否发版、更新了什么：Microsoft Store / iTunes lookup / Homebrew cask 三处版本取证，区分构建重发与服务端功能放量，全程不动本地安装。",
+      "files": 1,
+      "bytes": 4312
     },
     {
       "name": "arxiv-paper-deep-read-and-claim-verification",
