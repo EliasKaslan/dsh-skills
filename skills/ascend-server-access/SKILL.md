@@ -38,3 +38,34 @@ whenToUse: 诊断 Windows 经 UniVPN 访问昇腾服务器时的隧道、路由�
 长任务记录本任务 PID、日志、退出码及恢复点。停止时核对 PID 的启动时间与命令，不用宽泛 `pkill -f`。Git 下载先区分 DNS/TCP/TLS/认证，代理仅进程级或仓库级；不把旧的第三方镜像域名当固定依赖，也不向它转发凭据。
 
 来源与未迁入项见 [取舍记录](references/provenance.md)。
+
+## 双隧道启动与连接核验（2026-11-19 实测）
+
+## 双隧道启动与连接核验（2026-11-19 实测）
+
+两套客户端已装好且会话已存（`RemPwd=1`、`AutoLogin=1`），启动即自动登录，**不需要点 UI**：
+
+- 实例1 `C:\Program Files (x86)\UniVPN\UniVPN.exe` → 读 `%APPDATA%\UniVPN\sysconfig.ini` 的 Session0（配置「蓝区网关」123.60.114.225:30010），TAP「本地连接」，路由 192.168.0.0/16 → A3。
+- 实例2 `C:\Program Files (x86)\UniVPN\.univpn-multi\UVP002\UVP002.exe` → 读 `%APPDATA%\UVP002\sysconfig.ini` 的 Session0（配置 A5，120.46.228.63:49999），TAP「本地连接 2」，路由 177.0.0.0/8 → A5。
+
+启动：
+
+```powershell
+Start-Process 'C:\Program Files (x86)\UniVPN\UniVPN.exe'
+Start-Process 'C:\Program Files (x86)\UniVPN\.univpn-multi\UVP002\UVP002.exe'
+```
+
+核验（三层都要过，缺一层不算连上）：
+
+```powershell
+Get-NetIPAddress -AddressFamily IPv4 | ? IPAddress -match '^(192\.168\.205\.|1\.2\.18\.)'
+Get-NetRoute -AddressFamily IPv4 | ? DestinationPrefix -in '192.168.0.0/16','177.0.0.0/8'
+# TCP 22：192.168.13.188/190、177.8.21.1
+```
+
+坑：
+
+- `C:\Program Files (x86)\UniVPN2\Open-UniVPN2.cmd`（内部是 `UniVPN-Multi.ps1 -OpenInstance 2`）会卡住不退出：cmd 进程常驻、`Get-Process` 里看不到 `UVP002.exe`，`-WindowStyle Hidden` 与前台调用都一样。直接启动上面的 `UVP002.exe` 即可；`Open-Client` 在脚本里本就写着 "Login manually"。
+- 两个客户端连上后 `MainWindowHandle=0`（窗口收进托盘），不代表没跑；判据是 CS 进程（`UniVPNCS` / `UVP002CS`）+ TAP 有非 APIPA 地址 + 目标路由存在。
+- 两个 CS 日志每约 3–6 秒打一次完整 `Route print` 表（`[Split route success!]` 周期重现），这是既有行为（前一日日志同样如此），不是重连循环，不必据此重建隧道。
+- 2026-11-19 现状：177.11.25.1 / 177.11.26.1 / 177.11.27.1 的 ICMP 与 22 端口均无响应，而同一隧道内 177.8.21.1 正常 → 先按单机不在线处理，别重连 A5。

@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 64,
   "file_count": 314,
-  "total_bytes": 25524717,
+  "total_bytes": 25527938,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -94,7 +94,7 @@
       "path": "skills/ascend-server-access",
       "description": "诊断 Windows 经 UniVPN 访问昇腾服务器时的隧道、路由、TCP、SSH 与跨机通信问题；适用于机器连不上、A3/A5 双隧道和 SSH 握手卡住，不处理 CANN 安装。",
       "files": 11,
-      "bytes": 17743
+      "bytes": 19778
     },
     {
       "name": "ascend-server-layout",
@@ -304,7 +304,7 @@
       "path": "skills/mindspeed-ops-whl-build",
       "description": "MindSpeed-Ops wheel构建与独立环境验收。适用于\\\"打Ops的whl / CMake报错 / 编译器太旧 / SOC怎么选 / 验证wheel\\\"。不适用：只配置CANN运行环境 → 用 `ascend-cann-env`。",
       "files": 1,
-      "bytes": 1360
+      "bytes": 2546
     },
     {
       "name": "minimax-ai-musume-4k-art",
