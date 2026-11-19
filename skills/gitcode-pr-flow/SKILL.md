@@ -59,8 +59,6 @@ git credential fill      # stdin: protocol=https / host=gitcode.com / 空行
 
 ## 评审意见定点取证：diff_comment 锚点与按 sha 读原文
 
-## 评审意见定点取证：diff_comment 锚点与按 sha 读原文
-
 用于「确认某条评审意见是否成立 / PR 是否还需改」。GitCode 的接口形状与 GitHub 不同：
 
 - 取评审意见：`GET https://gitcode.com/api/v5/repos/{owner}/{repo}/pulls/{n}/comments`（公共仓免鉴权可读）。`/pulls/{n}/reviews` 在 GitCode 直接 404，别照 GitHub 心智找 reviews 端点。
@@ -71,3 +69,7 @@ git credential fill      # stdin: protocol=https / host=gitcode.com / 空行
 坑：
 - 短时间连发多次 API 会 `HTTP Error 429: Too Many Requests`，重试也照样 429，冷却需数分钟。一个脚本一次性批量取完（detail/files/comments/commits），需要再看门禁就隔几分钟单次调用，别写轮询。
 - 平台自动回复挂在评论的 `reply[]` 里而不是新增一条 comment，只按 comments 列表的时间线读会误判成「作者没回应」。
+
+## lgtm/approve 权限名单来源
+
+`/lgtm` 只认 reviewers、`/approve` 只认 committers，按模块分别计数；名单在 `Ascend/community` 的 `MindSpeed/sigs/<仓>/sig-info.yaml`（仓库级 + `entry_configs[].path`）。判「为什么没打上标签」先比对评论人 gitcode-id 是否在该模块名单（大小写敏感，改动约 10min 后生效）。取法与实测见 [references/lgtm-approve-permission-source.md](references/lgtm-approve-permission-source.md)。
