@@ -31,3 +31,19 @@ whenToUse: "在 Windows 排查 PowerShell 版本、编码/BOM、原生命令参�
    `syntax error near unexpected token $'{\r'`，这不是脚本问题；用 `git cat-file blob :<path>` 拿到提交版再检查，或转换行尾后再查。
 
 同一目录下的 `git diff` 看不到这些差异（autocrlf 会归一化），所以「diff 干净」不能替代「落盘字节正确」。
+
+## git porcelain 的 ?? 不能用 -like 匹配
+
+统计 `git status --porcelain=v1` 时，不要用 `Where-Object { $_ -like '??*' }` 识别未跟踪行：`-like` 里的 `?` 是“任意单字符”通配符，不是字面问号，所以修改行也会被计入 untracked，而且命令正常退出、不报错。
+
+改用字面前缀判断，并显式计数：
+
+```powershell
+$s = @(git -C $repo status --porcelain=v1)
+$untracked = @($s | Where-Object { $_.StartsWith('??') })
+$modified = @($s | Where-Object { -not $_.StartsWith('??') })
+$untracked.Count
+$modified.Count
+```
+
+不要根据表格外观判断；先用总数核对 `$modified.Count + $untracked.Count -eq $s.Count`。
