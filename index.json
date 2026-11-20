@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
-  "skill_count": 65,
-  "file_count": 317,
-  "total_bytes": 25540757,
+  "skill_count": 66,
+  "file_count": 318,
+  "total_bytes": 25543724,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -144,6 +144,13 @@
       "description": "BI批次不变性周报与窗口内已合入PR清单。适用于\\\"跑BI周报 / 不变性有什么进展 / 这周合了哪些PR / 周报改成列表 / 查确定性进展\\\"。不适用：模型数值验收 → 用 `batch-invariance-acceptance`。",
       "files": 1,
       "bytes": 1482
+    },
+    {
+      "name": "bilibili-video-forensics",
+      "path": "skills/bilibili-video-forensics",
+      "description": "B站视频取证：412 风控下用浏览器上下文调 API 拿标题、统计、评论、弹幕与封面",
+      "files": 1,
+      "bytes": 2967
     },
     {
       "name": "dingxiang-slider-captcha",
