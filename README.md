@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **69** 个 skill、**278** 个文件、**13262583** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **69** 个 skill、**279** 个文件、**13266313** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -45,7 +45,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 11 | [`ascend-env`](skills/ascend-env/SKILL.md) | 昇腾环境入口：按当前问题选择服务器访问、工作区、运行栈、源码构建、服务或数值一致性验证。 | 1 |
 | 12 | [`ascend-model-adaptation-recon`](skills/ascend-model-adaptation-recon/SKILL.md) | 核实指定模型及变体在昇腾推理或训练生态中的实现、跨仓分工、硬件/精度支持与未闭合缺口；适用于能否跑、适配成熟度、镜像和 Day-0 宣称取证。 | 1 |
 | 13 | [`ascend-moe-ep-capacity-planning`](skills/ascend-moe-ep-capacity-planning/SKILL.md) | 在昇腾 MoE 部署前核算每 rank 权重、KV/线性注意力状态与运行峰值，筛选合法 TP/DP/PCP/EP 组合；适用于需要几张卡、并行配置和显存余量，不替代真机可运行验收。 | 4 |
-| 14 | [`ascend-server-access`](skills/ascend-server-access/SKILL.md) | 按用户维护的当前服务器资源选机、匹配账号和连接 SSH，诊断 Windows 经 UniVPN 访问昇腾时的双隧道、路由、握手和跨机通信。 | 11 |
+| 14 | [`ascend-server-access`](skills/ascend-server-access/SKILL.md) | 按用户维护的当前服务器资源选机、匹配账号和连接 SSH，诊断 Windows 经 UniVPN 访问昇腾时的双隧道、路由、握手和跨机通信。 | 12 |
 | 15 | [`ascend-server-layout`](skills/ascend-server-layout/SKILL.md) | 在共享昇腾服务器上选择项目、环境、缓存与权重落点，核实磁盘、NPU 占用及 safetensors 分片完整性；适用于写哪盘、找真权重、挑空卡和容器挂载问题。 | 10 |
 | 16 | [`ascend-torch-npu`](skills/ascend-torch-npu/SKILL.md) | 昇腾torch与torch_npu版本配对、动态库和NPU可用性排障；冷备兼容入口，正文在 ascend-cann-env。 | 1 |
 | 17 | [`ascend-triton-ascend`](skills/ascend-triton-ascend/SKILL.md) | 昇腾Triton同名文件覆盖、版本来源与真实kernel验证；冷备兼容入口，正文在 ascend-cann-env。 | 1 |

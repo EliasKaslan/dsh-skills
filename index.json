@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 69,
-  "file_count": 278,
-  "total_bytes": 13262583,
+  "file_count": 279,
+  "total_bytes": 13266313,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -100,8 +100,8 @@
       "name": "ascend-server-access",
       "path": "skills/ascend-server-access",
       "description": "按用户维护的当前服务器资源选机、匹配账号和连接 SSH，诊断 Windows 经 UniVPN 访问昇腾时的双隧道、路由、握手和跨机通信。",
-      "files": 11,
-      "bytes": 16117
+      "files": 12,
+      "bytes": 19463
     },
     {
       "name": "ascend-server-layout",
@@ -458,7 +458,7 @@
       "path": "skills/vllm-ascend-source-install",
       "description": "将指定 checkout 的 vLLM 与 vLLM Ascend 从源码配对构建到已有昇腾环境，控制依赖替换、编译器与 BI 算子产物；适用于源码安装、重编和 build dependency 错误。",
       "files": 5,
-      "bytes": 25708
+      "bytes": 26092
     },
     {
       "name": "vuln-scan-report-verification",

@@ -81,6 +81,9 @@ torch.npu.is_available()=True  device_count=16  get_device_name=Ascend910_9382
 matmul 8x8 sum 529536.0 ; acl.rt.get_device_count() -> (16, 0) ; vllm CLI --help RC=0
 引擎冒烟：DeepSeek-V2-Lite 单 die + spawn → OUTPUT ' Paris.\nThe currency of France is the Euro.…'  SMOKE_RC=0
          权重 29.42 GiB，KV 13.78 GiB/475,776 tok，init 14.13s，gpu_memory_utilization=0.72
+188 同日同法：构建/平台/算子全部通过；冒烟一开始被 SWA patch 断言拦住（见坑 1），去掉伪造版本后
+         Qwen3-0.6B 单 die 出词 SMOKE_RC=0（`gate 0.33.0=False`、`patched?=False`、device_count=1 因 activate 固定 die0）。
+         即两台机器在同 pin 下的**唯一差别就是 `vllm.__version__` 口径**，与硬件/OS 无关。
 ```
 
 ## 坑（每条都是实测原文）

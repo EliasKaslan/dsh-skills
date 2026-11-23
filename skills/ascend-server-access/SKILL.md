@@ -43,9 +43,7 @@ whenToUse: 按用户维护的当前服务器资源选机、匹配账号和连接
 
 长任务记录本任务 PID、日志、退出码及恢复点。停止时核对 PID 的启动时间与命令，不用宽泛 `pkill -f`。Git 下载先区分 DNS/TCP/TLS/认证，代理仅进程级或仓库级；不把旧的第三方镜像域名当固定依赖，也不向它转发凭据。
 
-来源与未迁入项见 [取舍记录](references/provenance.md)。
-
-## 跨机 HCCL 实测（A5/UB 平台）
+**目标机重载时**（`uptime` load average 远大于核数，如 256 核上 286）：OpenSSH 会卡在 KEX、`scp`/SFTP put 与长 inline 命令被中途掐断，而 `ping` 与 TCP:22 都正常。此时别重启 VPN/换网络，按 [重载主机连接受阻](references/heavy-load-ssh.md) 走：Paramiko 长 banner 超时接手、文件用 base64 分片追加写入、长任务 `setsid nohup` 后置并轮询日志。
 
 ## 跨机 HCCL 实测（A5/UB 平台）
 
