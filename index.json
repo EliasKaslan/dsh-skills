@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 69,
   "file_count": 278,
-  "total_bytes": 13258713,
+  "total_bytes": 13260662,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -332,7 +332,7 @@
       "path": "skills/mindspeed-ops-smoke",
       "description": "MindSpeed-Ops接口兼容、wheel验收及UT/ATK冒烟（含A3双机26.2.0配套）。适用于\\\"跑Ops冒烟 / ATK精度怎么判 / UT全绿了吗 / 跨仓接口兼容吗\\\"。",
       "files": 7,
-      "bytes": 18513
+      "bytes": 20462
     },
     {
       "name": "mindspeed-ops-whl-build",

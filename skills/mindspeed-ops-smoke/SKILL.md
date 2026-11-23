@@ -50,15 +50,13 @@ whenToUse: "处理MindSpeed-Ops接口兼容、wheel验收及UT和ATK冒烟时加
 
 ## CI 门禁镜像配套与可拉性核查（改 container.image 前后）
 
-门禁实际生效的 CANN / torch_npu / triton-ascend / Python **完全由 `container.image` 决定**：`ci/MindSpeed_Ops_ut.sh` 用 `pip install -e . --no-deps`，分支 `requirements.txt` 的 pin 在 CI 里不生效。所以「配方改了」不等于「门禁栈改了」。
+## CI 门禁镜像配套与可拉性核查（改 container.image 前后）
 
-- 需逐项对齐的六处位置（workflow / ci/Dockerfile / ci/build.sh / pin / 发布配方 / 文档版本表）见 references/ci-image-verify.md。
-- SWR 匿名 registry 三步探测命令（401 取 realm → token → manifest/tags）见 references/ci-image-verify.md。
+门禁实际生效的 CANN / torch_npu / triton-ascend / Python **完全由 `container.image` 决定**：`ci/MindSpeed_Ops_ut.sh` 用 `pip install -e . --no-deps`，分支 `requirements.txt` 的 pin 在 CI 里不生效。所以「配方改了」不等于「门禁栈改了」。六处对齐清单、SWR 匿名三步探测、镜像四项判读、GitCode 三个专属坑都在 [ci-image-verify](references/ci-image-verify.md)。
 
-判读要点：
-- **必须做对照**：同一个 repo 里拿一个已知存在的旧 tag 测 200，再用新 tag 测 404，才能断定新镜像缺失；私有 repo 对匿名一律 404（不泄露存在性），只测一个 tag 会误判。
-- manifest list 的 `manifests[].platform.architecture` 判定有无 `arm64`（门禁 runner 是 aarch64；x86_64 构建的镜像用不了）。
-- 镜像判读细则（ascendhub 命名与芯片段、UT 容器四项检查、镜像内 mindspeed_ops 覆盖）见 references/ci-image-verify.md。
+- **必须做对照**：同 repo 拿已知存在的旧 tag 测 200 再测新 tag；私有 repo 对匿名一律 404，只测一个 tag 必误判。manifest list 的 `platform.architecture` 决定 aarch64 runner 能否用。
+- **GitCode：换 image 的 PR 自己证不了自己**——评论触发的 PR 流水线跑的是默认分支侧 workflow，run 的 `head_sha` 是分支底座而非 head，`ci-pipeline-passed` 绿了也可能一次没跑新镜像；预合并 ref 还常建在旧底座上，判红绿前先看 `git log -1 <ref>` 的两个 parent。
+- **官方 ascendhub 镜像按芯片段打算子包**：910b tag 装到 910C 上任何 aclnn 算子即 `561103`/`561000`；没有对应芯片机器时用同版本另一段 tag 代跑并写明差异。
 
 **回滚**：`container.image` 退回上一个可用 tag 的同时，把配方与 pin 一起回退，三者保持一致；只退其一都会留下静默不一致。
 
