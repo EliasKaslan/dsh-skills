@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 69,
-  "file_count": 277,
-  "total_bytes": 13244518,
+  "file_count": 278,
+  "total_bytes": 13258713,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -65,8 +65,8 @@
       "name": "ascend-cann-env",
       "path": "skills/ascend-cann-env",
       "description": "在昇腾 Linux 上搭建或诊断 CANN、conda/Python、torch_npu、triton-ascend 的兼容栈；适用于版本配对、动态库/ABI 错误、解释器错位和 Triton 被覆盖，不负责 vLLM 源码构建。",
-      "files": 4,
-      "bytes": 17530
+      "files": 5,
+      "bytes": 24933
     },
     {
       "name": "ascend-conda-env",
@@ -458,7 +458,7 @@
       "path": "skills/vllm-ascend-source-install",
       "description": "将指定 checkout 的 vLLM 与 vLLM Ascend 从源码配对构建到已有昇腾环境，控制依赖替换、编译器与 BI 算子产物；适用于源码安装、重编和 build dependency 错误。",
       "files": 5,
-      "bytes": 18916
+      "bytes": 25708
     },
     {
       "name": "vuln-scan-report-verification",

@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **69** 个 skill、**277** 个文件、**13244518** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **69** 个 skill、**278** 个文件、**13258713** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -40,7 +40,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 6 | [`anime-art`](skills/anime-art/SKILL.md) | 维护用户明确选择的SDXL、Anima/ComfyUI、H3等自托管图像与LoRA工作流，核对版本、设备、生成与训练结果。 | 18 |
 | 7 | [`app-release-version-recon`](skills/app-release-version-recon/SKILL.md) | 核查某 App 今天是否发版、更新了什么：Microsoft Store / iTunes lookup / Homebrew cask 三处版本取证，区分构建重发与服务端功能放量，全程不动本地安装。 | 1 |
 | 8 | [`arxiv-paper-deep-read-and-claim-verification`](skills/arxiv-paper-deep-read-and-claim-verification/SKILL.md) | 精读论文并独立核查其代码、模型发布与实验声称，区分文献支持、材料可得性、口径一致和实际复现；适用于arXiv中文技术解读及开源声称核查。 | 1 |
-| 9 | [`ascend-cann-env`](skills/ascend-cann-env/SKILL.md) | 在昇腾 Linux 上搭建或诊断 CANN、conda/Python、torch_npu、triton-ascend 的兼容栈；适用于版本配对、动态库/ABI 错误、解释器错位和 Triton 被覆盖，不负责 vLLM 源码构建。 | 4 |
+| 9 | [`ascend-cann-env`](skills/ascend-cann-env/SKILL.md) | 在昇腾 Linux 上搭建或诊断 CANN、conda/Python、torch_npu、triton-ascend 的兼容栈；适用于版本配对、动态库/ABI 错误、解释器错位和 Triton 被覆盖，不负责 vLLM 源码构建。 | 5 |
 | 10 | [`ascend-conda-env`](skills/ascend-conda-env/SKILL.md) | 昇腾Python与conda环境建立、激活和解释器错位排障；冷备兼容入口，正文在 ascend-cann-env。 | 1 |
 | 11 | [`ascend-env`](skills/ascend-env/SKILL.md) | 昇腾环境入口：按当前问题选择服务器访问、工作区、运行栈、源码构建、服务或数值一致性验证。 | 1 |
 | 12 | [`ascend-model-adaptation-recon`](skills/ascend-model-adaptation-recon/SKILL.md) | 核实指定模型及变体在昇腾推理或训练生态中的实现、跨仓分工、硬件/精度支持与未闭合缺口；适用于能否跑、适配成熟度、镜像和 Day-0 宣称取证。 | 1 |

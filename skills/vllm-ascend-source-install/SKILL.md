@@ -49,25 +49,28 @@ arctic-inference 等依赖是否可省须查目标调用链和功能范围，不
 商发 26.2.0 配套 = CANN 9.2.0 + torch 2.10.0 + torch_npu 2.10.0.post7 + triton-ascend 3.6.0 + Python 3.12。
 两平台共用骨架（顺序不能换）：
 
-1. `python tools/use_existing_torch.py --prefix`（vLLM 侧；本版脚本已从仓库根移到 `tools/`）
-2. `VLLM_TARGET_DEVICE=empty pip install -e . --no-build-isolation`，版本落成 `...+empty`
-3. 核对 `triton` 命名空间：`pip show triton` 有值才 uninstall，再 `--no-deps --force-reinstall` 回装 triton_ascend
+1. `python tools/use_existing_torch.py --prefix`（vLLM 侧；本版脚本在 `tools/` 下）
+2. `VLLM_TARGET_DEVICE=empty pip install -e . --no-build-isolation`，版本落 `...+empty` 或 `0.1.dev1+g<sha>`
+3. 核对 `triton` 命名空间：`pip show triton` 有值就 uninstall，再 `--no-deps --force-reinstall` 回灌 triton_ascend
 4. **真装** vllm-ascend 的 `requirements.txt`（`pip install -e . --no-deps` 不补运行时依赖）
-5. `SOC_VERSION=<soc> pip install -e . --no-deps --no-build-isolation`（A3 `ascend910_93`；A5 `ascend950dt_9582`）
+5. `SOC_VERSION=<soc> pip install -e . --no-deps --no-build-isolation`（A3 `ascend910_9391`；A5 `ascend950dt_9582`）
 
-- A3 x86_64 全流程与 BI 算子：[A3 构建链](references/a3-main-26.2.0-build.md)
-- A5 950DT aarch64 全流程 + 引擎冒烟判据：[A5 构建链](references/a5-main-26.2.0-build.md)（2026-11-20 实测到出词）
+- A3 x86_64 裸机全流程（190/188 双机实测）：references/a3-main-26.2.0-build.md
+- A5 950DT aarch64 全流程 + 引擎冒烟判据：references/a5-main-26.2.0-build.md
 
 ### 坑（都带原文）
 
+- **别把 `vllm.__version__` 伪造成 `0.33.0`**：该 pin 上 `patch_swa_bounded_replay` 的门是
+  `if vllm_version_is("0.33.0") and _upstream_carries_replay_start():`，探测为 True 但调度器签名已是
+  `iteration_details` 版 → 引擎必死 `RuntimeError: Cannot apply the SWA bounded replay resume patch: unexpected
+  Scheduler._make_cached_request_data signature (...)`。停在 scm 回退版本（`0.1.dev1+g<sha>`）时门为 False、patch 被跳过、
+  引擎正常（实测 `patched?=False` 且出词）；要真 0.33.0 就换 `v0.33.0` tag 的 vLLM，别做「版本写 0.33.0、源码是 pin」的混合态。
 - 不带 `--no-build-isolation` 时 build-system requires 不被使用，但 setup.py 照样直接
   `ModuleNotFoundError: No module named 'setuptools_rust'`（vLLM 侧）；`setuptools-rust` 必须先手动装。
-- **不要在 `vllm/` 源码目录下启动 python**：cwd 的 `vllm/` 会被当 namespace 包，报
+- **不要在 `vllm/` 源码目录下启动 python**：cwd 的 `vllm/` 会当 namespace 包，报
   `ImportError: cannot import name 'ModelRegistry' from 'vllm' (unknown location)`；从 `run/` 之类中性目录启动。
-- `fla_npu` 不在 requirements 里，但 `vllm_ascend/ops/gdn.py` import 期硬依赖，且**只在建引擎时**触发：
-  `import vllm_ascend` 能过，`LLM(...)` 才死在 `ModuleNotFoundError: No module named 'fla_npu'`。按 SoC 取 wheel（见两个 reference）。
-- requirements 钉 `triton-ascend===3.6.0.post2`，公网/华为云镜像只有 `3.6.0`：
-  `ERROR: Could not find a version that satisfies the requirement triton-ascend==3.6.0.post2 (from versions: none)`；
-  别为 `.post2` 卡住。
+- `fla_npu` 不在 requirements 里，但 `vllm_ascend/ops/gdn.py` import 期硬依赖、且**只在建引擎时**触发：
+  `import vllm_ascend` 能过，`LLM(...)` 才死在 `ModuleNotFoundError: No module named 'fla_npu'`。按 SoC + glibc 取 wheel。
+- `scipy` 裸装会解到 1.18（要求 numpy>=2），A3 上表现为 ACLNN 编译挂
+  `AttributeError: module 'numpy' has no attribute 'long'`；钉 `scipy==1.13.1` + `numpy==1.26.4`，改完清 `csrc/build*` 重编。
 - `pip install -r` 指向**空文件**时返回 0 且什么都不装，症状是事后缺 xgrammar/quart/numba；先 `wc -l` 确认行数。
-- CANN 9.2.0 只有静态 `libtiling_api.a`、没有 `.so`；`target_link_libraries(... tiling_api)` 静态链即可，别去补 `.so`。
