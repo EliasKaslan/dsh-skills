@@ -28,12 +28,12 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **69** 个 skill、**276** 个文件、**13227929** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **69** 个 skill、**276** 个文件、**13228303** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
 | 1 | [`ace-step-music-gen-on-ascend`](skills/ace-step-music-gen-on-ascend/SKILL.md) | 在用户指定ACE-Step等自托管音乐模型时规划权重组件、CPU/NPU路径、批量生成与音频验收；适用于本地歌曲实验和生成排障，不依赖旧服务器固定目录。 | 1 |
-| 2 | [`ai-musume-4k-art`](skills/ai-musume-4k-art/SKILL.md) | 已归档的AI娘旧管线：只作素材与历史脚本留档，指向 minimax-ai-musume-4k-art 与 anime-art 两条现行链路。 | 1 |
+| 2 | [`ai-musume-4k-art`](skills/ai-musume-4k-art/SKILL.md) | 已归档的AI娘旧管线：只保留路由，指向 minimax-ai-musume-4k-art 与 anime-art 两条现行链路。 | 1 |
 | 3 | [`ai-vendor-official-source-audit`](skills/ai-vendor-official-source-audit/SKILL.md) | 核查 AI 厂商发布、技术报告、模型仓、API model id、能力与价格的官方依据，并比较模型版图；适用于链接真伪、是否发布和选型取证，不代替实测模型身份或基准复现。 | 2 |
 | 4 | [`aidd-report-reader`](skills/aidd-report-reader/SKILL.md) | 读取AIDD等文档质量扫描报告，校验分页、项目范围与问题聚合，并将报告命中对账到仓库交付件；适用于扫描分数、fatal/critical清单和公网地址声明覆盖核查。 | 2 |
 | 5 | [`anima-ai-musume-lora`](skills/anima-ai-musume-lora/SKILL.md) | Anima/ComfyUI与AI娘LoRA的场景入口，转自托管图像方法并按需复用角色参考。 | 6 |

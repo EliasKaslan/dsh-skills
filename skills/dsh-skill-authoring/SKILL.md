@@ -26,7 +26,7 @@ whenToUse: "新建或改写SKILL.md、判断融合还是新增、查失效指针
 
 先查看 [发布事务边界](../dsh-agent-customization/references/publisher-transaction.md)：本机可能在turn/end和poll自动发布。自造.lock不能暂停；先用可验证的最窄暂停方案隔离发布和并发编辑，再应用与复核全部文件。此skill不要求额外询问已经明确授权的修改；如果需要改变任务外的运行时/外发状态，准确指出具体操作和原因。
 
-本机 `skills` 目录是 DSH-Guard 哨兵：快照里有、工作树没有的文件会被自动还原，`keep` 也不覆盖哨兵判定（2026-11-23 实测：删除后 2 分钟内 restored=2）。所以合并/归档先按「盘上文件不能删」设计——降 warm、改正文、留旧名短路由；确需删除要停守护并改 CANON。热/冷预算与 `skills-archive/INDEX.json` 用 `skill_budget.py --write-index` 一次对齐，别手改索引里的数字。
+本机 `skills` 目录由 DSH-Guard 保护：快照里有、工作树没有的文件会被自动还原，所以真要删必须两步——先 `dsh_guard.py keep <路径前缀>`（一次删 ≥8 个受跟踪文件即按批量删除处理），再在 `~/.dsh` 仓 `git add -A` 并提交，让 HEAD 与磁盘一致；只删盘不提交，下一次 `run` 会按历史清单补回来（`heal --dry-run` 应显示 `pending_deletes: 0`）。哨兵根（`skills/` 整目录、`AGENTS.md`、profile patch）不受 keep 保护；本机 dsh_guard 2026-11-23 起 keep 对 `skills/` 内的具体文件生效。热/冷预算与 `skills-archive/INDEX.json` 用 `skill_budget.py --write-index` 一次对齐，别手改索引里的数字。
 
 检查器 `scripts/validate_skills.py <skills-root>` 只读，依赖Python和PyYAML，缺依赖以exit2明确失败；用--report写指定审计路径，不能写被审树。它检查实际YAML、name/description/调用策略/Markdown本地链接和逐文件hash，不验证技术事实、实际装载或自动触发。
 
