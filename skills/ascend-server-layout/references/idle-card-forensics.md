@@ -17,9 +17,7 @@ ps -o etime= -p $pid
 
 ### 受支持的采集入口
 
-```powershell
-python C:\Users\admin\.dsh\skills\ascend-server-access\scripts\probe_hosts.py --inventory root@177.11.27.1
-```
+从 [服务器访问](../../ascend-server-access/SKILL.md) 取得本轮目标，把实际的 `user@host` 作为 `probe_hosts.py --inventory` 参数。
 
 `probe_hosts.py` 只做**显式目标**的只读采集：要求 `user@IPv4-or-hostname`（不接受选项/元字符），走系统 `ssh -n -o BatchMode=yes -o StrictHostKeyChecking=yes`（只用既有 key 与已验证 host key），`--inventory` 采 `hostname; uname -m; nproc; df -h / /home /mnt/share /mnt/weight; npu-smi info`，输出 JSON，`exit 0` 表示所有目标 `ssh_rc=0`。**它不给出 free-card 分类**，"空/占用/UNKNOWN"要按上面三条自己判。
 

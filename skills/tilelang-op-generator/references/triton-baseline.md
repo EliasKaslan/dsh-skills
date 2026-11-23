@@ -11,9 +11,9 @@
 | 文件 | 来源 | 内容 |
 | ------ | ------ | ------ |
 | `custom/{op}/{op}_triton.py` | 手写 | Triton 基线 kernel + Python wrapper（同公式、同 dtype 语义） |
-| `custom/{op}/compare_{op}.py` | 复制 [assets/compare_template.py](../assets/compare_template.py) | 对比入口：精度（各自对 golden + 逐点互比）+ 性能 |
-| `custom/compare_common.py` | 复制 [assets/compare_common.py](../assets/compare_common.py) | 公共工具：容差表、`check_precision`、`compare_direct`、`bench` |
-| `custom/{op}/test_{op}.py` | 复制 [assets/test_template.py](../assets/test_template.py) | 被测实现的 L0/L1 用例表（compare 用它做一致性校验） |
+| `custom/{op}/compare_{op}.py` | 复制 [compare_template.py](../assets/compare_template.py) | 对比入口：精度（各自对 golden + 逐点互比）+ 性能 |
+| `custom/compare_common.py` | 复制 [compare_common.py](../assets/compare_common.py) | 公共工具：容差表、`check_precision`、`compare_direct`、`bench` |
+| `custom/{op}/test_{op}.py` | 复制 [test_template.py](../assets/test_template.py) | 被测实现的 L0/L1 用例表（compare 用它做一致性校验） |
 
 `compare_common.py` 是**必需产物**：`compare_{op}.py` 文件开头（模板第 50 行）的
 `from compare_common import ...` 就依赖它，缺文件直接

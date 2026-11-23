@@ -1,16 +1,22 @@
 ---
 name: ascend-server-access
-description: 诊断 Windows 经 UniVPN 访问昇腾服务器时的隧道、路由、TCP、SSH 与跨机通信问题；适用于机器连不上、A3/A5 双隧道和 SSH 握手卡住，不处理 CANN 安装。
-whenToUse: 诊断 Windows 经 UniVPN 访问昇腾服务器时的隧道、路由、TCP、SSH 与跨机通信问题；适用于机器连不上、A3/A5 双隧道和 SSH 握手卡住，不处理 CANN 安装。
+description: 按用户维护的当前服务器资源选机、匹配账号和连接 SSH，诊断 Windows 经 UniVPN 访问昇腾时的双隧道、路由、握手和跨机通信。
+whenToUse: 按用户维护的当前服务器资源选机、匹配账号和连接 SSH，诊断 Windows 经 UniVPN 访问昇腾时的双隧道、路由、握手和跨机通信。
 ---
 
 # 昇腾服务器访问
 
 先分清失败层：本机客户端与 TAP → 目标路由 → TCP/SSH 握手 → 身份认证 → 远端命令。一个层面的成功不能代替后一层；ICMP 被禁也不能据此否定 TCP 可达。
 
+## 当前服务器与认证
+
+`D:\key\服务器资源.txt` 是用户维护的当前服务器资源和 SSH 账号密码来源。每次需要选机、检查可用服务器或登录时，按本轮任务范围从该文件取对应条目，核对主机、端口（如有）和账号。用户本轮指定的目标优先；文件缺失、条目不匹配或有歧义时，说明缺项并让用户补充。已保存的 SSH 别名、公钥或历史连通记录仅用于核对当前条目。
+
+优先使用该目标已有的公钥和已验证的 SSH 主机指纹。目标确实要求密码且本轮已授权登录时，仅将对应条目的密码交给支持敏感输入的认证通道。凭据文件和密码留在本机，避免进入技能目录、仓库、命令行参数、日志或任务产物。认证失败后先核对条目和失败阶段，再决定是否重试。
+
 ## 入口与诊断
 
-- 用户现有服务器与隧道线索见 [本地环境](references/local-site.md)。这些是带日期的候选目标，使用前核实本轮范围与当前状态。
+- 双隧道启动、实例定位和托盘状态核验见 [本机 UniVPN 排障](references/local-site.md)。
 - 查 `Get-NetAdapter -IncludeHidden`、`Get-NetRoute -AddressFamily IPv4`。用接口 GUID 和目标网段关联实例，`ifIndex`、虚拟 IP、网卡显示名都会变化。TAP Up、非 APIPA 地址和目标网段路由同时成立，才说明该隧道具备目标路径；还需测目标端口。
 - TCP 探测要有短超时并关闭 socket；异步 `WaitOne()` 为真仅代表操作结束，还须 `EndConnect()` 才能判成功。`Test-NetConnection` 本身有效，但逐主机调用可能较慢。
 - SSH 使用现有公钥和已核对的 host key，设置连接超时与 `BatchMode=yes`。别名先用 `ssh -G <alias>` 核实，未配置就用明确的账号和 IP。
@@ -39,33 +45,3 @@ whenToUse: 诊断 Windows 经 UniVPN 访问昇腾服务器时的隧道、路由�
 
 来源与未迁入项见 [取舍记录](references/provenance.md)。
 
-## 双隧道启动与连接核验（2026-11-19 实测）
-
-## 双隧道启动与连接核验（2026-11-19 实测）
-
-两套客户端已装好且会话已存（`RemPwd=1`、`AutoLogin=1`），启动即自动登录，**不需要点 UI**：
-
-- 实例1 `C:\Program Files (x86)\UniVPN\UniVPN.exe` → 读 `%APPDATA%\UniVPN\sysconfig.ini` 的 Session0（配置「蓝区网关」123.60.114.225:30010），TAP「本地连接」，路由 192.168.0.0/16 → A3。
-- 实例2 `C:\Program Files (x86)\UniVPN\.univpn-multi\UVP002\UVP002.exe` → 读 `%APPDATA%\UVP002\sysconfig.ini` 的 Session0（配置 A5，120.46.228.63:49999），TAP「本地连接 2」，路由 177.0.0.0/8 → A5。
-
-启动：
-
-```powershell
-Start-Process 'C:\Program Files (x86)\UniVPN\UniVPN.exe'
-Start-Process 'C:\Program Files (x86)\UniVPN\.univpn-multi\UVP002\UVP002.exe'
-```
-
-核验（三层都要过，缺一层不算连上）：
-
-```powershell
-Get-NetIPAddress -AddressFamily IPv4 | ? IPAddress -match '^(192\.168\.205\.|1\.2\.18\.)'
-Get-NetRoute -AddressFamily IPv4 | ? DestinationPrefix -in '192.168.0.0/16','177.0.0.0/8'
-# TCP 22：192.168.13.188/190、177.8.21.1
-```
-
-坑：
-
-- `C:\Program Files (x86)\UniVPN2\Open-UniVPN2.cmd`（内部是 `UniVPN-Multi.ps1 -OpenInstance 2`）会卡住不退出：cmd 进程常驻、`Get-Process` 里看不到 `UVP002.exe`，`-WindowStyle Hidden` 与前台调用都一样。直接启动上面的 `UVP002.exe` 即可；`Open-Client` 在脚本里本就写着 "Login manually"。
-- 两个客户端连上后 `MainWindowHandle=0`（窗口收进托盘），不代表没跑；判据是 CS 进程（`UniVPNCS` / `UVP002CS`）+ TAP 有非 APIPA 地址 + 目标路由存在。
-- 两个 CS 日志每约 3–6 秒打一次完整 `Route print` 表（`[Split route success!]` 周期重现），这是既有行为（前一日日志同样如此），不是重连循环，不必据此重建隧道。
-- 2026-11-19 现状：177.11.25.1 / 177.11.26.1 / 177.11.27.1 的 ICMP 与 22 端口均无响应，而同一隧道内 177.8.21.1 正常 → 先按单机不在线处理，别重连 A5。

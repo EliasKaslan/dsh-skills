@@ -1,7 +1,7 @@
 ---
 name: "orchestrating-subagents"
-description: "DSH子代理编排入口；明确目标、工具能力、可写边界、产物与验收，转运行时总纲的委派编排模式。"
-whenToUse: "DSH子代理编排入口；明确目标、工具能力、可写边界、产物与验收，转运行时总纲的委派编排模式。 模型触发仍以description为准。"
+description: "派发子代理：任务边界、工具能力、可写范围、产物与验收契约。"
+whenToUse: "要拆分独立子任务、子代理能力不符预期、或需要约定返回格式时。"
 ---
 
 # orchestrating-subagents

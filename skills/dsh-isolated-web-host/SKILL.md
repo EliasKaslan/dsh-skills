@@ -1,7 +1,7 @@
 ---
 name: "dsh-isolated-web-host"
 description: "DSH隔离host入口；独立DSH_HOME、profile与loopback端口启动并验证身份，转总纲隔离host模式。"
-whenToUse: "DSH隔离host入口；独立DSH_HOME、profile与loopback端口启动并验证身份，转总纲隔离host模式。 模型触发仍以description为准。"
+whenToUse: "要在不碰真实 profile 的前提下起独立 DSH_HOME/loopback 端口，或要判断 401、端口身份算不算证据时。"
 ---
 
 # dsh-isolated-web-host

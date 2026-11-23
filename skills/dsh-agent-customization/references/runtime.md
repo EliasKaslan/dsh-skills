@@ -21,7 +21,7 @@ host-only 插件不一定出现在 client realm 的 `/plugins/events`；对管�
 
 ## 守护与恢复
 
-本机线索 `D:/workspace/agent/dsh-guard/dsh_guard.py`、selftest.py、`D:/dsh-vault`、`C:/ProgramData/dsh-guard` 在审计时存在。先检查当前守护源码、现有任务/服务的实际路径、备份排除和日志，再决定使用。
+2026-11-23 复核：`D:/workspace/agent/dsh-guard/dsh_guard.py`、`selftest.py`、`D:/dsh-vault`、`C:/ProgramData/dsh-guard` 都存在，计划任务 `DSH-Guard-Health` 也在（268 条计划任务里唯一命中的 DSH 守护任务）。先检查当前守护源码、现有任务/服务的实际路径、备份排除和日志，再决定使用。
 
 守护程序、锁和恢复源放在被保护 home 外。一次周期应区分检测、修复、快照；修复失败不能继续把删除提交为新的“健康”快照。恢复试验用空的独立目的地，比较路径清单、内容哈希，再让真实消费者在隔离副本上读取。不要通过删真实 AGENTS.md 来证明守护有效。
 

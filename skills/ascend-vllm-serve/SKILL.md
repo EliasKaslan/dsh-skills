@@ -28,3 +28,13 @@ OOM 应分权重、KV、激活/通信、非 torch 和图池；`gpu_memory_utiliz
 一次性冒烟结束或失败时，按已记录 PID/进程组只停止本任务；如果用户要求持续服务，保持运行并交付端口、PID、日志和停止方式。用端口释放、本任务 worker 消失、目标 HBM 回落共同复查，不能盲目 pkill/reset/prune。HBM 未回落说明还需定位，不等于有权重置设备。
 
 来源：原 ascend-vllm-serve 与关联 layout/env，沉淀日 2026-11-16；具体模型大小、toks/s 与历史环境不作为新任务默认值。审查见 `D:/workspace/share/codex-review/REVIEW.md`。
+
+## 日志行号指纹与"看起来卡住"的判定
+
+vLLM 日志前缀 `[文件名:行号]` 的行号是 `logger.xxx(` 的**调用行**（多行调用取首行，Python 3.12 实测），可直接反推版本：`entrypoints/chat_utils.py:397`≈v0.8.5、`:470`≈v0.10.1；`renderers/hf.py:548`≈v0.23–v0.29、`:648`≈v0.32、`:736`≈v0.33.0、`:743`≈v0.34。报出某行先去该 tag 的 raw 源码核对调用行，再谈阶段。
+
+`Detected the chat template content format to be 'string'. You can set --chat-template-content-format to override this` 是**良性 info_once**，不是错误：`resolve_chat_template_content_format()` 解析 Jinja AST，模板把 `message.content` 当纯字符串（而非 OpenAI 多段 list）即判 `string`，只影响 chat 接口多段/多模态 content 的解析；文本 prompt 或脚本自己用 HF tokenizer 渲染时结果无关。
+
+位置才是判据：v0.33.0 由 `LLM.__init__` 末尾 `renderer.warmup()` 渲染一条 dummy chat 触发，此时引擎已 READY——权重加载、显存 profile、KV cache、`compile_or_warm_up_model`/图捕获全部完成。所以"停在这行之后长时间无输出"**不是**加载卡住，而是首个请求阶段。别用"最后一行日志"定位阶段，先看它是否出现在三行之后（权重耗时、KV cache 大小、init engine took）。
+
+静默常由脚本造成：离线脚本同时传 `disable_log_stats=True` 与 `generate(..., use_tqdm=False)` 时整轮零输出，只在轮次结束打印。判定顺序：`npu-smi info` 看 HBM 与 aicore（持续 0% 才是疑似死等）、`py-spy dump --pid <pid>` 看栈（`VLLM_ENABLE_V1_MULTIPROCESSING=0` 时单进程）、`ASCEND_PROCESS_LOG_PATH` 下 plog 看设备侧真错、输出目录文件 mtime 是否推进。HCCL 建链失败会静默等到 `HCCL_CONNECT_TIMEOUT`（脚本常设 1200s）才报错，多网卡机器要显式指定 `HCCL_SOCKET_IFNAME`。

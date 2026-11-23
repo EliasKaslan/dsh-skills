@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""ai-musume H3 client — MiniMax-H3-Image via vllm-omni on 192.168.13.190:18080.
+"""ai-musume H3 client — MiniMax-H3-Image via a configured vllm-omni endpoint.
 
 Only stdlib. H3-Image contract: 6 CFG-distilled steps, guidance fixed at 1,
 NO negative_prompt (server returns HTTP 400), size must be on a 32px grid and
@@ -17,8 +17,8 @@ import urllib.error
 import urllib.request
 import uuid
 
-ENDPOINT = os.environ.get("H3_ENDPOINT", "http://192.168.13.190:18080")
-MODEL = os.environ.get("H3_MODEL", "/home/vllm/h3img/MiniMax-H3-Image")
+ENDPOINT = os.environ.get("H3_ENDPOINT", "").strip()
+MODEL = os.environ.get("H3_MODEL", "").strip()
 OUTDIR = os.environ.get("H3_OUTDIR", r"D:\workspace\261108_recreation\out\musume")
 
 SIZES = {
@@ -203,10 +203,7 @@ def post(prompt, size, seed, timeout=900, min_area=None):
     except urllib.error.URLError as e:
         raise SystemExit(
             "cannot reach %s (%s)\n"
-            "  -> 服务可能被杀了。到服务器上执行：\n"
-            "     ssh root@192.168.13.190 \"docker exec -d h3 bash -lc "
-            "'setsid bash /home/vllm/h3img/supervise_h3.sh >/dev/null 2>&1'\"\n"
-            "     然后 curl -s %s/v1/models | head -c 200 确认" % (ENDPOINT, e.reason, ENDPOINT)
+            "  -> 按当前服务配置核对监听、访问路径及 /v1/models。" % (ENDPOINT, e.reason)
         )
     dt = time.time() - t0
     return base64.b64decode(payload["data"][0]["b64_json"]), dt
@@ -296,6 +293,8 @@ def main():
                     help="use this prompt verbatim (skips the built-in templates)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+    if not ENDPOINT or not MODEL:
+        ap.error("Set H3_ENDPOINT and H3_MODEL for the current service before generating images.")
 
     size = SIZES.get(args.size, args.size)
     w, h = [int(x) for x in size.lower().split("x")]

@@ -10,13 +10,14 @@
 
 此时会话里还没有任何工具增删事件，所以与 DSH 的 `developer/message` 无关（那条在 pi-ai 适配器里会被转成 system 消息，见 dsh-llm-pi-ai 的 `appendDeveloper`）。
 
-## 根因（0.2.2-rc.3 实读）
+## 根因（0.2.2-rc.5 实读，2026-11-23 复核）
 
-- `@earendil-works/pi-ai/dist/api/openai-completions.js`（asar 内 `dsh/node_modules/` 下）：
+- `@earendil-works/pi-ai/dist/api/openai-completions.js`（asar 内 `dsh/node_modules/` 下，该版 65,602 字节）：
   `const instructionRole = model.reasoning && compat.supportsDeveloperRole ? "developer" : "system";`
   system 指令按这个角色 push 进 messages。
 - 同文件 `detectCompat()`：`supportsDeveloperRole: isOpenRouterDeveloperRoleModel || (!isNonStandard && !isOpenRouter)`。
-  非标准名单只有 zai / together / moonshot / openrouter / cloudflare / nvidia / ant-ling / cerebras / deepseek / xai / opencode。
+  非标准名单按 provider 或 baseURL 命中：nvidia / cerebras / xai(api.x.ai) / together / chutes.ai / deepseek / zai / moonshot / opencode / cloudflare Workers AI / cloudflare AI Gateway / ant-ling。
+  openrouter 走单独分支：只有 `anthropic/`、`openai/` 前缀的模型才允许 developer，其余为 system。
   自定义 provider 名（如 huoshan）+ 自建/中转 baseURL → 两条都不命中 → **默认 true**。
 - 模型带 `reasoningEfforts` 时 `model.reasoning = true`（dsh-llm-pi-ai `resolveReasoning`），两者相乘 → developer。
 - DashScope compatible-mode 只接受 system/assistant/user/tool/function，于是 400。

@@ -1,6 +1,6 @@
 ---
 name: llm-landscape-recon
-description: 模型对比与速度取证入口：官方来源、effort档、tok/s口径与计费。
+description: 模型对比、速度与选订阅取证入口：官方来源、effort/tok/s 口径、编码 agent 与限额。
 whenToUse: "需要比较多家模型的当前能力、上下文、价格与评测，按日期和精确版本取证。"
 ---
 
@@ -12,26 +12,22 @@ whenToUse: "需要比较多家模型的当前能力、上下文、价格与评�
 
 ## 取数路径与可比口径（2026-11 实跑）
 
-触发信号：用户要"横向对比某几家模型的价格/能力"或"单任务成本多少"。本节只放执行路径与口径纪律，厂商在售型号与具体价格当场取，不写死。
+触发信号：用户要"横向对比某几家模型的价格/能力"或"单任务成本多少"。本节只放执行路径与口径纪律（复核日 2026-11-23）；厂商在售型号与具体价格当场取，不写死。
 
 ### 官方文档一律加 `.md` 后缀
 
-- OpenAI：`developers.openai.com/api/docs/pricing.md` 给全 Standard/Batch/Flex/Fast/Ultrafast 分档表。不带 `.md` 时是 JS 壳，只抓得到导航。
-- Anthropic：`platform.claude.com/docs/en/about-claude/pricing.md` 一次给全模型价格表 + 缓存倍率脚注 + tokenizer 说明。
-- Google：`ai.google.dev/gemini-api/docs/*` 已 302 到 `aistudio.google.com/docs/*`，web_fetch 报 `cross-origin redirect to https://aistudio.google.com is not followed automatically`；改抓 `https://aistudio.google.com/docs/<page>.md` 拿干净 Markdown。
-- Artificial Analysis：只有 `/leaderboards/models` 的表格能出数（Index / Cost per Task / Time per Task / TTFT / 上下文）。`/leaderboards/coding-agents` 是 404，正确路径 `/agents/coding-agents`，但该页纯 JS 图表并自述 `No publicly available API`，只拿得到"持平 / −N 分"这类相对描述。`/articles/<slug>` 可抓，是拿发布方解读最快的入口。
-- `arena.ai` 直连 403（Cloudflare），WebDev/Design Arena 分数只能取其官方社媒或第三方镜像，必须标注非直读并记下多源差异。
+**一律先试 `<url>.md`**，拿干净 Markdown 与完整价格表；不带 `.md` 多半只是 JS 壳，抓得到导航抓不到表。被 302 到别的域时 web_fetch 会拒绝（`cross-origin redirect ... is not followed automatically`），换成目标域的 `.md` 再抓。各家精确入口、Artificial Analysis / arena / ModelScope 的可抓范围、以及 HuggingFace API 查权重归属 → `references/vendor-doc-endpoints.md`。
 
 ## 四条口径纪律
 
 1. **单价表必须配 cost-per-task**。同单价的两个模型单任务成本可差 6 倍，差在思考 token 与输出长度，不在价目表。
 2. **跨厂商 harness 不同时，SWE/Terminal/Frontier 分数不可横比**：厂商自报版与第三方实现版要分开记，只有同一 harness（如 AA Coding Agent Index）的分数能并排。某代模型集体停报某个基准时，写"未取到"，不要拿旧代分数顶替。
-3. **tokenizer 换代要换算成"同文本成本"**。以厂商 pricing FAQ 当期声明为准（新 tokenizer 同样文本可能多产生约 30% token），报价需按倍数归一化后才可比。
+3. **tokenizer 换代要换算成"同文本成本"**。以厂商 pricing FAQ 当期声明为准（新 tokenizer 对同样文本可能多产生三成量级的 token），报价按倍数归一化后才可比。
 4. **促销价 / 批次价 / 长上下文加价必须单列到期日与触发条件**：长上下文按"整条请求"还是"超出部分"加价差别巨大；隐式缓存与显式缓存的写费、存储费要分别核。
 
 ## 缓存对比做法
 
-不要只比命中单价（各家多在输入价的 2.5%–10%，差异有限）。按"1M 前缀复用 N 轮"折算实付：第 1 轮走写缓存价 + N−1 轮走命中价。**写费有无**才是结构性差异，命中率越高越放大。
+不要只比命中单价。按「1M 前缀复用 N 轮」只核算该前缀：首轮写入总费 W、每轮命中总费 R，则 C=W+(N−1)R，均摊 C/N=R+(W−R)/N。写费溢价按 1/N 摊薄，总写费不随 N 减少；存储与其它输入/输出另按厂商规则计。
 
 ### 成本核算
 
@@ -47,8 +43,8 @@ whenToUse: "需要比较多家模型的当前能力、上下文、价格与评�
 
 ### 取样集合听用户的
 
-- "每家 N 个"的**具体型号由用户指定**，别替用户降档。用户点名「旗舰 + 次旗舰」时，不要自行换成「旗舰 + 便宜一档」——换一个型号就要重算全部单价表、场景表、排名和结论，等于整篇重做。
-- 用户改口径时只换取样，不要顺带改口径、场景权重或结论方向；改动范围越小，返工越可审。
+- "每家 N 个"的**具体型号由用户指定**，别替用户降档。用户点名「旗舰 + 次旗舰」时不要自行换成「旗舰 + 便宜一档」——换型号就要重算单价表、场景表、排名与结论，等于整篇重做。
+- 用户改口径时只换取样，不连带改口径、场景权重或结论方向；改动范围越小越可审。
 
 ### 取样后先查价格带对齐
 
@@ -60,22 +56,29 @@ whenToUse: "需要比较多家模型的当前能力、上下文、价格与评�
 - 固定 token 量的单场景表只能说明"这一种负载下谁便宜"；**混合负载（短请求 + 多轮 agent + 长上下文 + 批量 5 折）里，长上下文加价足以反转旗舰排名**。至少同时给「每场景一张表」+「一个混合权重列」，并说明权重是假设。
 - 出现反转时要点名是哪个规则造成的（整条请求加价 / 缓存写费 / 促销价到期），否则读者会以为算错了。
 
-## 价目做成数据表
+## 分数缺席与榜单分级
 
-- 把型号 × 输入 / 输出 / 缓存命中 / 写缓存 / 长上下文加价规则写成脚本里的数据表，改一行即可重算全部场景。手算或复制粘贴表格，改口径时必错。
+零条目 ≠ 跑输：无端点或未开源时榜方跑不了，写「未送测」。效率看 wall time、步数、reasoning token，TPS 高≠快。分层判据与探针 → `references/benchmark-evidence-tiers.md`
 
-## Codex 推理档位（max / ultra）与本地取证
+## 模型"到底发布了没"：四面核验
 
-## Codex 推理档位（max / ultra）与本地取证
+触发信号：用户问"X 发布了吗 / 怎么已经有测评了"。**订阅或灰度可用 ≠ 已发布**：四面各取证并记日期，缺一面只写"部分上线"。
 
-问「Codex 里某模型支持哪些档、max / ultra 是什么」时，**先读本机 `~/.codex/models_cache.json`**（客户端按账号下发，比官网/博客准且离线可用），不要靠 `codex --version`（桌面版常不在 PATH）。用 Python `json.load` 逐 model 打印，别把几百 KB 整份读进对话。
+- 发布记录：release-notes 末条对应哪个模型；厂商常社媒先放、文档滞后。
+- 文档索引：`docs.<domain>/llms.txt` 搜版本号，再直打 `guides/llm/<model>` 看 404。
+- 按量 API：定价页有无该 model id 行。**Coding 套餐能选 ≠ API 可调**。
+- 权重：`huggingface.co/api/models?search=<model>` 为空即未开源。详见 `references/vendor-doc-endpoints.md`。
 
-取这些字段：`supported_reasoning_levels[].effort` + `description`、`default_reasoning_level`、`service_tiers`、`additional_speed_tiers`、`context_window`、`multi_agent_reasoning_effort`；当前生效值看 `~/.codex/config.toml` 的 `model_reasoning_effort`。
+测评先行的四类别混写：订阅用户实测（有额度痕迹，可信但样本小）｜灰度泄露跑分（标传闻）｜媒体转述官方群（性能属官方自报）｜标题党/过期稿（核对页面日期与 model id）。官方沉默时参数与 benchmark 一律标「转述」。
 
-梯度 `low→medium→high→xhigh→max→ultra`：`max` 把同一条推理链推到最深；`ultra` = max + 自动任务委派（真起 subagent，子代理跑 `multi_agent_reasoning_effort`，常见 xhigh）。
+## 选 coding agent 与订阅（含 Codex 档位）
 
-- 2026-11-18 本机实测（client 0.169.0）：astra / sol 均 6 档、**默认 `low`**——没手动改档时谈「快/慢」的结论无效；只下发 Fast（`2x speed, increased usage`），Ultrafast（≤4.5×）在网页/Work 端与部分 20x 计划；astra `context_window` 272k、sol 500k，两者 `max_context_window` 872k。
-- **tok/s 别照抄**：reasoning token 计入 output token，厂商/网关 tps ≠ 你的出字速度；Codex 无内置 tok/s（statusline 34 项里没有 throughput，社区数字来自 magpie / cc switch 之类反代看板）；网关 p50 是跨 effort、provider、tier 的混合值，不能读成「max 档」。
-- 中文社区页 Cloudflare 403 时，`web_fetch(https://r.jina.ai/<URL>)` 能拿正文并保留楼层（nodeseek 对该代理封禁，只能引用搜索索引片段并标注非直读）。
+触发信号：用户问"哪家模型最值得订阅 / coding agent 选哪家 / 未来一年谁最强"。先按任务拆"最强"（综合 / 编码 agent / 长任务改造）再落到订阅，别用单一综合榜回答。Codex 档位（max/ultra）与本地取证 → `references/codex-effort-local.md`。
 
-四条口径的原文取证与社区实测表 → `references/throughput-metric-pitfalls.md`
+- **别用综合榜选编码模型**：综合分与编码 agent 分常不同名；优先统一 harness 的 agent index，同一版本跨快照可差 1 分以上，记抓取日。
+- **长任务看 refactor 类基准**：真实仓库、6–30h/任务、同 scaffold，比单 bug 的 SWE-bench 更接近框架程序员负载；厂商自报常比第三方复跑高 10 分以上，新模型没进榜写"未取到"。
+- **harness ≠ 模型**：换 harness 能差一档；差距在 verifier、后台 worktree、失败恢复。
+- **订阅 vs API**：重度（~2M tok/日）旗舰订阅通常优于 API，中端接近；真约束是额度撞墙时间，不是单价。官方只给倍数不给 token 数的标"未公布"。
+- **$X 能做多少任务**：别用 $X ÷ 单价。先对齐档位（同一 $X 在三家常是不同命名档，额度性质也不同），再找社区计量锚点（"N 小时吃掉 X% 周额度"、逐请求账本的周 token），月任务数 = 周 token ÷ 单任务 token × 4.3，并与 wall-clock 上限取小；两派实测差 2–3 倍，只给区间。方法、渠道与坑 → `references/subscription-quota-mapping.md`
+- **预测下一代**：整代间隔（非点发布）+ 在训算力交付 + 安全闸门松紧；未官方确认的代号一律标"推算"。
+- **中国可用性单列**：截至 2026-11，三家个人订阅均不覆盖大陆；关键路径走 Azure Foundry / Vertex 或企业方案。

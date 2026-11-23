@@ -1,7 +1,7 @@
 # 三件前置产物（Recon A / Recon B / 词存在性普查）
 
 用途：在 fan-out 派子代理**之前**，主 Agent 先落盘三份种子文件，作为 12 个子代理 prompt 的共用输入——否则子代理会凭猜名检索、各自重复 grep。
-实测来源：2026-09-28 第三轮，输入 `D:\workspace\260928_vllm资料确认\转测文档_2026Q3\*.txt`（12 份 / 165KB / 最大 50891B / 1231 行），主线 vllm-ascend `233adfea55c565260345311845811237d726c2f2`。
+实测来源：2026-09-28 第三轮，输入 `D:\workspace\260928_vllm资料确认\转测文档_2026Q3\*.txt`（12 份 / 165KB / 最大 50891B / 1231 行），主线 vllm-ascend `233adfea55c565260345311845811237d726c2f2`。（**历史案例**：上述输入目录 2026-11-23 复核已不存在，只留测量值。）
 
 | 产物 | 落盘范本 | 行数 | 产出 |
 |---|---|---|---|
@@ -12,7 +12,7 @@
 ## Recon A：转测文档关键词抽取
 
 ```powershell
-Get-ChildItem "D:\workspace\260928_vllm资料确认\转测文档_2026Q3\*.txt" |
+Get-ChildItem "<转测文档目录>\*.txt" |
   Select-Object Name, Length, @{n='Lines';e={(Get-Content $_ -Encoding UTF8).Count}}
 ```
 

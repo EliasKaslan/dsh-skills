@@ -1,7 +1,7 @@
 ---
 name: "dsh-repo-sync"
 description: "退役DSH仓库同步审查入口；定位旧脚本/任务并保留镜像和凭据排除经验，不恢复旧自动发布。"
-whenToUse: "退役DSH仓库同步审查入口；定位旧脚本/任务并保留镜像和凭据排除经验，不恢复旧自动发布。 模型触发仍以description为准。"
+whenToUse: "被问到 DSH-Repo-Sync / run_daily / sync-dsh-repos 这些旧入口，或旧镜像同步策略是否还该用时。"
 disable-model-invocation: true
 warm-triggers: "私仓同步 / DSH-Repo-Sync / deepseek-harness / ALERT.md / sync-dsh-repos"
 warm-reason: "低频专用模式；以当前DSH运行时证据为准。"

@@ -1,6 +1,6 @@
 ---
 name: "node-test-false-green-audit"
-description: "Node测试与CI假绿、漏跑和断言有效性审查。适用于\"CI绿了却没跑 / 测试数对不上 / cancelled算过吗 / 这条断言会红吗 / 字段改名还绿\"。不适用：PowerShell参数编码故障 → 用 `pwsh-on-windows`。"
+description: "Node测试与CI假绿、漏跑和断言有效性审查。适用于\"CI绿了却没跑 / 测试数对不上 / cancelled算过吗 / 这条断言会红吗\"。不适用：PowerShell编码故障 → `pwsh-on-windows`。"
 whenToUse: "处理Node测试与CI假绿、漏跑和断言有效性审查时加载；模型看不到本节，触发以description为准。"
 disable-model-invocation: true
 warm-triggers: "CI 绿了但没跑 / 测试数不对 / 变异测试怎么验"

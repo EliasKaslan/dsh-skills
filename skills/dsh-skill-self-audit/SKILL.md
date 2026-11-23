@@ -1,7 +1,7 @@
 ---
 name: "dsh-skill-self-audit"
-description: "DSH skill集合体检入口；审查字段、引用、重复、预算与文件摘要，转作者技能的周期体检模式。"
-whenToUse: "DSH skill集合体检入口；审查字段、引用、重复、预算与文件摘要，转作者技能的周期体检模式。 模型触发仍以description为准。"
+description: "DSH skill集合体检：字段、引用、重复、预算与文件摘要核对，用只读校验器出结论。"
+whenToUse: "批量改完skill后跑校验与预算、或需要定期体检整个集合时。"
 ---
 
 # dsh-skill-self-audit

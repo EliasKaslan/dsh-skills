@@ -1,7 +1,7 @@
 ---
 name: "sedimenting-skills"
-description: "DSH经验沉淀入口；决定融合已有根或新建skill、保留验证经验并压缩目录成本，转作者技能沉淀选址模式。"
-whenToUse: "DSH经验沉淀入口；决定融合已有根或新建skill、保留验证经验并压缩目录成本，转作者技能沉淀选址模式。 模型触发仍以description为准。"
+description: "经验沉淀选址：融合已有skill还是新建，保留验证层级并压缩目录成本。"
+whenToUse: "回合结束决定要不要写skill、写进哪个根时。"
 ---
 
 # sedimenting-skills

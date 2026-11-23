@@ -20,6 +20,6 @@ whenToUse: "处理TileLang-Ascend算子开发及内存同步、独立golden和�
 
 按需读 [设计与lowering](references/design.md) 和 [正确性与性能](references/validation.md)。保留真正kernel、独立golden和可重复测试；Triton同卡baseline在可用且有意义时加入，不要求每个任务再开发一个Triton算子，也不拿两套同错实现互证。
 
-原始测试/compare模板包含 `{op}` 等占位，不是可直接运行的Python模块；旧模板留作历史材料，未经渲染和目标API验证不能执行。旧remote_run.py会清目标目录并使用shell拼接，本skill改为新任务目录显式部署、文件hash核对和已准入设备，不自动删共享路径或操作远端。
+原始测试/compare模板含 `{op}` 等占位，不是可直接运行的Python模块（`assets/test_template.py`、`assets/compare_template.py` 直接编译会报 `invalid syntax`，属正常特征）；旧模板只作历史材料，未经渲染和目标API验证不得执行。`scripts/remote_run.py` 已退役为失效桩，运行只打印 `BLOCKED_LEGACY_TOOL_RETIRED` 并退出 2；远端执行按任务新建唯一目录、显式部署、核对文件 hash 并使用已准入设备，不自动删共享路径。
 
 来源：DSH tilelang-op-generator及其15份附件，2026-11-16静态审查。当前目标后端API与真实NPU编译/执行需在具体开发任务中核对，旧performance/精度百分比表不作为统一门限。

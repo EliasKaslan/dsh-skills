@@ -1,6 +1,6 @@
 # tok/s 口径与实测（2026-11-18 取证）
 
-本机 `~/.codex/models_cache.json`（client 0.169.0，`fetched_at` 当天）实读：`gpt-6.2-astra` / `gpt-6.2-sol` 均 `supported_reasoning_levels` = low / medium / high / xhigh / max / ultra 六档、`default_reasoning_level` = `low`、`service_tiers=[{id:priority,name:Fast,description:"2x speed, increased usage"}]`、`additional_speed_tiers=["fast"]`、`multi_agent_reasoning_effort=xhigh`、astra `context_window` 272000 / sol 500000 / 两者 `max_context_window` 872000（astra 多模态 text+image，sol 加 audio）。
+本机 `~/.codex/models_cache.json`（2026-11-18 取证时 client 0.169.0，`fetched_at` 当天；2026-11-23 client 0.171.0 复核一致）实读：`gpt-6.2-astra` / `gpt-6.2-sol` 均 `supported_reasoning_levels` = low / medium / high / xhigh / max / ultra 六档、`default_reasoning_level` = `low`、`service_tiers=[{id:priority,name:Fast,description:"2x speed, increased usage"}]`、`additional_speed_tiers=["fast"]`、`multi_agent_reasoning_effort=xhigh`、astra `context_window` 272000 / sol 500000 / 两者 `max_context_window` 872000（astra 多模态 text+image，sol 加 audio）。
 
 ## 四个会让人误判的口径
 

@@ -30,7 +30,7 @@ def {op}(M, N, block_M, block_N, dtype="float16"):
     return main
 ```
 
-函数名 = 文件名 = 算子名（`from {op} import {op}` 才能工作）。测试文件复制 `assets/test_template.py`，只改 golden 函数与用例。
+函数名 = 文件名 = 算子名（`from {op} import {op}` 才能工作）。测试文件复制 `../assets/test_template.py`，只改 golden 函数与用例。
 
 ## 1. 逐元素算子
 

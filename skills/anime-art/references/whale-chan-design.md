@@ -65,4 +65,4 @@ maid headdress, hair bow, blue bow, bowtie, white collar, gem, frills, blue them
 
 ## 6. 想换成别的"AI 模型娘"
 
-`presets/characters.json` 里新增一条即可（改 `tags` / `detail` / `defaults`），不用改任何代码；`--preset <新 id>` 立刻可用。若要新增中文场景词，往 `scripts/artlib/cn_tags.py` 的 `CN_TAG_MAP` 加一行。
+`../presets/characters.json` 里新增一条即可（改 `tags` / `detail` / `defaults`），不用改任何代码；`--preset <新 id>` 立刻可用。若要新增中文场景词，往 `../scripts/artlib/cn_tags.py` 的 `CN_TAG_MAP` 加一行。

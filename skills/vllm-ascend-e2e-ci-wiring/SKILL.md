@@ -1,6 +1,6 @@
 ---
 name: "vllm-ascend-e2e-ci-wiring"
-description: "vLLM Ascend E2E：用例落位、时长登记、marker 与 CI 车道。适用于\"新增E2E / CI报MISSING / 时长登记 / 本地收集全吗\"。不适用：源码安装 → vllm-ascend-source-install。"
+description: "vLLM Ascend E2E：用例落位、时长登记、marker 与 CI 车道。适用于\"新增E2E/CI报MISSING/本地收集全吗\"。不适用：源码安装 → vllm-ascend-source-install。"
 whenToUse: "处理vLLM Ascend E2E用例目录、时长、marker和硬件CI车道核验时加载；模型看不到本节，触发以description为准。"
 ---
 

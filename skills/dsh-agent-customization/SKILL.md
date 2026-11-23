@@ -1,7 +1,7 @@
 ---
 name: "dsh-agent-customization"
 description: "DSH配置、插件与运行时维护总纲；定位改哪层、何时生效、隔离验证、preset取证与守护恢复，按模式转入具体参考。"
-whenToUse: "DSH配置、插件与运行时维护总纲；定位改哪层、何时生效、隔离验证、preset取证与守护恢复，按模式转入具体参考。 模型触发仍以description为准。"
+whenToUse: "要改 DSH 自身行为（插件/组合/MCP/preset/生效时机/守护恢复），或要定位改哪一层、何时生效时。"
 ---
 
 
@@ -11,12 +11,12 @@ whenToUse: "DSH配置、插件与运行时维护总纲；定位改哪层、何�
 
 修改DSH自身行为、插件装配/组合、MCP工具、生效时机或恢复时使用；先确认安装版本、DSH_HOME、profile、目标进程和用户授权范围。写skill文件另用 [dsh-skill-authoring](../dsh-skill-authoring/SKILL.md)，网络/编码问题另用 [pwsh-on-windows](../pwsh-on-windows/SKILL.md)。
 
-2026-11-16本机安装包为0.2.2-rc.3；旧profiles/node_modules启动路径不存在。版本、路径和工具名是快照，不是永久契约。读当前源码/schema，再执行改变；不要以旧工具名或模型自述推断本会话具备能力。
+2026-11-23核实本机为0.2.2-rc.5（读 app.asar 内 `package.json`）；组合树只由 profile `package.json` 的 `dsh.profile.bundles` + `cordis.patch.yml` + `--patch` overlay 组成。版本、路径和工具名是快照，不是永久契约。读当前源码/schema，再执行改变；不要以旧工具名或模型自述推断本会话具备能力。
 
 1. 将变化定位到指令、skill、profile/组合、插件实现或运行时实例，记录有效配置、来源和回退材料。配置展示只保留必要键，移除密钥/令牌/URL fragment。
 2. 先在独立home、工作区、loopback端口做最小试验，再判断是否部署真实环境；完整配置组合不等于模块能加载，插件active也不等于模型路由/工具行为正确。
 3. 对照新旧配置与运行时证据，区分进入组合树、模块装载、实例激活、会话实际行为；热重载返回或日志loading不能单独证明生效。
-4. 对真实环境的修改按任务已授权范围推进；恢复/停用/发布等动作分别核对目标。skills目录可能自动发布，批量落盘先读 [发布事务边界](references/publisher-transaction.md)，不能靠自造.lock或“写快一点”避免中间态外发。
+4. 对真实环境的修改按任务已授权范围推进；恢复/停用/发布等动作分别核对目标。skills目录可能自动发布（先看发布器行是否装载），批量落盘先读 [发布事务边界](references/publisher-transaction.md)，不能靠自造.lock或“写快一点”避免中间态外发。
 
 ## 按模式加载
 
@@ -35,11 +35,11 @@ whenToUse: "DSH配置、插件与运行时维护总纲；定位改哪层、何�
 
 ## 配置覆盖的回滚验收：字节一致 + 组合树复核
 
-## 适用
+### 适用
 
-撤掉自己写进 `cordis.patch.yml` 的**按 id 覆盖**（改 config / 加 disabled）时。这类回滚看着只是「删几行」，但两份风险都不显眼：删不干净会留空行或换行风格变化；而这 4 天里文件可能被别的改动动过，直接拿备份整体还原会**吞掉别人的修改**。
+撤掉自己写进 profile 下 `cordis.patch.yml` 的**按 id 覆盖**（改 config / 加 disabled）时。这类回滚看着只是「删几行」，但两份风险都不显眼：删不干净会留空行或换行风格变化；而期间文件可能被别的改动动过，直接拿备份整体还原会**吞掉别人的修改**。
 
-## 做法：只摘自己的段，再用两个证据收口
+### 做法：只摘自己的段，再用两个证据收口
 
 1. **先备份当前版本**（`.bak-<用途>-<时间戳>`），**不要覆盖**改前那份备份——两份都要留着：一份是"开着的状态"，一份是"改前基准"。
 2. **外科式摘除**：按自己写的那行注释上方的标记定位，截断到标记之前，再 `rstrip("\r\n") + 原换行符`，不要用"还原整个文件"。
@@ -48,27 +48,25 @@ whenToUse: "DSH配置、插件与运行时维护总纲；定位改哪层、何�
 
 两条都过才算回滚完成；只看"文件看着没问题"或只看 YAML 能解析，都会漏掉残留与误伤。
 
-## 坑
+### 坑
 
 - **拿旧备份整体还原**：若这期间文件有过别的改动，还原即回滚别人的改动。除非能证明期间无人改过，否则一律外科摘除。
 - **只核 YAML 可解析**：解析通过不证明"没了"，多留一行 `- id: ...` 仍是有效 YAML，而且会静默继续覆盖配置。
-- **回滚默认值 ≠ 关掉已开启的会话**：默认值只影响之后新建的会话；已经开了的会话是它自己日志里的状态，要单独在会话菜单里关（见上一节）。
+- **回滚默认值 ≠ 关掉已开启的会话**：默认值只影响之后新建的会话；已经开了的会话是它自己日志里的状态，要在会话菜单里单独关。
 
 ## 插件闸门静默失效：Config 新增字段必须同步到 settings（实测）
 
-写 host 插件时，`Config` 里新增字段**只是声明**；消费它的 `settings` 对象（`apply()` 开头那段 `config?.x ?? DEFAULT_X`）必须逐个同步，否则默认值变 `undefined`，比较恒 false，闸门**静默失效**。
-
-实测：给插件加正文预算 `bodyLimitBytes` / `sectionLimit` 时只改了 `Config`，漏了 `settings`；工具回执出现
+写 host 插件时，`Config` 里新增字段**只是声明**；消费它的 `settings`（`apply()` 开头那段 `config?.x ?? DEFAULT_X`）必须逐个同步，否则默认值变 `undefined`，比较恒 false，闸门**静默失效**。实测给插件加正文预算 `bodyLimitBytes` / `sectionLimit` 时只改了 `Config`，回执出现
 
 ```
 正文：14160 / undefined 字节，2 / undefined 段
 ```
 
-不抛错、不告警，超预算的写入照常落盘。修法：`Config` 每个字段都在 `settings` 里解一次；**把预算数字打进工具回执**（`X / limit`），`undefined` 一眼可见。
+不抛错、不告警，超预算照常落盘。修法：`Config` 每个字段都在 `settings` 里解一次，并把预算数字打进工具回执（`X / limit`）——`undefined` 一眼可见。
 
-**验证手法（可复用）**：把插件 `index.js` 复制进一个带 `@deepseek-ai/*` stub 的 harness 目录，`process.env.DSH_HOME` 指向临时 home，再直接调 `registered.tool.execute(args, {agent})`，对磁盘上的真实文件断言各分支（超预算拒绝、replace 改写、相似度拒绝、references 写入、路径穿越拒绝）。这次就是靠它发现"闸门没接线"的——纯读代码看不出 `undefined`。
+**验证手法（可复用）**：把插件 `index.js` 复制进带 `@deepseek-ai/*` stub 的 harness 目录，`process.env.DSH_HOME` 指向临时 home，直接调 `registered.tool.execute(args, {agent})` 对真实文件断言各分支（超预算拒绝、replace、相似度拒绝、references 写入、路径穿越）。纯读代码看不出 `undefined`。
 
-同类教训：`failedTurns` 初始化成 `Set` 却用 `.get()`（Map API）→ turn-stopping 抛 `state.failedTurns.get is not a function`。**声明、初始化、消费三处的类型/字段必须对齐，并且事件监听器要自带 try/catch**（否则插件 bug 会表现为「本轮运行失败」）。
+同类教训：`failedTurns` 初始化成 `Set` 却用 `.get()`（Map API）→ 抛 `state.failedTurns.get is not a function`。**声明、初始化、消费三处的类型/字段必须对齐，事件监听器要自带 try/catch**（否则插件 bug 表现为「本轮运行失败」）。
 
 ## 模型兼容：system 指令被改写成 developer（400）
 

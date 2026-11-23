@@ -1,7 +1,7 @@
 # 覆盖矩阵（最低测什么才算测过）
 
 "精度过了"不等于"测过了"。本文件定义每个算子类别**至少**要覆盖的维度，以及缺维度时怎么记账。
-判定由 [scripts/check_coverage.py](../scripts/check_coverage.py) 执行，不靠人工数。
+判定由 [check_coverage.py](../scripts/check_coverage.py) 执行，不靠人工数。
 
 ## 1. 维度清单
 
@@ -44,7 +44,7 @@
 | Fusion（CV 融合） | 上表适用的并集，最严格：`D-DTYPE-*`、`D-SHAPE-ALIGNED`/`TAIL-1`/`TAIL-MID`/`PRIME`/`EDGE`、`D-VALRANGE-*`、`D-SPECIAL-ZERO`/`INF`/`NAN`、`D-EXC-*` | 无 |
 | 整型/量化 | `D-DTYPE-*`、`D-SHAPE-ALIGNED`/`EDGE`、`D-SPECIAL-ZERO`、`D-EXC-*` | `D-SHAPE-TAIL-1`/`TAIL-MID`/`PRIME`、`D-SPECIAL-INF`/`NAN`/`DBOUND`、`D-VALRANGE-*` |
 
-本表与 `scripts/check_coverage.py` 的 `RULES` 必须逐条一致——**脚本才是门禁**，两处不一致时以脚本
+本表与 `../scripts/check_coverage.py` 的 `RULES` 必须逐条一致——**脚本才是门禁**，两处不一致时以脚本
 为准并改本表（已按脚本校正过一次：`D-SPECIAL-DBOUND` 与 `D-PARAM-*` 属于可豁免而非强制，
 Reduction 不含 `D-SHAPE-TAIL-MID` 之外的可豁免尾块项，GEMM 的 `D-SHAPE-TAIL-MID` 是强制）。
 `--category` 未知或不给且没有 `CATEGORY` 时按 `generic` 校验，只查恒要求维度。
@@ -122,8 +122,9 @@ COVERAGE_NA = {
 ## 6. 运行
 
 ```bash
-python scripts/check_coverage.py --test custom/{op}/test_{op}.py --category gemm
+python ../scripts/check_coverage.py --test custom/{op}/test_{op}.py --category gemm
 ```
 
 `--category` 省略时读测试文件里的 `CATEGORY` 常量；都没有则按"所有恒要求维度"校验。
+（脚本路径按本文件所在目录 `references/` 解析；`--test` 传你自己工程的测试文件。）
 退出码 0 = 通过，1 = 有强制维度缺失（打印缺失清单），2 = 脚本自身错误（文件读不到/语法错）。

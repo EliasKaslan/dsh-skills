@@ -1,5 +1,5 @@
 #!/bin/bash
-# One-shot runtime setup on 192.168.13.188 (venue + models). Idempotent.
+# Historical A3 runtime setup. Verify the current machine, paths, and assigned device before reuse.
 # Usage: bash setup_runtime.sh
 set -x
 exec 2>&1

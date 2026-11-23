@@ -26,12 +26,7 @@ whenToUse: "处理MindSpeed-Ops接口兼容、wheel验收及UT和ATK冒烟时加
 
 ## A3 双机跑 26.2.0 商发配套冒烟
 
-**机台选择（2026-11-17 实测）**：两台 A3 芯片同档（soc 253 / 16 die / 65536MB HBM·die⁻¹ / PCI 19E5:D803），NPU 侧常全空闲，**冒烟优先 190**：
-- 190：fp16 matmul **303.2 TFLOPS**（8192³×200）、HBM copy 1182 GB/s；CPU load ~21/64 线程；`/home` 4.1T 可用；SFTP/长命令正常。
-- 188：同脚本 fp16 **291.7 TFLOPS**、copy 1133 GB/s（低约 4%）；常驻他人 vLLM E2E，load 277/256 线程；`/` 仅剩 177G；**sshd 拒绝客户端写入**（见坑）。
-- 换机复核用同一脚本 `bench.py`（fp16/bf16 matmul 8192³×200 + 512MB HBM copy/add），不要凭 `npu-smi` 型号名推断性能。
-
-- 190 的环境入口（CANN 9.2.0 路径、py310 env、激活顺序、软链）见 references/a3-2620-env.md。
+按当前服务器资源选机，检查 CPU 负载、盘空间、空闲设备和 SSH/SFTP 能力。对比带宽和算力时用同一脚本、shape 和测量协议。环境与激活顺序见 [A3 环境复核](references/a3-2620-env.md)。
 
 **代码锁定**：不要改动现有主 worktree；`git worktree add --detach <ws>/ops <26.2.0 tip>`。tip 用 `git fetch origin 26.2.0` 后的 `FETCH_HEAD` 并记录 SHA（26.2.0 常有只有 docs 的提交，仍须记录，否则结果不可追溯）。
 
@@ -45,11 +40,11 @@ whenToUse: "处理MindSpeed-Ops接口兼容、wheel验收及UT和ATK冒烟时加
 
 **atb 的固定失败**：`/mnt/share/cann/cann-9.2.0/nnal/atb/latest/{include,lib}` 为空（只有 install.sh/whl）→ 编译报 `atb/types.h: No such file or directory`，ATK 报 `ImportError: …npu_matmul_add_fp32.so: cannot open shared object file` + `matmul_add_fp32 run error!`；UT 表现为 **7 个 FAILED 而非 SKIP**（用例 skip 判据只在 RuntimeError 含 "cann-nnal" 时触发）。这是环境与判据问题，不是算子缺陷；同目录 fp16/不走 ATB JIT 的路径照常全绿（8/8 Pass）。tilelang 需独立 whl，未装即 skip。
 
-**回归基线（190 / 26.2.0@b1ef3ad）**：UT 593 passed / 0 failed / 63 skipped；ATK 27/27 算子 Pass、1122/1122 任务；aclnn+catlass 155 passed。结果显著偏离时先查 env 与 die 占用，再判代码。
+**历史回归基线（26.2.0@b1ef3ad）**：UT 593 passed / 0 failed / 63 skipped；ATK 27/27 算子 Pass、1122/1122 任务；aclnn+catlass 155 passed。结果显著偏离时先查 env 与 die 占用，再判代码。
 
 **坑**：
 - Windows PowerShell 5.1 会把带空格的远端命令拆散（只发第一段 → `SyntaxError` / `~: 未找到命令`）→ 用「本地写 `.sh` → SFTP → `bash`」或清单式 `put`/`run` 执行器。
-- 188 的 sshd 拒绝客户端→服务端写入：sftp put、stdin 上传、>1.5KB 的 inline 命令均 `ConnectionResetError 10054` / `Server connection dropped`；只能短单行，落文件用 800 字符一段 base64 追加后 `base64 -d`。
+- 若目标拒绝 SFTP 或长命令，核对服务端传输策略，并选用该目标已支持的文件传输方式。
 - pytest 未 source CANN 表现为 **2 个 collection errors**（torch_npu 导入失败），不是用例失败。
 - `nnal/atb/set_env.sh` 引用未绑定的 `ZSH_VERSION`，外层 `set -u` 会静默中断（空日志 + rc=1）。
 

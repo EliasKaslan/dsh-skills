@@ -4,6 +4,6 @@
 
 检查下载/安装入口、依赖生命周期脚本、网络目标、凭据读取与发布副作用；区分观察到的行为和推断。插件描述中的角色词或某域名字符串不单独证明恶意。包版本固定后再做隔离安装，记录来源与完整性；此轮仅静态检查，未安装第三方插件。
 
-`scripts/inspect_asar.py <app.asar> [--packages]` 有界只读列出条目/包版本和归档 SHA。对标准 Electron ASAR，前16字节四个 little-endian uint32；本机 `[4,5669972,5669968,5669961]`。JSON 字节数来自第四项（offset12），数据区起点是 `8+第二项`。旧笔记误用第三项（offset8）会把填充读进 JSON。读取内部 packed file 前检查 offset、size、总文件边界；拒绝 link/unpacked，不执行包代码。工具不会解包至磁盘，也不能替代完整 ASAR 完整性/签名验证。
+`../scripts/inspect_asar.py <app.asar> [--packages]` 有界只读列出条目/包版本和归档 SHA。对标准 Electron ASAR，前16字节四个 little-endian uint32；2026-11-23 本机为 `[4,5671400,5671396,5671389]`（asar 209,083,008 字节、21722 条目），数字随安装包变化，先读这 16 字节再解析。JSON 字节数来自第四项（offset12），数据区起点是 `8+第二项`。旧笔记误用第三项（offset8）会把填充读进 JSON。读取内部 packed file 前检查 offset、size、总文件边界；拒绝 link/unpacked，不执行包代码。工具不会解包至磁盘，也不能替代完整 ASAR 完整性/签名验证。
 
 格式依据：[Electron ASAR 实现](https://github.com/electron/asar)。读取失败应先核实格式/安装位置，不用“全文件搜索第一个大括号”猜 header。

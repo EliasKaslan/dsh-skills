@@ -1,10 +1,10 @@
 # 旧 preset 与当前 overlay 的分层取证
 
-两份旧 preset 笔记明确标为手动调用/历史材料，称 0.2.2-rc.1 起不再扫描 `.agent-presets`。本机 rc.3 安装包未发现同名 preset 包，而目录仍存在；目录存在不证明 loader 正在读。先从当前 app-boot、profile、bundle 和管理接口定位实际入口，勿重新启用旧机制作为默认修复。
+两份旧 preset 笔记明确标为手动调用/历史材料，称 0.2.2-rc.1 起不再扫描 `.agent-presets`。2026-11-23 在 0.2.2-rc.5 的 app.asar 里读到当版文档原文：「Before declaration rows, a user preset was a directory `$DSH_HOME/.agent-presets/<id>/` … **Nothing reads that directory any more.**」，同一 asar 里 `scanRoot` 命中数为 0。目录仍存在，但不再有任何 loader 读它——目录存在不证明装配。先从当前 app-boot、profile、bundle 和管理接口定位实际入口，勿重新启用旧机制作为默认修复。
 
 ## 离线与 overlay
 
-1. 建立 base composition → profile/bundle → manual patch → 最终行列表/配置的对照，包含 row id、来源、module、enabled 与有效配置。旧机制的 `agent.cordis.yml` 是组合文件，`preset.yml` 是展示元数据；二者不能互换。只有已安装版本仍提供该 loader 时才使用旧 scanRoot。
+1. 建立 base composition → profile/bundle → manual patch → 最终行列表/配置的对照，包含 row id、来源、module、enabled 与有效配置。旧机制的 `agent.cordis.yml` 是组合文件，`preset.yml` 是展示元数据；二者不能互换。rc.5 已无 `scanRoot`（asar 内 0 命中），不要再按它取证。
 2. 旧 discovery 规则是 id `^[a-z0-9][a-z0-9-]*$`、每次读重扫，元数据只读 name/description/order；缺组合文件会占用 id 并报告 broken。保留原始 broken 原因，而不是只打印 healthy。当前 overlay 机制要以当前实际解析结果替代这些假设。
 3. 对每个包区分 `Config`、`resolveConfig`、构造期检查和 apply；不把类型校验等同语义校验。历史 compaction-basic 不拒绝 Config 中未知键，语义在内部 resolveConfig：retainRatio 小于 thresholdRatio、retainRatio 与 retainTokens 互斥。pruner 的 head+marker+tail 必须不超过阈值，marker 长度从当版源码取，不固定为39。
 4. 静态 agentOptions 中的 provider/model pin 与 allowedModels 这种“模型主动选择”策略分别检查；后者可能不约束静态 pin。保存最终 row 与解析配置证据。
@@ -25,4 +25,4 @@
 
 历史 session/page 的 throughSeq 不能超过当前 cursor，报 past cursor N 时用返回的合法 N；子代理 address 用 subagent/catalog 中 childSessionId，不手工加 session- 前缀。当前版本先核对 schema。页面 token 和完整会话原文保留本地，不粘贴到交付物。
 
-可疑插件做“唯一改变是该 row”的两组对照，保持模型、输入、工具和 overlay 其余部分相同。旧实验 agent-team 曾在 descriptor 落盘前误判子代理为 Lead，动态 persona 渲染抛 TEAM_NOT_MEMBER，并额外注入团队工具；这是复现线索，不能直接当作 rc.3 仍有的缺陷。查看当版 membership/install/text 生命周期，再选最小对照。不要为了测试改真实 preset 或先升级全部插件。
+可疑插件做“唯一改变是该 row”的两组对照，保持模型、输入、工具和 overlay 其余部分相同。旧实验 agent-team 曾在 descriptor 落盘前误判子代理为 Lead，动态 persona 渲染抛 TEAM_NOT_MEMBER，并额外注入团队工具；这是复现线索，不能直接当作当前 rc.5 仍有的缺陷。查看当版 membership/install/text 生命周期，再选最小对照。不要为了测试改真实 preset 或先升级全部插件。

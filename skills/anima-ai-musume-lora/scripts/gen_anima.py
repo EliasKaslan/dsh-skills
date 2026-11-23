@@ -49,7 +49,7 @@ def main():
     ap.add_argument("--prefix", default="anima/test")
     ap.add_argument("--lora", default=None)
     ap.add_argument("--lora-strength", type=float, default=1.0)
-    ap.add_argument("--outdir", default="/home/vllm/ai-musume/anima/out")
+    ap.add_argument("--outdir", default="out", help="Output directory (default: ./out)")
     ap.add_argument("--timeout", type=float, default=900)
     args = ap.parse_args()
 

@@ -6,6 +6,8 @@ whenToUse: 在共享昇腾服务器上选择项目、环境、缓存与权重落
 
 # 昇腾共享工作区与权重
 
+按 [服务器访问](../ascend-server-access/SKILL.md) 确认本轮目标和认证，再采集当前磁盘、设备和进程状态。
+
 ## 磁盘和目录
 
 对目标路径先 `readlink -f`、`findmnt -T`、`df -h`，不存在时检查最近的已存在父目录。目录名 share/home/weight 不证明独立大盘或 NFS，跨主机同名路径不证明同一份数据。按下载、解压、编译、Docker layer 与缓存峰值一起估算写入。
@@ -32,11 +34,11 @@ python inspect_weights.py /path/to/model > weights-report.json
 
 它只读 config/index 和所有 safetensors 头部，检查 LFS 指针、分片存在性、张量索引映射、dtype/shape、offset 与文件长度，限制 header 分配。退出码 0 只表示这些结构检查通过；没有下载源校验和时不能证明 payload 正确，也不能证明模型可加载。退出码 1 表示完整性失败，2 表示输入错误或检查不完整（如缺配置、多分片缺索引、未知 dtype）；结合 JSON 的 verdict/errors/warnings 解读。
 
-- 余下判据（dtype/量化布局判读、revision 与下载纪律、硬链、长任务与清理）见 references/weights-verification.md。
+- 余下判据（dtype/量化布局判读、revision 与下载纪律、硬链、长任务与清理）见 [权重验真判据](references/weights-verification.md)。
 
-历史现场线索与来源见 [references/site-and-sources.md](references/site-and-sources.md)。
+参考依据见 [references/site-and-sources.md](references/site-and-sources.md)。
 
-## 判空卡取证：进程名 ≠ 占卡，落 Davies fd 与设备级进程表
+## 判空卡取证：进程名 ≠ 占卡，落 davinci fd 与设备级进程表
 
 判"某张卡现在能不能用"时，**先分清"主机上有 vLLM/ray 进程"和"卡上有进程"**——这两件事在多租户 A5 上几乎总是同时出现，但含义完全相反。
 
@@ -46,7 +48,7 @@ python inspect_weights.py /path/to/model > weights-report.json
 2. **HBM 绝对量**：`npu-smi info` 里 `<used> / 98304`（A5）或 `/ 65536`（A3）。A5 空机实测落在 4.8G 量级、A3 落在 2.9~3.2G 量级——**只作旁证，不当判据**（历史阈值 3500/6000 会漏掉低占用任务）。
 3. **Health**：`OK` 才可调度；`Alarm`（含 UB/RAS `Error Code 81AF8000` 一类的链路告警）按 UNKNOWN，不是"空卡可用"。
 
-- 完整取证命令与判读（davinci fd 核验、probe_hosts.py 入口、Windows 远端采证写法）见 references/idle-card-forensics.md。
+- 完整取证命令与判读（davinci fd 核验、probe_hosts.py 入口、Windows 远端采证写法）见 [判空卡取证](references/idle-card-forensics.md)。
 
 ### 坑
 
@@ -58,14 +60,13 @@ python inspect_weights.py /path/to/model > weights-report.json
 
 回答「这台**最近 N 小时**有没有用过卡 / 现在到底在跑什么」，不能只看当前 `npu-smi`（它不保存历史）。要按三层分别取证：**现在**（见上一节三重信号）→ **窗口内有没有作业启停** → **窗口内有人在做什么**。
 
-- 三层取证的具体命令与判读（全机 davinci 扫描、docker events、etime 分档、容器内在跑什么、登录/日志痕迹）见 references/activity-forensics.md。
+- 三层取证的具体命令与判读（全机 davinci 扫描、docker events、etime 分档、容器内在跑什么、登录/日志痕迹）见 [活动取证](references/activity-forensics.md)。
 
 ### 坑与局限
 
 - **`npu-smi` 没有历史占用曲线**，也没有 NPU 使用审计。"最近 N 小时没占用"只能由「容器启停 + 进程生命周期 + 日志/登录痕迹」三重旁证推出，**不等于读了历史数据**，回答时要写清这是推断。
 - 容器内 `docker exec` 跑的东西不会进 `ps` 之外的容器外视图，别用"宿主 `ps` 没有 python"就断言"没人操作"——要看 `docker events` 的 exec 记录。
 - `watch -n 1.0 npu-smi info` 这类常驻轮询会让 `/var/log/nputools_LOG_INFO.log` 持续增长、`journalctl | grep -c npu` 到十万级：**那是查询噪声，不是占用证据**，别拿命中数当活跃度。
-- `npu-smi info -t proc` 在 A5 25.1.rc3 不存在（`Error parameter of -t`），设备级进程用 `-t proc-mem`。
 
 ## 从 npu-smi 进程名反查真实服务（含 proc-mem 判据）
 

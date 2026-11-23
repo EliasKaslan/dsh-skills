@@ -21,7 +21,7 @@
 
 按顺序核，**每一条都能把一类假失败挡掉**：
 
-1. **`VLLM_BATCH_INVARIANT` 真的是 `1` 吗**——不是 `1`（含未设置、`0`、空串）时跑出来的"一致"是巧合。脚本已强制校验。
+1. **`VLLM_BATCH_INVARIANT` 真的是 `1` 吗**——不是 `1`（含未设置、`0`、空串）时跑出来的"一致"是巧合。自建 harness 必须在比对前强制校验这一项并把它记进证据。
 2. **步数是否恰好等于 `max_tokens`**——`ignore_eos=True` 没生效、或某个请求撞了 `max_model_len`，都会让步数不一致。步数不同就**不要再比 logprob**。
 3. **prompt 长度是否精确**——近似长度会让 BS=1 与 BS=N 的实际形状不可比。日志里应有 `all_exact=true`。
 4. **KV 需求是否超容量**——超了必然发生换出/重算，此时的差异与不变性无关，判 `BLOCKED`。
@@ -111,8 +111,11 @@
 在相信任何 `PASS` 之前，先跑一次**负控**：
 
 ```bash
-VLLM_BATCH_INVARIANT=0 python scripts/bi_equivalence.py ... --allow-non-bi
+# 用你自己的 harness，只把批次不变开关关掉，其余参数与正式验收完全一致
+VLLM_BATCH_INVARIANT=0 <你的 BI harness> <同一组参数>
 ```
+
+（旧 `bi_equivalence.py` 已退役为失效桩，退出码 2 且不产出判词，见 [旧BI工具状态](legacy-tool-status.md)；负控必须由当前任务的 harness 自己跑。）
 
 期望结果 `NEGATIVE_CONTROL_REJECTED_AS_EXPECTED`（即检查看见了差异）。两种偏差都要单独报：
 

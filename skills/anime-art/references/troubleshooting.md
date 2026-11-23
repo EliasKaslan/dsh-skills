@@ -49,7 +49,7 @@ curl.exe -L -C - -o "$env:DSH_HOME\models\anime-art\animagine-xl-4.0-opt.safeten
 
 ### 换成别的 checkpoint
 任何单文件 SDXL 动漫模型都能用：`--model "D:\models\my-anime-xl.safetensors"`。
-文件名里带 `illustrious`/`noob` 时会自动切到对应的质量词与负面词表（见 `artlib/prompts.py` 的 `QUALITY_TAGS`）。
+文件名里带 `illustrious`/`noob` 时会自动切到对应的质量词与负面词表（见 `../scripts/artlib/prompts.py` 的 `QUALITY_TAGS`）。
 
 ## C. 生成质量
 

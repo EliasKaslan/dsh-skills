@@ -1,7 +1,7 @@
 ---
 name: "dsh-home-guard"
-description: "DSH home守护与恢复入口；检查外置备份、自愈失败、隔离恢复和内容核验，转总纲守护恢复模式。"
-whenToUse: "DSH home守护与恢复入口；检查外置备份、自愈失败、隔离恢复和内容核验，转总纲守护恢复模式。 模型触发仍以description为准。"
+description: "DSH home备份与自愈排查：外置守护、失败不固化删除、隔离恢复与hash核验。"
+whenToUse: "守护状态异常、怀疑关键文件被删、或要恢复到独立空目录时。"
 ---
 
 # dsh-home-guard

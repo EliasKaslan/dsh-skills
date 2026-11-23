@@ -1,7 +1,7 @@
 ---
 name: "subagent-toolset-precheck"
-description: "DSH子代理工具预检入口；以实际schema和只读probe核对网络/命令/落盘能力，转总纲工具能力预检模式。"
-whenToUse: "DSH子代理工具预检入口；以实际schema和只读probe核对网络/命令/落盘能力，转总纲工具能力预检模式。 模型触发仍以description为准。"
+description: "子代理工具能力预检：按实际schema与只读probe核对网络/命令/落盘。"
+whenToUse: "子代理声称无网络、无命令或不能写盘，需要先核对真实能力时。"
 disable-model-invocation: true
 warm-triggers: "子代理工具受限 / 让它回报函数清单"
 warm-reason: "低频专用模式；以当前DSH运行时证据为准。"

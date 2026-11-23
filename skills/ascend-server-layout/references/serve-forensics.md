@@ -22,7 +22,7 @@ find /proc -maxdepth 3 -lname '*davinci*' 2>/dev/null | awk -F/ '{print $3}' | s
   | while read p; do echo "$p $(ps -o args= -p $p 2>/dev/null | cut -c1-80)"; done
 ```
 
-## 实测样例（A5 rack09os2，8×Ascend950DT，npu-smi 26.2.0.b020）
+## 实测样例（A5，8×Ascend950DT，npu-smi 26.2.0.b020）
 
 - `npu-smi info` 进程表 8 卡全为 `sglangschedul` 53599MB；`ps args` 才是 `python3 -m sglang.launch_server --model-path /mnt/weight/Qwen3.8-27B --host 0.0.0.0 --port 30000 --tp-size 8 --nnodes 1 --attention-backend ascend --device npu --mem-fraction-static 0.80 --max-total-tokens 750000 --enable-multimodal`。
 - 父进程 `bash /tmp/launch_qwen.sh`；`etime` = 服务运行时长。

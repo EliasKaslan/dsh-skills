@@ -25,7 +25,7 @@ whenToUse: 将指定 checkout 的 vLLM 与 vLLM Ascend 从源码配对构建到�
 5. 根据目标头文件/工具链确定 GCC/C++ 标准与 ABI，不把“gcc>=9”当所有 C++20 依赖保证。用 CC/CXX 绝对路径指定工具链，必要时按本版本设置 C_COMPILER/CXX_COMPILER；不把另一个 conda env 的 bin 前置导致 pip 装错环境。
 6. 换 torch/CANN/编译器后在本任务构建目录重建受影响产物，清理前核对真实路径与归属。`MAX_JOBS` 按共享资源限制。构建日志管道需 `set -o pipefail` 或保存实际 pip 返回码，不能只看 tee 的退出码或“installed successfully”。
 
-arctic-inference 等依赖是否可省须查目标调用链和功能范围，不能因为旧 .188 编译器落后就默认删掉。未解决的硬依赖冲突应隔离或报告，不笼统称为上游噪声。
+arctic-inference 等依赖是否可省须查目标调用链和功能范围，不能因为某台历史主机的编译器版本较低就默认删掉。未解决的硬依赖冲突应隔离或报告，不笼统称为上游噪声。
 
 ## 批次不变性构建
 
@@ -39,28 +39,35 @@ arctic-inference 等依赖是否可省须查目标调用链和功能范围，不
 
 交付版本对、构建选项/编译器、包变更、局部旁路 diff、实际扩展、失败退出码和通过范围；本地依赖旁路不自动进入上游提交。首次真实模型运行另验权重、设备和端到端行为。
 
-- 来源、审查日与动态配对依据见 references/sources.md。
+- 来源、审查日与动态配对依据见 [来源与配对依据](references/sources.md)。
 
-## main + 商发 26.2.0（CANN 9.2.0）在 A3 x86_64 上的源码构建链
+## main + 商发 26.2.0（CANN 9.2.0）源码构建链：A3 x86_64 / A5 950DT aarch64
 
-**适用**：把 vllm-ascend **main** 按「昇腾商发 26.2.0 配套」装到 A3（x86_64）已有环境时。
-**不适用**：release 分支或 aarch64 机器（fla_npu 来源不同，未验证）。
+**适用**：把 vllm-ascend **main** 按「昇腾商发 26.2.0 配套」装到已有 CANN 环境。
+**不适用**：release 分支；A2/910B 之外的 SoC 串未验证。
 
-- 完整构建顺序、BI 脚本自检与版本口径见 references/a3-main-26.2.0-build.md。
+商发 26.2.0 配套 = CANN 9.2.0 + torch 2.10.0 + torch_npu 2.10.0.post7 + triton-ascend 3.6.0 + Python 3.12。
+两平台共用骨架（顺序不能换）：
+
+1. `python tools/use_existing_torch.py --prefix`（vLLM 侧；本版脚本已从仓库根移到 `tools/`）
+2. `VLLM_TARGET_DEVICE=empty pip install -e . --no-build-isolation`，版本落成 `...+empty`
+3. 核对 `triton` 命名空间：`pip show triton` 有值才 uninstall，再 `--no-deps --force-reinstall` 回装 triton_ascend
+4. **真装** vllm-ascend 的 `requirements.txt`（`pip install -e . --no-deps` 不补运行时依赖）
+5. `SOC_VERSION=<soc> pip install -e . --no-deps --no-build-isolation`（A3 `ascend910_93`；A5 `ascend950dt_9582`）
+
+- A3 x86_64 全流程与 BI 算子：[A3 构建链](references/a3-main-26.2.0-build.md)
+- A5 950DT aarch64 全流程 + 引擎冒烟判据：[A5 构建链](references/a5-main-26.2.0-build.md)（2026-11-20 实测到出词）
 
 ### 坑（都带原文）
 
-- 不带 `--no-build-isolation` 也不会自动有 `setuptools_rust`；`--no-build-isolation` 时 setup.py 直接
-  `ModuleNotFoundError: No module named 'setuptools_rust'`（vLLM 侧）。
-- **不要在 `vllm/` 源码目录下启动 python**：cwd 的 `vllm/` 目录会被当作 namespace 包，
-  报 `ImportError: cannot import name 'ModelRegistry' from 'vllm' (unknown location)`；从 `run/` 之类中性目录启动。
-- `vllm_ascend/ops/gdn.py` 在 import 期硬依赖 `fla_npu`，但 requirements 不声明它，缺了直接
-  `ModuleNotFoundError: No module named 'fla_npu'`。A3 预编译 fla wheel（`/mnt/share/fla-npu-a3-whl-26.9.0`）只有
-  **aarch64**；x86_64 源码 wheel（26.6/26.7.dev）缺 main 需要的 `causal_conv1d_fn / causal_conv1d_update`
-  （`ImportError: cannot import name 'chunk_gated_delta_rule' …` / 只有 `causal_conv1d`、`npu_causal_conv1d`）。
-  x86_64 的做法：从官方 `quay.io/ascend/vllm-ascend:nightly-main-a3-openeuler` 镜像
-  `docker cp` 出 `flash_linear_attention_npu_a3 26.9.1`（含 `opp/` vendor 与 `fla_npu_opp_env.pth`）到目标 site-packages。
+- 不带 `--no-build-isolation` 时 build-system requires 不被使用，但 setup.py 照样直接
+  `ModuleNotFoundError: No module named 'setuptools_rust'`（vLLM 侧）；`setuptools-rust` 必须先手动装。
+- **不要在 `vllm/` 源码目录下启动 python**：cwd 的 `vllm/` 会被当 namespace 包，报
+  `ImportError: cannot import name 'ModelRegistry' from 'vllm' (unknown location)`；从 `run/` 之类中性目录启动。
+- `fla_npu` 不在 requirements 里，但 `vllm_ascend/ops/gdn.py` import 期硬依赖，且**只在建引擎时**触发：
+  `import vllm_ascend` 能过，`LLM(...)` 才死在 `ModuleNotFoundError: No module named 'fla_npu'`。按 SoC 取 wheel（见两个 reference）。
 - requirements 钉 `triton-ascend===3.6.0.post2`，公网/华为云镜像只有 `3.6.0`：
   `ERROR: Could not find a version that satisfies the requirement triton-ascend==3.6.0.post2 (from versions: none)`；
-  镜像内自带 3.6.0 可直接用，别为 `.post2` 卡住。
-- pip 下载大包（torch/torch-npu 的 JSON 索引）在容器内可能超时，用 `repo.huaweicloud.com` 镜像（镜像内已配）比 pypi 稳。
+  别为 `.post2` 卡住。
+- `pip install -r` 指向**空文件**时返回 0 且什么都不装，症状是事后缺 xgrammar/quart/numba；先 `wc -l` 确认行数。
+- CANN 9.2.0 只有静态 `libtiling_api.a`、没有 `.so`；`target_link_libraries(... tiling_api)` 静态链即可，别去补 `.so`。

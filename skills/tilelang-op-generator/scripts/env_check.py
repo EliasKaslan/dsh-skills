@@ -23,7 +23,7 @@ CANN 与 venv 路径由参数或环境变量提供（`CANN_INSTALL_PATH` / `TILE
 |------|----------|------------|------|
 | `--host` | `TILELANG_NPU_HOST` | 无（必填） | 远程昇腾机地址 |
 | `--port` | `TILELANG_NPU_PORT` | `22` | SSH 端口 |
-| `--user` | `TILELANG_NPU_USER` | `root` | SSH 用户 |
+| `--user` | `TILELANG_NPU_USER` | 无（必填） | SSH 用户 |
 | `--cann-path` | `CANN_INSTALL_PATH` | 空（必检项判失败） | CANN 路径，需含 `set_env.sh` 或 `bin/setenv.bash` |
 | `--tilelang-path` | `TILELANG_ASCEND_PATH` | 空（必检项判失败） | TileLang-Ascend 路径，需含 `set_env.sh` |
 | `--env-dir` | `TILELANG_ENV_DIR` | 空（自动发现 `python3`） | 远程 Python venv 目录，需含 `bin/python` |
@@ -32,7 +32,8 @@ CANN 与 venv 路径由参数或环境变量提供（`CANN_INSTALL_PATH` / `TILE
 
 示例：
 
-    export TILELANG_NPU_HOST=10.0.0.1
+    export TILELANG_NPU_HOST="$target_host"
+    export TILELANG_NPU_USER="$target_user"
     export CANN_INSTALL_PATH=/usr/local/Ascend/ascend-toolkit/latest
     export TILELANG_ASCEND_PATH=/opt/tilelang-ascend
     export TILELANG_ENV_DIR=/opt/tilelang-env
@@ -239,8 +240,8 @@ def main():
                     help="远程昇腾机地址（必填；默认取环境变量 TILELANG_NPU_HOST）")
     ap.add_argument("--port", type=int, default=env_port(),
                     help="SSH 端口（默认 22，可被环境变量 TILELANG_NPU_PORT 覆盖）")
-    ap.add_argument("--user", default=os.environ.get("TILELANG_NPU_USER", "root"),
-                    help="SSH 用户（默认 root，可被环境变量 TILELANG_NPU_USER 覆盖）")
+    ap.add_argument("--user", default=os.environ.get("TILELANG_NPU_USER"),
+                    help="SSH 用户（必填，可从环境变量 TILELANG_NPU_USER 读取）")
     ap.add_argument("--cann-path", default=os.environ.get("CANN_INSTALL_PATH", ""),
                     help="CANN 安装路径（默认取 CANN_INSTALL_PATH）；需含 set_env.sh 或 bin/setenv.bash，"
                          "未给出即判该项失败")
@@ -254,6 +255,9 @@ def main():
 
     if not args.host:
         ap.error("缺少目标机地址：传 --host 或设置环境变量 TILELANG_NPU_HOST")
+
+    if not args.user:
+        ap.error("缺少 SSH 用户：传 --user 或设置环境变量 TILELANG_NPU_USER")
 
     target = f"{args.user}@{args.host}"
     ssh_opt = f"-o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -p {args.port}"

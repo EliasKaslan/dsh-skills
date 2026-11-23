@@ -1,7 +1,7 @@
 ---
 name: "dsh-skill-authoring"
-description: "编写、验证和精简DSH skill；核对触发字段、调用策略、资源路由、去重归档、目录预算与批量发布边界。"
-whenToUse: "编写、验证和精简DSH skill；核对触发字段、调用策略、资源路由、去重归档、目录预算与批量发布边界。 模型触发仍以description为准。"
+description: "编写、验证和精简DSH skill：触发字段、调用策略、资源路由、去重归档、目录预算与批量发布边界。"
+whenToUse: "新建或改写SKILL.md、判断融合还是新增、查失效指针与重复正文、维护冷备索引或批量审计时。"
 ---
 
 
@@ -9,7 +9,7 @@ whenToUse: "编写、验证和精简DSH skill；核对触发字段、调用策�
 
 ## 何时调用
 
-新建/改写SKILL.md、整理已有经验、判断融合还是新增、查失效指针/重复正文、维护冷备索引或批量审计时使用。技术内容的真伪仍需对应领域取证；DSH插件配置问题用 [dsh-agent-customization](../dsh-agent-customization/SKILL.md)。
+新建/改写SKILL.md、整理已有经验、判断融合还是新增、查失效指针/重复正文、维护冷备索引或批量审计时使用。技术内容的真伪仍需对应领域取证；DSH插件配置问题用 [dsh-agent-customization](../dsh-agent-customization/SKILL.md)。沉淀选址、周期体检、归档查找三个模式见 [审计与归档](references/audit-archive.md) 的同名章节。
 
 先确定目标根、适用用户/仓库、实际loader和现有相近skill；此次用户授权改正文时可重写技术内容，不能被旧“技术正文一字不改”规则阻止。保留每个入口自己的disable-model-invocation/user-invocable策略，不因融合就把所有入口改成手动或自动。
 
@@ -26,19 +26,19 @@ whenToUse: "编写、验证和精简DSH skill；核对触发字段、调用策�
 
 先查看 [发布事务边界](../dsh-agent-customization/references/publisher-transaction.md)：本机可能在turn/end和poll自动发布。自造.lock不能暂停；先用可验证的最窄暂停方案隔离发布和并发编辑，再应用与复核全部文件。此skill不要求额外询问已经明确授权的修改；如果需要改变任务外的运行时/外发状态，准确指出具体操作和原因。
 
-检查器 `scripts/validate_skills.py <skills-root>` 只读，依赖Python和PyYAML，缺依赖以exit2明确失败；用--report写指定审计路径，不能写被审树。它检查实际YAML、name/description/调用策略/Markdown本地链接和逐文件hash，不验证技术事实、实际装载或自动触发。旧check-skill-frontmatter.ps1/diff-skills.ps1的阈值/换行/YAML_SKIP局限见reference，不再把旧checker的“跳过”算通过。
+本机 `skills` 目录是 DSH-Guard 哨兵：快照里有、工作树没有的文件会被自动还原，`keep` 也不覆盖哨兵判定（2026-11-23 实测：删除后 2 分钟内 restored=2）。所以合并/归档先按「盘上文件不能删」设计——降 warm、改正文、留旧名短路由；确需删除要停守护并改 CANON。热/冷预算与 `skills-archive/INDEX.json` 用 `skill_budget.py --write-index` 一次对齐，别手改索引里的数字。
 
-已知无frontmatter的归档入口只能由caller显式声明，例如 `--archived ai-musume-4k-art`（可重复）；它保留文件hash并单列归档，不计active。未显式声明的缺frontmatter仍是错误。完整历史树的旧reference断链须单独标为遗留发现；active overlay和新入口可达资源另行验收，不为全绿改未授权的历史材料。
+检查器 `scripts/validate_skills.py <skills-root>` 只读，依赖Python和PyYAML，缺依赖以exit2明确失败；用--report写指定审计路径，不能写被审树。它检查实际YAML、name/description/调用策略/Markdown本地链接和逐文件hash，不验证技术事实、实际装载或自动触发。
 
-Python模板只能逐文件显式声明，例如 `--python-template tilelang-op-generator/assets/compare_template.py --python-template tilelang-op-generator/assets/test_template.py`。声明必须是根内现存UTF-8 `.py`文件并含字面token `{op}`；检查器只将该token替换成`validation_op`后做AST解析，记录`TEMPLATE_RENDER_PARSE_PASS`及“未执行”，原文件hash仍按未渲染字节计算。未声明模板及普通语法错误照常拒绝；非法路径、缺文件、非`.py`或没有token的声明也拒绝。此结果只证明替换后的Python语法，不证明模板生成逻辑、依赖、运行或算子正确。
+无frontmatter的归档入口只能由caller显式声明 `--archived <name>`（可重复），保留文件hash并单列归档；未声明的缺frontmatter仍是错误。含字面token `{op}` 的Python模板必须逐个 `--python-template <相对路径>` 声明，否则按普通语法错误被拒（tilelang 两个模板即属此类）；声明只证明替换token后AST可解析，不证明模板逻辑、依赖或算子正确。
 
-旧check-skill-frontmatter.ps1和diff-skills.ps1本次同路径退役并返回exit78；用本入口的只读Python checker和原始字节摘要替代。旧self-audit的daily runner也已退役，纯gate/scan/budget脚本需按当前参数单独审查后使用。
+旧check-skill-frontmatter.ps1/diff-skills.ps1与旧self-audit daily runner均已同路径退役、调用返回exit78；用只读Python checker和原始字节摘要替代，gate/scan/budget需按当前参数单独审查后使用。历史树的旧reference断链单列遗留发现，不为全绿改未授权的历史材料。
 
 ## 重构后验收：五查
 
 批量删改 skill 后，"体积降了九成"不等于"内容搬对了"。下面五查全部只读，按顺序做，能挡住"只删不验"留下的空指针。
 
-1. 导航链接 ≠ 散文路径。markdown 链接（`](...)`）通常会被工具校验；反引号里的 `references/x.md`、`scripts/y.py` 不会被任何检查器发现，真正的断链藏在这里（典型：少写 `../兄弟-skill/` 前缀、路径按散文相对当前文件解析）。逐个 stat，路径不存在时再查同名文件是否在本 skill 内，区分"写法松"与"真悬空"。
+1. 导航链接 ≠ 散文路径。markdown 链接（`](...)`）通常会被工具校验；反引号里的 `references/…`、`scripts/…` 不会被任何检查器发现，真正的断链藏在这里（典型：少写 `../兄弟-skill/` 前缀、路径按散文相对当前文件解析）。逐个 stat，路径不存在时再查同名文件是否在本 skill 内，区分"写法松"与"真悬空"。
 
 2. 转交型入口做空指针扫描。正文很短、首跳指向兄弟 SKILL.md 的入口，要确认目标文件里真有被点名的章节（如"模式为 X"）。只看链接能解析不够——链接指向的文件可能在裸转交，被指的章节根本不存在。
 
@@ -56,11 +56,12 @@ Python模板只能逐文件显式声明，例如 `--python-template tilelang-op-
 
 - 热目录 ≤40 条 / ≤7000 字符；单条 description ≤120 字符。
 - 正文：热 ≤8000 字节 / ≤8 个 `##` 段；冷备 ≤16000 字节。
-- 追加章节与已有章节相似度 ≥55% 时必须改用 `mode=replace`，否则追加被拒。
 
-正文只放“路由 + 判据 + 坑”。长命令序列/清单/附录放 `references/`（`references:[{path,content}]`，写到 `<skill>/references/`，不计预算、不自动加载），正文留一行指针。
+正文只放「路由 + 判据 + 坑」，长清单放 `references/`（不计预算、不自动加载），正文留指针。
 
-同一主题已有章节 → `mode=replace + targetSection=<标题>` 改写，不要追加。
+同一主题已有章节、或相似度 ≥55% → `mode=replace + targetSection=<标题>`，不要追加。
 超预算按代价整改：① replace ② 移 references ③ 拆总纲+子 skill ④ 降 warm。
+
+**写入前四条自查**：① 净增 ≤ 8000 − 现有 + 被替换；② `title` 已生成标题，body 别再写 `##`；③ JSON 单行、不用 ASCII 双引号、换行写 `\n`；④ 一次一个 references。细则 → `references/tool-call-hygiene.md`
 
 体检：`python %USERPROFILE%\.dsh\skills\dsh-skill-self-audit\scripts\skill_budget.py`（只读，0=预算内）。

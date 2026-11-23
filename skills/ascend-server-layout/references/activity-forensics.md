@@ -46,7 +46,7 @@ done
 last -n 8                                  # 谁在什么时候登录/退出
 ls -l --time-style=+%m-%d_%H:%M /root/.bash_history   # 最后一次落盘时间 = 那个人退出的时间
 tail -5 /root/.bash_history                # 最后几条命令（常见的是 watch npu-smi info / docker ps）
-grep -E 'Nov 17 (21|22|23):' /var/log/secure | grep -Ei 'session opened|Accepted' | tail
+grep -E 'session opened|Accepted' /var/log/secure | tail -20   # 时窗对齐 .bash_history 的退出时间，不要写死日期
 journalctl -k --since '2 hours ago' --no-pager | grep -iE 'davinci|svm|hisi|ascend' | tail
 ls -lt /var/log/npu/slog; find /var/log/npu -newermt '-2 hours' -type f
 ```

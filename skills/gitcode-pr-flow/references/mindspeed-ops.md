@@ -1,16 +1,17 @@
 # MindSpeed-Ops 仓专属事实
 
 > 上游 `https://gitcode.com/Ascend/MindSpeed-Ops`（昇腾训练业务自定义算子仓，Apache-2.0）。
-> 平台通用流程见本体 `SKILL.md`，本文件只记**该仓专属**的交付件、backport 与常量。
+> 平台通用流程见 [SKILL.md](../SKILL.md)，本文件只记**该仓专属**的交付件、backport 与常量。
+> 下文 `docs/…`、`tests/…`、`.gitcode/…`、`catalog/…`、`ci/…` 均为**仓库内路径**（远端仓库里的文件），不是本机路径。
 
 ## 常量
 
 - 项目 id `9612429`；fork 仓 id `10648379`；代码门禁流水线 id `dc050eb8a847445c8fe635fb50d1f99d`。
 - 里程碑：`MindSpeed 26.3.0` = `849946`、`MindSpeed 26.2.0` = `579831`。
 - 门禁阶段比 MindSpeed-Agent 多 `UT_MindSpeed_1~4` 分片。
-- 本地产物目录惯例 `D:\workspace\MindSpeed-Ops\...`。
+- 本地产物目录惯例 `D:\workspace\MindSpeed-Ops\...`：它是**产物容器目录、不是 git 克隆**（2026-11-23 复核无 `.git`），别当仓库用。
 
-## 8. 新增算子 PR 的附加交付件（docs/zh/ops.md，硬性要求）
+## 8. 新增算子 PR 的附加交付件（仓内 docs/zh/ops.md，硬性要求）
 
 - 实现：torch 实现 + NPU 优化实现（+ 原 triton 实现，可选）。
 - **UT 精度用例**：覆盖所有支持 dtype/shape；双标杆对齐（CPU 高精度实现 + torch 小算子实现 或 原 triton 实现）；竞品（GPU）上也能跑（昇腾亲和接口优化时可条件跳过，但仓上要有份竞品实现便于竞品测试）。路径惯例 `tests/unit_tests/triton/test_<op>.py`。
@@ -27,7 +28,7 @@ GitCode 与 Gerrit 不同：**版本分支没有独立的合入系统**，把 ma
 
 ### 12.1 权限探测（先确认自己能不能直推）
 ```powershell
-function Get-GitCodeJson([string]$Url, [string]$Token) {   # 见 §7，PS 会按 Latin-1 解码 UTF-8
+function Get-GitCodeJson([string]$Url, [string]$Token) {   # 见 SKILL.md「取令牌」，PS 会按 Latin-1 解码 UTF-8
     $h = @{}; if ($Token) { $h['PRIVATE-TOKEN'] = $Token }
     $r = Invoke-WebRequest -Uri $Url -Headers $h -UseBasicParsing -Method Get
     return ([System.Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json)
@@ -79,7 +80,7 @@ git rev-parse 'origin/26.2.0^{tree}' 'origin/master^{tree}'   # 两行相同
 git rev-list --count origin/26.2.0..origin/master             # = 0
 ```
 
-**CI/PR 视角**：直推 FF **没有待合入的 PR，所以不需要发 `compile`**（#163 的 CI 早就在 master 上跑绿了）；本次也未创建 PR、未评论。只有走 PR 路线（`base=26.1.0` 那种）才需要 §5/§7 那套 `compile`。
+**CI/PR 视角**：直推 FF **没有待合入的 PR，所以不需要发 `compile`**（#163 的 CI 早就在 master 上跑绿了）；本次也未创建 PR、未评论。只有走 PR 路线（`base=26.1.0` 那种）才需要 [SKILL.md](../SKILL.md)「门禁判读」那套 `compile`。
 
 ### 12.5 已直推过的版本分支要回退：叠加回退提交（FF），不要 force-push 改写共享历史
 
@@ -95,7 +96,7 @@ git push origin <branch>:refs/heads/26.2.0
 
 | 目标 | 可否改写历史 | 理由 |
 |---|---|---|
-| master 侧 **PR 的特性分支** | 可以 `amend` + `--force-with-lease` | PR 未合入、无评审标签时无副作用；代价是摘 `lgtm` / `approved` / `ci-pipeline-passed`，并需补发 `compile`（本体 §9「强推的代价」） |
+| master 侧 **PR 的特性分支** | 可以 `amend` + `--force-with-lease` | PR 未合入、无评审标签时无副作用；代价是摘 `lgtm` / `approved` / `ci-pipeline-passed`，并需补发 `compile`（见 [maintenance-log.md](maintenance-log.md)「强推与改写历史的边界」） |
 | 已在**共享版本分支**上直推过的提交 | **不要改写历史**，改为叠加一个回退提交（FF） | 版本分支是共享的，force-push 会让已 fetch 的人分叉；FF 不覆盖别人的工作（分支被别人推进会直接 non-fast-forward 失败） |
 
 **旁证（这不是特例）**：`26.2.0` 上本来就有修正链式提交 `f178776 → 9b1f12d → 72d34b8`（同一份 SECURITYNOTE 公网地址声明被连续收窄两次）——该分支的既有做法就是**叠加修正提交**，不是改写历史。

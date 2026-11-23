@@ -2,7 +2,7 @@
 
 ## 1. 测试文件结构
 
-复制 [assets/test_template.py](../assets/test_template.py) 为 `custom/{op}/test_{op}.py`，然后改 6 处：
+复制 [test_template.py](../assets/test_template.py) 为 `custom/{op}/test_{op}.py`，然后改 6 处：
 
 | # | 位置 | 改什么 | 漏改的后果 |
 | --- | ------ | -------- | ------------ |
@@ -54,10 +54,11 @@ L0/L1 全过且 perf 不失败时打印 `Test Passed!` 且退出码 0 才算通�
 **覆盖维度是否达标由脚本判，不靠人工数**：
 
 ```bash
-python scripts/check_coverage.py --test custom/{op}/test_{op}.py --category <gemm|softmax|normalization|activation|reduction|fusion|integer>
+python ../scripts/check_coverage.py --test custom/{op}/test_{op}.py --category <gemm|softmax|normalization|activation|reduction|fusion|integer>
 ```
 
 退出码 0 = 覆盖达标，1 = 有强制维度缺失（会打印缺失清单），2 = 脚本自身错误。
+（脚本路径按本文件所在目录 `references/` 解析；`--test` 传你自己工程的测试文件。）
 维度定义与各类别最低要求见 [coverage-matrix.md](coverage-matrix.md)。
 **覆盖未达标时不得宣称"已完成"**。
 
@@ -88,8 +89,8 @@ dtype 时才会走到，走到时请以实测结果校正后再上库。
 统一用本表，不存在"矩阵乘可以放宽"这种例外。
 
 判定：`matched_ratio ≥ required` 且 `max_abs ≤ limit`。**未知 dtype 直接报错**，不得静默
-回落到 float16 容差；整型必须 0 误差。表值在 `assets/test_template.py` 的 `get_precision`
-与 `assets/compare_common.py` 的 `TOL_TABLE` 中各有一份，必须逐值一致；**未知 dtype
+回落到 float16 容差；整型必须 0 误差。表值在 `../assets/test_template.py` 的 `get_precision`
+与 `../assets/compare_common.py` 的 `TOL_TABLE` 中各有一份，必须逐值一致；**未知 dtype
 两处都必须抛 `ValueError`**（`get_precision` 与 `get_tolerance` 同语义），不允许一边报错、
 一边放行。
 
@@ -111,8 +112,8 @@ shape 不一致、空张量（`numel()==0`）、mask 不一致、golden 全为�
 
 | 环境变量 | 含义 | 示例 |
 | ---------- | ------ | ------ |
-| `TILELANG_NPU_HOST` | 昇腾机地址（SSH） | `10.0.0.1` |
-| `TILELANG_NPU_USER` / `TILELANG_NPU_PORT` | SSH 用户 / 端口 | `root` / `22` |
+| `TILELANG_NPU_HOST` | 昇腾机地址（SSH） | 本轮资源条目中的主机 |
+| `TILELANG_NPU_USER` / `TILELANG_NPU_PORT` | SSH 用户 / 端口 | 本轮资源条目中的账号和端口 |
 | `TILELANG_NPU_WORKDIR` | 远程工作目录 | `~/tilelang-work` |
 | `CANN_INSTALL_PATH` | CANN 安装路径（含 `set_env.sh`，老布局只有 `bin/setenv.bash` 也认） | `$HOME/Ascend/ascend-toolkit/latest` |
 | `TILELANG_ASCEND_PATH` | TileLang-Ascend 仓库路径（含 `set_env.sh`） | `$HOME/tilelang-ascend` |
@@ -150,21 +151,7 @@ export PATH="$TILELANG_ENV_DIR/bin:$PATH"
 > 坑位：ssh 非登录 shell 的 PATH 可能缺 `/usr/local/sbin`（npu-smi）与 `/usr/bin`（git，tilelang
 > version.py 会调 git），缺了会报 `can not use command: npu-smi info` / `FileNotFoundError: git`。
 
-用脚本一键部署运行（激活前置由脚本注入，`--cmd` 只写要跑的命令）：
-
-```bash
-export TILELANG_NPU_HOST=10.0.0.1                        # 昇腾机地址
-export CANN_INSTALL_PATH=$HOME/Ascend/ascend-toolkit/latest
-export TILELANG_ASCEND_PATH=$HOME/tilelang-ascend        # TileLang-Ascend 仓库路径
-export TILELANG_ENV_DIR=$HOME/tilelang-env               # 远程 python venv 路径
-
-python scripts/remote_run.py --deploy custom/{op} \
-  --cmd 'ASCEND_RT_VISIBLE_DEVICES=0 python test_{op}.py --level l0'
-```
-
-> `remote_run.py` 会把「PATH 补全 + CANN/TileLang-Ascend 激活 + venv PATH 前置」写进远程 bash
-> 脚本再执行，因此本地 shell 用什么引号都不会影响 `$PATH` 的展开。环境自检：
-> `python scripts/env_check.py`（同样读上述环境变量，可另用 `--host` 等参数覆盖）。
+按 [服务器访问](../../ascend-server-access/SKILL.md) 选取当前目标、端口和账号。可将匹配值传给 `../scripts/env_check.py` 的 `--host`、`--port`、`--user` 做环境检查。部署时把本轮代码传到已核实的独立工作目录，在目标机激活对应环境并运行测试。见 [当前 TileLang 入口](../SKILL.md)。
 
 Windows 侧 ssh 只写单行命令：多层引号拼接极易被本地 shell 吃掉，复杂命令一律
 「本地写 `.sh` → `scp` 上传 → `ssh bash /tmp/x.sh`」。
@@ -179,7 +166,7 @@ Windows 侧 ssh 只写单行命令：多层引号拼接极易被本地 shell 吃
 - golden 必须在 CPU 或 PyTorch 语义下实现，不得复用被测 kernel 的中间结果。
 - 性能冒烟：`perf_smoke` 用 `torch.npu.synchronize()` 包夹 wall-clock，预热 `PERF_WARMUP=3`
   次、计 `PERF_ITERS=20` 次取均值，打印 `[PERF]` 行；正式性能结论用 `msprof op`。
-  这两个常数必须与 `assets/compare_common.py` 的 `WARMUP` / `ITERS` 一致，否则 test 的
+  这两个常数必须与 `../assets/compare_common.py` 的 `WARMUP` / `ITERS` 一致，否则 test 的
   "耗时"与 compare 的"比值"不是同一口径。
 - **单次 wall-clock 数值不是结论**：同一份代码在同一张卡上重复运行可以差 2 倍以上（同卡
   并发进程尤其明显），所以绝对 us 不能当达标线，跨运行的比值会翻转。测法与实测波动见
@@ -200,7 +187,7 @@ Windows 侧 ssh 只写单行命令：多层引号拼接极易被本地 shell 吃
 ## 6. Triton 基线对比（同卡互验）
 
 每个算子除 `test_{op}.py` 外，还应产出 `{op}_triton.py`（Triton-Ascend 基线）与 `compare_{op}.py`
-（同卡、同数据、同计时协议的精度+性能对比），并把 [assets/compare_common.py](../assets/compare_common.py)
+（同卡、同数据、同计时协议的精度+性能对比），并把 [compare_common.py](../assets/compare_common.py)
 一起部署为 `custom/compare_common.py`（缺它 `compare_{op}.py` 直接 `ModuleNotFoundError`），
 部署整个 `custom/` 目录后在 `{op}/` 下运行。`compare_{op}.py` 的 `compare_configs` 必须与
 `test_{op}.py` 的 `test_configs["l0"]` + `["l1"]` **逐条同值同序**，脚本开跑前会 import

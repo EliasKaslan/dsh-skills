@@ -33,3 +33,12 @@ torch.ops.batch_invariant_ops.npu_fused_infer_attention_score_batch_invariant.ov
 hasattr(batch_invariant_ops, "_npu_fused_infer_attention_score_batch_invariant_get_max_workspace")  # True
 ```
 
+### fla_npu（A3 x86_64 的来源）
+
+`vllm_ascend/ops/gdn.py` 在 import 期硬依赖 `fla_npu`，但 requirements 不声明它，缺了直接
+`ModuleNotFoundError: No module named 'fla_npu'`。A3 预编译 fla wheel（`/mnt/share/fla-npu-a3-whl-26.9.0`）只有
+**aarch64**；x86_64 源码 wheel（26.6/26.7.dev）缺 main 需要的 `causal_conv1d_fn / causal_conv1d_update`
+（`ImportError: cannot import name 'chunk_gated_delta_rule' …` / 只有 `causal_conv1d`、`npu_causal_conv1d`）。
+x86_64 的做法：从官方 `quay.io/ascend/vllm-ascend:nightly-main-a3-openeuler` 镜像
+`docker cp` 出 `flash_linear_attention_npu_a3 26.9.1`（含 `opp/` vendor 与 `fla_npu_opp_env.pth`）到目标 site-packages。
+A5/aarch64 的来源见 [a5-main-26.2.0-build.md](a5-main-26.2.0-build.md)。

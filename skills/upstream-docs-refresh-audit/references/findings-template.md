@@ -1,6 +1,6 @@
 # findings/REQ-XX.md 模板（≤60 行，每个需求子代理落盘用）
 
-实测取自 `D:\workspace\260928_vllm资料确认\findings\REQ-03.md`（57 行）。子代理只回 JSON，正文写本文件。
+实测取自 `D:\workspace\260928_vllm资料确认\findings\REQ-03.md`（57 行；**历史案例**，该目录 2026-11-23 复核已不存在）。子代理只回 JSON，正文写本文件。
 
 ```
 # REQ-XX <需求原文> — 资料核查

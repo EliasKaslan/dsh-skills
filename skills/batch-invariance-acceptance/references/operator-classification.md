@@ -42,7 +42,7 @@ for name in ("npu_mm_batch_invariant", "npu_matmul_batch_invariant", ...):
 
 同一个坑还有第二个来源：`.so` 在 `site-packages/batch_invariant_ops_lib.cpython-312-x86_64-linux-gnu.so`，**不在包目录里**。只在包目录 `rglob("*.so")` 会找不到，然后误判"动态库没编"。
 
-正确做法：**按语义探测能力，不按名字探测包**。`scripts/bi_preflight.py` 里 `REQUIRED_CAPABILITIES` 就是这么写的——`attention` / `matmul` / `reduce_sum` / `softmax` / `add_rms_norm` 五个能力，每个给一组候选名字，两个命名空间都试，命中任一即可。这样命名空间换形态也不会误判。
+正确做法：**按语义探测能力，不按名字探测包**——按 `attention` / `matmul` / `reduce_sum` / `softmax` / `add_rms_norm` 五类能力各给一组候选名字，`torch.ops.<ns>` 与 python 包两个命名空间都试，命中任一即可，这样命名空间换形态也不会误判。原 `bi_preflight.py` 已退役为失效桩（见 [旧BI工具状态](legacy-tool-status.md)），探测逻辑按本段在任务目录自建。
 
 ## 2. 强制黑名单
 
@@ -72,7 +72,7 @@ for name in ("npu_mm_batch_invariant", "npu_matmul_batch_invariant", ...):
 | 通信 | `hcom_allReduce`、`allreduceAicpuKernel` | 单独出现不代表失败，要单独验 AllReduce 的分块 |
 | 采样 | `DSARandomUniform` | 只在 seed 与采样阶段确定的前提下可放行 |
 
-完整清单见 `scripts/bi_ops_triage.py` 里的 `ALLOWLIST_A3` / `ALLOWLIST_A5`（代码即事实，不再抄一份到文档里，避免两处漂移）。
+上表是本文件维护的白名单快照，随 vLLM-Ascend 版本在本文件更新。原 `bi_ops_triage.py` 已退役为失效桩，`ALLOWLIST_A3` / `ALLOWLIST_A5` 不随代码分发（见 [旧BI工具状态](legacy-tool-status.md)）；换版本时按 §8 重新采集并就地更新本表，不要再去脚本里找清单。
 
 **白名单是快照**，随 vLLM-Ascend 版本变化。换版本后必须重新采集 profiling 并更新。
 
@@ -134,8 +134,8 @@ GLM-5.x 这类带稀疏索引（LightningIndexer / SFA）的模型，端到端�
 ## 8. 怎么更新白名单
 
 1. 在目标版本上采一次 profiling（`enforce_eager=True`，与验收同配置）；
-2. `python scripts/bi_ops_triage.py --csv <csv> --chip A3` 看哪些算子落进 `review_all`；
+2. 按 [旧BI工具状态](legacy-tool-status.md) 在任务目录自建分诊脚本，把 profiling 里的算子分成"白名单 / 黑名单 / 待审"三类；
 3. 对每个新算子按 §6 走 A 或 B；
-4. 把结论写回 `ALLOWLIST_A3`，并在提交信息里注明"依据哪个版本的 profiling、用了哪种证据"。
+4. 把结论就地写回 §3 的白名单表，并在提交信息里注明"依据哪个版本的 profiling、用了哪种证据"。
 
 **不要把"某个算子在这次 profiling 里没出现"当成它安全**——没出现可能只是这个模型没走到。

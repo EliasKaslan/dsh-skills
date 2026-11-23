@@ -16,6 +16,6 @@
 
 ## 原脚本的独立核查
 
-`fix-vpn-openai-dns.ps1` 已停用、未对真实网络运行。只在隔离PowerShell进程中把全部网络cmdlet替换为内存fixture，复现：已有`.chatgpt.com`规则指向不同resolver时被直接SKIP；所有写操作抛异常时仍执行到结尾并退出0。脚本不支持精确owner回滚，原文回滚会删除全部NRPT规则。证据在本批审查`prior/dns-delta-tests.json`，不是DNS事故根因复现。
+`fix-vpn-openai-dns.ps1` 已停用（`../scripts/` 下留墓碑，调用即 `BLOCKED_LEGACY_ENTRY`、退出码 2），未对真实网络运行。只在隔离PowerShell进程中把全部网络cmdlet替换为内存fixture，复现：已有`.chatgpt.com`规则指向不同resolver时被直接SKIP；所有写操作抛异常时仍执行到结尾并退出0。脚本不支持精确owner回滚，原文回滚会删除全部NRPT规则。证据 `D:/workspace/gpt_base/dsh-skill-review/prior/dns-delta-tests.json`，不是DNS事故根因复现。
 
 一手命令语义：[Get-DnsClientNrptPolicy](https://learn.microsoft.com/en-us/powershell/module/dnsclient/get-dnsclientnrptpolicy)、[Remove-DnsClientNrptRule](https://learn.microsoft.com/en-us/powershell/module/dnsclient/remove-dnsclientnrptrule)。

@@ -1,7 +1,7 @@
 ---
 name: "skill-archive"
-description: "DSH冷备skill索引入口；核实索引、路径和正文再加载，转作者技能归档查找模式。"
-whenToUse: "DSH冷备skill索引入口；核实索引、路径和正文再加载，转作者技能归档查找模式。 模型触发仍以description为准。"
+description: "冷备skill查找：按INDEX核实路径与正文再加载，不凭摘要编造能力。"
+whenToUse: "怀疑某能力已归档、当前目录看不到但历史用过时。"
 ---
 
 # skill-archive

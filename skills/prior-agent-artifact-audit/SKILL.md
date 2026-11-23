@@ -1,6 +1,6 @@
 ---
 name: "prior-agent-artifact-audit"
-description: "前序交付与测试CI证据核查，区分源码、构建、安装和运行版本。适用于\"上一轮真的做完了吗 / 报告全绿可信吗 / 线上是哪一版 / 测试是不是漏跑 / 这条断言会失败吗\"。不适用：第三方漏洞报告复核 → 用 `vuln-scan-report-verification`。"
+description: "前序交付与测试CI证据核查，区分源码、构建、安装和运行版本。适用于\"上一轮真做完了吗 / 报告全绿可信吗 / 线上是哪一版 / 测试漏跑了吗\"。不适用：漏洞报告复核 → `vuln-scan-report-verification`。"
 whenToUse: "处理前序交付与测试CI证据核查，区分源码、构建、安装和运行版本时加载；模型看不到本节，触发以description为准。"
 disable-model-invocation: true
 warm-triggers: "上一轮 agent 产物做到什么程度 / 文档说全绿能信吗"

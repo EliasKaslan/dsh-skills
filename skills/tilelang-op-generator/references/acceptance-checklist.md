@@ -49,7 +49,7 @@
 | --- | -------- | --------- |
 | 2.1 | Golden 与算子语义一致 | 迁移类必须复用原算子的 golden 实现，不得"重新推导一版" |
 | 2.2 | 输出 shape 与原算子对齐 | 需要 transpose 时在 golden 内处理，不在 host 侧改 kernel 输出 |
-| 2.3 | 容差表两处逐值一致 | `assets/test_template.py` 的 `get_precision` 与 `assets/compare_common.py` 的 `TOL_TABLE` 逐行比对；未知 dtype 两处都必须抛错 |
+| 2.3 | 容差表两处逐值一致 | `../assets/test_template.py` 的 `get_precision` 与 `../assets/compare_common.py` 的 `TOL_TABLE` 逐行比对；未知 dtype 两处都必须抛错 |
 | 2.4 | NaN/Inf 位置敏感验证 | 有限值 + 稀疏特殊值的混合输入；先比 NaN/±Inf 三个 mask，再在双方有限位置算容差；禁止全 NaN 或仅 `equal_nan=True` 作为唯一门禁 |
 | 2.5 | 双门限都判 | `matched_ratio ≥ required` **且** `max_abs ≤ limit`，两个条件缺一不可 |
 

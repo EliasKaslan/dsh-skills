@@ -90,7 +90,7 @@ python case1.py {impl} {M} {block_M} 128 128
 ```
 
 > **复测（2026-10-26，`ascendc_pto` commit `43b0b69` / CANN 9.1.0 / npu-smi 25.5.1）**：按
-> `assets/test_template.py` 与 §3.1 配方写出的 softmax 走完整 `--level all` 一次通过 ——
+> `../assets/test_template.py` 与 §3.1 配方写出的 softmax 走完整 `--level all` 一次通过 ——
 > L0 fp16/bf16/fp32 各 1 例、L1 尾块 `(65,256)/(96,320)/(97,251)/(1,256)`、
 > l2 正确拒绝 int8 dtype、boundary 的 zero/inf/nan 三例、perf `(512,1024)` 165.8 us，
 > 全部 `[PRECISION_PASS]` / `[BOUNDARY_PASS]`，与本节结论一致（含 `M=1` 这种 M 远小于

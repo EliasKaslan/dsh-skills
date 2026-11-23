@@ -1,6 +1,6 @@
 # 容量计算器输入
 
-`python scripts/plan_capacity.py input.json`，只读本地 JSON、stdout 输出结果。Python 3.10+，无第三方依赖。输入根含 `evidence` 和 `candidates`。每项证据取 `measured` / `source` / `assumed` / `unknown`；source/measured 必须有可追溯 note，assumed 的结果只可作为假设容量候选。
+在 skill 根目录执行 `python scripts/plan_capacity.py input.json`，只读本地 JSON、stdout 输出结果。Python 3.10+，无第三方依赖。输入根含 `evidence` 和 `candidates`。每项证据取 `measured` / `source` / `assumed` / `unknown`；source/measured 必须有可追溯 note，assumed 的结果只可作为假设容量候选。
 
 ```json
 {
