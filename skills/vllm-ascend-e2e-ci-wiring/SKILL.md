@@ -31,3 +31,13 @@ marker、运行参数、实际硬件/图模式一致；AST读取marker的工具�
 完成局部lint/collection/selector和可用的目标运行，交付路径、注册改动、实际runner、head/run、未执行项；提交/PR操作用github-pr-flow，不因技能调用自动发表评论或改维护者标签。
 
 来源：DSH vllm-ascend-e2e-ci-wiring，2026-11-16去除固定marker维数、硬件路由、门禁标签/时长、源码行号及凭据URL。目标仓一手入口：[CI源码](https://github.com/vllm-project/vllm-ascend/tree/main/.github/workflows)。
+
+## 「CI 没过」先分清红的是不是必需检查
+
+## 「CI 没过」先分清红的是不是必需检查
+
+- 本仓用 **ruleset** 而不是旧 branch protection：`GET /repos/{o}/{r}/rulesets` → 取 id → `GET .../rulesets/{id}`，读 `required_status_checks.required_status_checks[].context` 和 `pull_request.required_approving_review_count`。`/branches/main/protection` 返 404 不代表没开保护。
+- 只有**必需检查缺失/失败**才阻塞合入。典型形态：推新提交不会自动重跑 E2E，`ci-gate` 不会重新生成，`mergeable_state` 一直是 `blocked`——此时 PR 评论 `/run`（作者可发，机器人会回 "E2E has been queued on the latest commit <sha>"）。
+- 非必需的 POC 检查红着不影响合入。别拿"最红的那条"当元凶：先对 required context 列表，缺的补、多出来的不管。
+- 看 job 为什么红：`GET /repos/{o}/{r}/check-runs/{id}/annotations` 常直接带 traceback，比翻日志快。`GET /repos/{o}/{r}/actions/jobs/{id}/logs` 会 302 到 Azure 签名 URL，必须用**不跟随重定向**的 opener 取 `Location`，再**不带 Authorization** 下载，否则 Azure 回 `401 InvalidAuthenticationInfo`。
+- 自建 bot（如 ai-review）在脚本初始化阶段崩（traceback 早于读取 PR 内容，例如 `gh pr view <n> --json headRefOid` 返 exit 1）属于它自己的容器/凭据问题，PR 侧修不了：确认为非必需后跳过，必要时请维护者修或重跑。

@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 69,
   "file_count": 279,
-  "total_bytes": 13267221,
+  "total_bytes": 13268698,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -451,7 +451,7 @@
       "path": "skills/vllm-ascend-e2e-ci-wiring",
       "description": "vLLM Ascend E2E：用例落位、时长登记、marker 与 CI 车道。适用于\\\"新增E2E/CI报MISSING/本地收集全吗\\\"。不适用：源码安装 → vllm-ascend-source-install。",
       "files": 1,
-      "bytes": 3830
+      "bytes": 5307
     },
     {
       "name": "vllm-ascend-source-install",
