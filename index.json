@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 69,
   "file_count": 278,
-  "total_bytes": 13260662,
+  "total_bytes": 13262583,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -129,7 +129,7 @@
       "path": "skills/ascend-vllm-serve",
       "description": "在已安装的昇腾 vLLM 环境中做离线推理、启动 OpenAI 服务及定位 OOM/初始化失败，并验证 sleep、唤醒与权重更新；不负责源码安装或训练数值一致性适配。",
       "files": 2,
-      "bytes": 7257
+      "bytes": 9178
     },
     {
       "name": "batch-invariance-acceptance",

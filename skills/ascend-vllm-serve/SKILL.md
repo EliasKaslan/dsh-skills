@@ -38,3 +38,21 @@ vLLM 日志前缀 `[文件名:行号]` 的行号是 `logger.xxx(` 的**调用行
 位置才是判据：v0.33.0 由 `LLM.__init__` 末尾 `renderer.warmup()` 渲染一条 dummy chat 触发，此时引擎已 READY——权重加载、显存 profile、KV cache、`compile_or_warm_up_model`/图捕获全部完成。所以"停在这行之后长时间无输出"**不是**加载卡住，而是首个请求阶段。别用"最后一行日志"定位阶段，先看它是否出现在三行之后（权重耗时、KV cache 大小、init engine took）。
 
 静默常由脚本造成：离线脚本同时传 `disable_log_stats=True` 与 `generate(..., use_tqdm=False)` 时整轮零输出，只在轮次结束打印。判定顺序：`npu-smi info` 看 HBM 与 aicore（持续 0% 才是疑似死等）、`py-spy dump --pid <pid>` 看栈（`VLLM_ENABLE_V1_MULTIPROCESSING=0` 时单进程）、`ASCEND_PROCESS_LOG_PATH` 下 plog 看设备侧真错、输出目录文件 mtime 是否推进。HCCL 建链失败会静默等到 `HCCL_CONNECT_TIMEOUT`（脚本常设 1200s）才报错，多网卡机器要显式指定 `HCCL_SOCKET_IFNAME`。
+
+## 共享昇腾机用容器跑 vllm 的启动集
+
+## 共享昇腾机用容器跑 vllm 的启动集
+
+宿主机没有 vllm、推理都在容器里时，复现前先凑齐四件套，缺一件就只看到"设备不可见"或"拉起即退"：
+
+- **网络**：宿主机 `docker0` 可能已坏（`failed to create endpoint … adding interface veth… to bridge docker0 failed: Device does not exist`），一律加 `--network host`。
+- **设备可见性**：只挂 `/dev/davinciN` + `/dev/davinci_manager` + `/dev/devmm_svm` + `/dev/hisi_hdc` 不够；非 `--privileged` 时 `torch.npu.device_count()` 为 0、报 `drv devId is invalid(0x7020010)` 或 `Invalid device id`。加 `--privileged` 立即变正常，这是最快的判据。
+- **驱动**：镜像里若 `/usr/local/Ascend` 下只有 `ascend-toolkit/cann/nnal` 而没有 `driver`，还要 `-v /usr/local/Ascend/driver:/usr/local/Ascend/driver`；并核对镜像 `/etc/ascend_install.info` 是否存在（缺了说明该镜像不是按设备镜像做的）。
+- **共享内存**：`--shm-size 64g`。
+
+其它要点：`ASCEND_RT_VISIBLE_DEVICES` 要与实际挂进来的 `davinciN` 对应；`docker exec -d` 起长任务、日志重定向到文件再轮询，`ssh` 里用 `&` 挂后台常会把通道拖住直到超时。
+
+图捕获期两类失败要分开记：
+
+- `aclnn…BatchInvariantV3 failed: Value N for parameter workspaceSize is invalid … minimum workspace size M`（`batch_invariant_ops/csrc/…cpp`）：镜像里的 BI 算子自算 workspace 小于实际 CANN 要求，**与 `max_model_len` / capture sizes 无关**（降上下文传入值不变），换配套镜像或按 `aclnnGetWorkspaceSize` 返回值重编；数值结论仍归 `batch-invariance-acceptance`。
+- `capture_end … EE1018 task group started but not ended`：task-group 捕获未配对结束，多为 torch_npu/图实现版本问题，重跑可能不复现，别当模型问题。
