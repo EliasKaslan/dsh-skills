@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 69,
   "file_count": 277,
-  "total_bytes": 13237656,
+  "total_bytes": 13240823,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -136,7 +136,7 @@
       "path": "skills/batch-invariance-acceptance",
       "description": "昇腾批次不变性与训推数值一致性适配、定位、验证。适用于\\\"验批次不变性 / 训推logprob对不上 / prefill和decode不同 / 梯度怎么验证 / 更新后不同步\\\"。不适用：仅启动推理服务→ascend-vllm-serve。",
       "files": 23,
-      "bytes": 102918
+      "bytes": 104407
     },
     {
       "name": "batch-invariant-weekly-digest",
@@ -241,7 +241,7 @@
       "path": "skills/dsh-skill-authoring",
       "description": "编写、验证和精简DSH skill：触发字段、调用策略、资源路由、去重归档、目录预算与批量发布边界。",
       "files": 7,
-      "bytes": 23896
+      "bytes": 24137
     },
     {
       "name": "dsh-skill-self-audit",
@@ -402,7 +402,7 @@
       "path": "skills/pwsh-on-windows",
       "description": "在 Windows 排查 PowerShell 版本、编码/BOM、原生命令参数与退出码、管道和文本计数问题；名为 pwsh 的工具在本机实为 Windows PowerShell 5.1。",
       "files": 2,
-      "bytes": 9492
+      "bytes": 10929
     },
     {
       "name": "qq-mail-control",

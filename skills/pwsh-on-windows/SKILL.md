@@ -49,3 +49,19 @@ $modified.Count
 
 - 商店/MSIX 应用（如 Codex 桌面版）不注册 PATH，命令里只看到 `Codex.exe`：先 `Get-AppxPackage *Codex* | Select-Object InstallLocation`，再拼 `InstallLocation\app\resources\codex.exe` 才是真正的 CLI。
 - `& $exe login status` 明明成功却报 `NativeCommandError`：PS 5.1 把原生命令的 stderr 一律当错误流。加 `2>&1` 接收，判定只看 `$LASTEXITCODE`（本次 exit 0 = 登录正常）。
+
+## here-string / -c 会改写反引号与转义：含代码围栏的文件用写文件工具（实测）
+
+在 PowerShell 里用 here-string（`@"..."@`）或 `python -c "..."` 生成含**代码围栏 / 反引号 / 多层引号**的文件时，内容会被改写或直接语法报错：
+
+- 现象 A：要写入 ```` ``` ````（三反引号），结果文件里只剩一个反引号——代码块判定、Markdown 结构全部失效。
+- 现象 B：here-string 里写 Python 三引号 `'''`，PowerShell 先行解释，Python 收到的是 `SyntaxError: unterminated triple-quoted string literal`。
+- 现象 C：`$t.Replace("...`n...")` 这类双引号里的反引号转义，替换锚点没匹配上就**静默不改**，看起来"脚本跑了"。
+
+修法（按优先级）：
+
+1. 含代码围栏、反引号、多层引号的文件**用文件写工具（write）或 Python 脚本文件生成**，不要经 PowerShell here-string / `-c` 传内容。
+2. 必须走 PowerShell 时，用**单引号 here-string**（`@'...'@`）并避免在内容里出现行首 `'@`，或把内容 base64 后再解码写入。
+3. 写完**按字节核对**：`[IO.File]::ReadAllText` 或 Python `repr()` 看反引号/反斜杠是否还在；语法检查（`node --check`）通过**不能**证明内容没被改写。
+
+判据：只要文件里有 Markdown 围栏或转义序列，一律当成"非 ASCII 文本资产"处理——生成后读回逐字比对。

@@ -55,10 +55,8 @@ whenToUse: "处理昇腾批次不变性与训推数值一致性适配、定位�
 
 ## 深水区：验收报告 / bench 验收 / MRv2 抓图 / 多轮 harness
 
-## 深水区：验收报告 / bench 验收 / MRv2 抓图 / 多轮 harness
-
 - 需求验收报告：五段骨架、被测树与 commit 口径、三条硬纪律、常见坑 → references/acceptance-report-skeleton.md。
 - `vllm bench` 的「BI+整图」性能验收、指标口径与同模式对照 → references/bench-acceptance.md。
 - MRv2 开 FULL_DECODE_ONLY：capture 参数改名改义、「图在跑」取证、A/B 因果、共享机纪律 → references/mrv2-full-decode-only.md。
 - 10 轮数据集级 BI：输出预算、capture 桶、可续跑 harness、reused 判据 → references/dataset-rounds-bi.md。
-- harness 自身的静默坑：数据 schema 先验再 generate、原始输出先落盘、`tee` 前建目录、`xargs -r`、`ERR99999` 不是设备故障 → references/harness-silent-fails.md。
+- harness 自身的静默坑：schema 校验要早于 `import vllm`、原始输出先落盘、`tee` 前建目录、`xargs -r`、`ERR99999` 不是设备故障、无卡时注入 fake vllm 干燥跑 → references/harness-silent-fails.md。

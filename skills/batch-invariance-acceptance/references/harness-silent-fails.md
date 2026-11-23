@@ -72,3 +72,31 @@ else:
 ## 5. 冒烟与全量的取舍
 
 500 题 × max_tokens 2048、TP=2、max_num_seqs=32 的 graph 轮次约 2h10m（含 init）；10 轮 graph + 1 轮 eager ≈ 24 小时。先 `--rounds 2 --max-tokens 256 --max-num-seqs 4` 跑通 schema / 落盘 / summary，再全量。断点续跑会复用同名 `out/*.jsonl`，冒烟后务必换 `--out` 目录或清空，否则会把冒烟结果当正式结果。
+
+## 6. 校验要早于 `import vllm`
+
+把「读数据 + 字段归一化 + 全量预校验」放在 `from vllm import LLM` 之前，数据不对时秒退：不加载权重、不占卡。同一脚本实测，前置前 2h10m 才 KeyError，前置后 3 秒退出。
+
+## 7. 没有卡也能把 harness 验完：注入 fake vllm
+
+共享机不适合抢卡时，用 `PYTHONPATH` 注入只实现 `LLM / SamplingParams` 的假模块，可验完整链路（schema → generate → 评分 → 落盘 → summary），完全不碰 NPU：
+
+```python
+# /tmp/fakevllm/vllm/__init__.py
+class _Out(object):
+    def __init__(self, text):
+        self.text = text; self.finish_reason = "stop"; self.token_ids = [1, 2, 3]
+class _Output(object):
+    def __init__(self, text): self.outputs = [_Out(text)]
+class SamplingParams(object):
+    def __init__(self, **kw): self.kw = kw
+class _Tok(object):
+    def apply_chat_template(self, msgs, **kw): return msgs[0]["content"]
+class LLM(object):
+    def __init__(self, **kw): pass
+    def get_tokenizer(self): return _Tok()
+    def generate(self, prompts, sp, use_tqdm=False):
+        return [_Output("The answer is \\boxed{4}.") for _ in prompts]
+```
+
+`PYTHONPATH=/tmp/fakevllm python3 bitest/math500_rounds.py --mode graph --rounds 2 ...` 后可串真实 `summary.py` 判 BI_OK；再篡改一轮 sha 得 BI_FAIL；用构造的 bench 日志判 PERF_OK / PERF_DEGRADED；确定性输出还能验断点续跑的 `reused` 分支。验完删掉 `/tmp/fakevllm`，避免 PYTHONPATH 残留遮蔽真 vllm。

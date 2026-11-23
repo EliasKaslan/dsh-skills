@@ -65,3 +65,5 @@ whenToUse: "新建或改写SKILL.md、判断融合还是新增、查失效指针
 **写入前四条自查**：① 净增 ≤ 8000 − 现有 + 被替换；② `title` 已生成标题，body 别再写 `##`；③ JSON 单行、不用 ASCII 双引号、换行写 `\n`；④ 一次一个 references。细则 → `references/tool-call-hygiene.md`
 
 体检：`python %USERPROFILE%\.dsh\skills\dsh-skill-self-audit\scripts\skill_budget.py`（只读，0=预算内）。
+
+**沉淀门槛**：一次性查询、临时改动、当前任务结论不写；新建需 ≥1 代码块；重叠 ≥35% 拒绝新建；热目录 36 条后默认不再建；追加相似 ≥45% 必须 replace，正文 90% 后禁止 append。
