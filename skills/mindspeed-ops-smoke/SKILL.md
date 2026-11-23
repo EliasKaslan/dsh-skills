@@ -61,3 +61,23 @@ whenToUse: "处理MindSpeed-Ops接口兼容、wheel验收及UT和ATK冒烟时加
 - 镜像判读细则（ascendhub 命名与芯片段、UT 容器四项检查、镜像内 mindspeed_ops 覆盖）见 references/ci-image-verify.md。
 
 **回滚**：`container.image` 退回上一个可用 tag 的同时，把配方与 pin 一起回退，三者保持一致；只退其一都会留下静默不一致。
+
+## 主线门禁 CI 的配套版本怎么取证
+
+## 主线门禁 CI 的配套版本怎么取证
+
+回答「Ops 主线 CI 用哪个版本配套」时，先分清三层，别把 `build.sh` 的默认值当答案：
+
+1. **门禁镜像**：`.gitcode/workflows/pr-pipeline-mindspeed-ops.yml` 里各 UT job 的 `container.image`（`mindspeed/pr-ops:<chip>-<os>-py<x.y>-<arch>-<date>`）。它才是门禁真实运行环境；换配套 = 换这个 tag。
+2. **镜像内版本**：`ci/Dockerfile` 的 ARG 默认值（CANN base image、torch、torch_npu、triton-ascend、transformers）；`ci/CI_GUID.md` 给出手动构建命令；`ci/build.sh` 只是构建入口。
+3. **文档口径**：`docs/zh/release_notes_ops.md` 表1「软件版本配套表」——master 行写「在研版本」，只有商发版本行写实数。
+
+**坑：`--mindspeed-branch` / `--megatron-branch` 是死参数。** `ci/build.sh` 默认 `MINDSPEED_BRANCH="master"`、`MEGATRON_BRANCH="core_v0.12.1"`，但 `ci/Dockerfile` 完全不引用这两个 build-arg；`ci/MindSpeed_Ops_ut.sh` 也只 `pip install -e .` 装 Ops 自身，不 clone MindSpeed core。所以 Ops 门禁并不配套任何 MindSpeed core 版本，别把这两个默认值回报成「配套 MindSpeed master / core_v0.12.1」。
+
+取证命令（只读）：
+```bash
+git -C <ops-repo> show origin/master:.gitcode/workflows/pr-pipeline-mindspeed-ops.yml
+git -C <ops-repo> show origin/master:ci/Dockerfile
+git -C <ops-repo> log origin/master -p --format='%h %ad %s' --date=short -- .gitcode/workflows/pr-pipeline-mindspeed-ops.yml | grep 'pr-ops:'
+git -C <ops-repo> branch -r --contains <sha>   # 判断配套切换是否已合入主线
+```
