@@ -71,3 +71,8 @@ whenToUse: "要改 DSH 自身行为（插件/组合/MCP/preset/生效时机/守�
 ## 模型兼容：system 指令被改写成 developer（400）
 
 切到某个推理模型后本轮**第一个**请求就 400 `developer is not one of ['system', 'assistant', 'user', 'tool', 'function']`：不是 DSH 自己的 `developer/message`（适配器会转成 system），而是 pi-ai 对未知 OpenAI 兼容网关把 system 指令下发成 `developer`。修法：在该模型条目加 `compat: { supportsDeveloperRole: false }`，重启 DSH 生效。判据、代码行、对照实测与验证命令见 [llm-role-compat.md](references/llm-role-compat.md)。
+
+## 守护复查：仓库位置与删除生效
+
+- 查状态用 `git -C ~/.dsh`。别用 `--git-dir=D:\dsh-vault\dsh-config.git --work-tree=~/.dsh`：裸库没有 index，`status` 会把整棵树报成几百条「已暂存删除」，是假象。守护脚本改 `D:\workspace\agent\dsh-guard\dsh_guard.py`，`C:\ProgramData\dsh-guard` 只是镜像。
+- 让删除生效要两步：`dsh_guard.py keep <路径前缀>`（哨兵根仍不受 keep 保护：`AGENTS.md`、`cordis.patch.yml`、`skills` 整目录、profile patch）→ 在 `~/.dsh` 仓 `git add -A` 并提交；只删盘不提交，下一次 `run` 会按历史清单补回来。判据：`heal --dry-run` 的 `pending_deletes: 0`，且随后一次 `run` 的 `restored` 为空。
