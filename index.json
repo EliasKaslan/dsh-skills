@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 69,
-  "file_count": 276,
-  "total_bytes": 13230775,
+  "file_count": 277,
+  "total_bytes": 13237656,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -101,7 +101,7 @@
       "path": "skills/ascend-server-access",
       "description": "按用户维护的当前服务器资源选机、匹配账号和连接 SSH，诊断 Windows 经 UniVPN 访问昇腾时的双隧道、路由、握手和跨机通信。",
       "files": 11,
-      "bytes": 13974
+      "bytes": 16117
     },
     {
       "name": "ascend-server-layout",
@@ -135,8 +135,8 @@
       "name": "batch-invariance-acceptance",
       "path": "skills/batch-invariance-acceptance",
       "description": "昇腾批次不变性与训推数值一致性适配、定位、验证。适用于\\\"验批次不变性 / 训推logprob对不上 / prefill和decode不同 / 梯度怎么验证 / 更新后不同步\\\"。不适用：仅启动推理服务→ascend-vllm-serve。",
-      "files": 22,
-      "bytes": 98722
+      "files": 23,
+      "bytes": 102918
     },
     {
       "name": "batch-invariant-weekly-digest",
@@ -402,7 +402,7 @@
       "path": "skills/pwsh-on-windows",
       "description": "在 Windows 排查 PowerShell 版本、编码/BOM、原生命令参数与退出码、管道和文本计数问题；名为 pwsh 的工具在本机实为 Windows PowerShell 5.1。",
       "files": 2,
-      "bytes": 8950
+      "bytes": 9492
     },
     {
       "name": "qq-mail-control",

@@ -45,3 +45,31 @@ whenToUse: 按用户维护的当前服务器资源选机、匹配账号和连接
 
 来源与未迁入项见 [取舍记录](references/provenance.md)。
 
+## 跨机 HCCL 实测（A5/UB 平台）
+
+## 跨机 HCCL 实测（A5/UB 平台）
+
+管理网可达、SSH 通、UB 链路 UP 都只算"具备条件"，只有真跑通 collective 才能说 HCCL 可用。按层取证：
+
+1. 拓扑归属：`npu-smi info -t spod-info -i 0`（Super Pod ID / Chassis ID / Server Index）；不同柜是否同 pod 只说明设计意图，不等于数据面可达。
+2. UB 链路：`hccn_tool -g -link -i <dev> -u <udie> -p <port>`（u0/u1 × p0-7）；`hccn_tool -g -port_info` 看 400G/link。
+3. 控制面：mpirun 只需 launcher→各节点免密（单向即可，回程不必通）。
+4. 真跑：CANN toolkit `tools/hccl_test/bin/all_reduce_test`，hostfile 每行 `IP:<每节点进程数>`。
+
+可复制命令（在 hccl_test 目录）：
+```
+source <CANNPATH>/set_env.sh
+export PATH=/usr/local/mpich/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/mpich/lib:$LD_LIBRARY_PATH
+export HCCL_SOCKET_IFNAME=<管理网口>
+mpirun -launcher ssh -f hostfile2 -np 2 \
+  -env LD_LIBRARY_PATH "/usr/local/mpich/lib:$LD_LIBRARY_PATH" \
+  -env HCCL_CONNECT_TIMEOUT 300 \
+  ./bin/all_reduce_test -b 8M -e 8M -i 10 -d fp32 -p 1 > run.log 2>&1 </dev/null
+```
+
+坑（均实测撞过）：
+- `libmpi.so.12: cannot open shared object file` → LD_LIBRARY_PATH 缺 `/usr/local/mpich/lib`，且必须用 `-env` 传给远端 rank。
+- 脚本经 `bash -s` stdin 下发时 mpirun 会吞掉剩余脚本（现象：只执行到第一个 mpirun）→ `</dev/null`；脚本内 ssh 同理加 `-n`。
+- `Env config "HCCL_CONNECT_TIMEOUT" value "60" is invalid ... out of range[120, 7200]` → 只能 120–7200。
+- 跨机最隐蔽的失败是 TLS 策略不一致：`errNo[0x0000000005010001] ... tls consistency verify failed`、`rankList for enabled tls: 0; rankList for disabled tls: 1`、`retcode: 4`。对照各节点 `/etc/hccn.conf` 的 `tls_enable_N` 与 `hccn_tool -g -tls -i 0`（`tls switch[0/1]`、`preconfigured`）；全 rank 必须一致。柜间策略不同（如柜03 全开、柜09 全关）时跨柜 collective 必然失败，柜内自洽不受影响——修法是统一全群策略，单机改会破坏本柜内部通信。

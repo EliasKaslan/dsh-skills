@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **69** 个 skill、**276** 个文件、**13230775** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **69** 个 skill、**277** 个文件、**13237656** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -50,7 +50,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 16 | [`ascend-torch-npu`](skills/ascend-torch-npu/SKILL.md) | 昇腾torch与torch_npu版本配对、动态库和NPU可用性排障；冷备兼容入口，正文在 ascend-cann-env。 | 1 |
 | 17 | [`ascend-triton-ascend`](skills/ascend-triton-ascend/SKILL.md) | 昇腾Triton同名文件覆盖、版本来源与真实kernel验证；冷备兼容入口，正文在 ascend-cann-env。 | 1 |
 | 18 | [`ascend-vllm-serve`](skills/ascend-vllm-serve/SKILL.md) | 在已安装的昇腾 vLLM 环境中做离线推理、启动 OpenAI 服务及定位 OOM/初始化失败，并验证 sleep、唤醒与权重更新；不负责源码安装或训练数值一致性适配。 | 2 |
-| 19 | [`batch-invariance-acceptance`](skills/batch-invariance-acceptance/SKILL.md) | 昇腾批次不变性与训推数值一致性适配、定位、验证。适用于\"验批次不变性 / 训推logprob对不上 / prefill和decode不同 / 梯度怎么验证 / 更新后不同步\"。不适用：仅启动推理服务→ascend-vllm-serve。 | 22 |
+| 19 | [`batch-invariance-acceptance`](skills/batch-invariance-acceptance/SKILL.md) | 昇腾批次不变性与训推数值一致性适配、定位、验证。适用于\"验批次不变性 / 训推logprob对不上 / prefill和decode不同 / 梯度怎么验证 / 更新后不同步\"。不适用：仅启动推理服务→ascend-vllm-serve。 | 23 |
 | 20 | [`batch-invariant-weekly-digest`](skills/batch-invariant-weekly-digest/SKILL.md) | BI批次不变性周报与窗口内已合入PR清单。适用于\"跑BI周报 / 不变性有什么进展 / 这周合了哪些PR / 周报改成列表 / 查确定性进展\"。不适用：模型数值验收 → 用 `batch-invariance-acceptance`。 | 1 |
 | 21 | [`bilibili-video-forensics`](skills/bilibili-video-forensics/SKILL.md) | B站视频取证：412 风控下用浏览器上下文调 API 拿标题、统计、评论、弹幕与封面 | 1 |
 | 22 | [`codex-cache-hitrate-forensics`](skills/codex-cache-hitrate-forensics/SKILL.md) | 用 Codex 会话日志复算 prompt cache 命中率；适用于 cached_tokens 下降、新版模型缓存或成本变差的传闻取证 | 1 |

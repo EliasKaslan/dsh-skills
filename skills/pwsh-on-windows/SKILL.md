@@ -42,3 +42,10 @@ $modified.Count
 ```
 
 不要根据表格外观判断；先用总数核对 `$modified.Count + $untracked.Count -eq $s.Count`。
+
+## MSIX 应用：Get-Command 为空不等于没装
+
+## MSIX 应用：Get-Command 为空不等于没装
+
+- 商店/MSIX 应用（如 Codex 桌面版）不注册 PATH，命令里只看到 `Codex.exe`：先 `Get-AppxPackage *Codex* | Select-Object InstallLocation`，再拼 `InstallLocation\app\resources\codex.exe` 才是真正的 CLI。
+- `& $exe login status` 明明成功却报 `NativeCommandError`：PS 5.1 把原生命令的 stderr 一律当错误流。加 `2>&1` 接收，判定只看 `$LASTEXITCODE`（本次 exit 0 = 登录正常）。
