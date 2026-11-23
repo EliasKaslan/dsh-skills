@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 69,
   "file_count": 279,
-  "total_bytes": 13266313,
+  "total_bytes": 13267221,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -80,7 +80,7 @@
       "path": "skills/ascend-env",
       "description": "昇腾环境入口：按当前问题选择服务器访问、工作区、运行栈、源码构建、服务或数值一致性验证。",
       "files": 1,
-      "bytes": 1663
+      "bytes": 2571
     },
     {
       "name": "ascend-model-adaptation-recon",
