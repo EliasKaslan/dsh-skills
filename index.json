@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 69,
   "file_count": 276,
-  "total_bytes": 13228303,
+  "total_bytes": 13230041,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -178,7 +178,7 @@
       "path": "skills/dsh-agent-customization",
       "description": "DSH配置、插件与运行时维护总纲；定位改哪层、何时生效、隔离验证、preset取证与守护恢复，按模式转入具体参考。",
       "files": 9,
-      "bytes": 31349
+      "bytes": 33013
     },
     {
       "name": "dsh-agent-preset-live-verification",
@@ -241,7 +241,7 @@
       "path": "skills/dsh-skill-authoring",
       "description": "编写、验证和精简DSH skill：触发字段、调用策略、资源路由、去重归档、目录预算与批量发布边界。",
       "files": 7,
-      "bytes": 23822
+      "bytes": 23896
     },
     {
       "name": "dsh-skill-self-audit",
