@@ -12,9 +12,9 @@
 
 典型探针：
 
-- Artificial Analysis：https://artificialanalysis.ai/models/<slug> ，404 即无条目；厂商页 https://artificialanalysis.ai/models/creators/<org> 列已收录型号（2026-11-23 只复测了 leaderboards / agents 两条路径可达）。
-- OpenRouter：https://openrouter.ai/<org>/<model> ，404 即无路由；无路由即无调用量与排名。
-- HuggingFace：https://huggingface.co/api/models?search=<name> ，返回 `[]` 即未开源。
+- Artificial Analysis：`artificialanalysis.ai/models/<slug>`，404 即无条目；厂商页 `/models/creators/<org>` 列已收录型号。
+- OpenRouter：`openrouter.ai/<org>/<model>`，404 即无路由；无路由即无调用量与排名。
+- HuggingFace：`api/models?search=<name>`，返回 `[]` 即未开源。
 - SWE-rebench、Terminal-Bench、tbench.ai、swebench.com：表为 JS 渲染或需登录，抓不到只能写「未能举证」，不要反推「没有」。
 
 ## 二、证据分层（引用时必须标层）
@@ -35,3 +35,34 @@
 
 此时三个证据面会同时成立且互相矛盾：用户有实测、榜上零条目、官方零跑分。
 交付时逐项标源，不要取其一；结论只能写到某维度上升或下降，不能给总排名。
+
+## 五、发布后复查（follow-up sweep）
+
+复查不是重跑调研，只报「变化 vs 现状」。先看四个信号，再决定这条新分数能不能用：
+
+- **条目名里带 Preview / 内测标识** → 该跑分不是 GA 版，不能代表今天上线的模型。
+- **跑分时间早于公开发布时刻** → 内测权重的结果，即便新闻发布时间在发布之后也一样。
+- **分母或题量变了**（如 14 个模型扩到 19 个）→ 名次不可跨快照比较，只引百分数。
+- **滚动窗口未覆盖发布月** → 整列为空属于未覆盖，不是跑输。
+
+固定八项复查清单：厂商模型页、总榜、Coding Agent Index、Terminal-Bench、SWE-rebench 窗口、Arena 三榜 Elo、OpenRouter 路由、HF 仓库。任一项由「无」变「有」，即可判定该模型进入公开可评阶段；全无变化就写「零变化」，附页面状态码。
+
+## 六、个人测评的可复现度分级
+
+- L0 只有观感（慢、中庸、像上一代）→ 不进结论。
+- L1 贴了题面与耗时，无产物 → 只能算现象记录。
+- L2 贴了产物（zip、截图、可访问链接）→ 可复核一半。
+- L3 题面 + 评分标准 + 脚本齐全 → 唯一可当独立实测引用。
+
+另：「测试集」要拆开看。社区常把同一道题反复发帖（鹈鹕骑车、MC 复刻、3D 前端），看起来是多组实测，实际同题多帖、无评分。数「不同的题」而不是数「帖子」。
+
+## 七、窄差不可排序
+
+题量个位数、单次跑、评分含自评或邻模评、分母随新模型入场漂移时，2 分以内的差距按并列处理，报告里只写「同档」。
+
+## 八、抓取坑
+
+- Reddit 全域 403（search、new.json、old.reddit 均拒），只能借搜索索引，须标注盲区。
+- X 直连 fetch failed；替代是 HN Algolia API，它给权威 UTC 时间戳，可用来定「发布后 N 小时」的窗口起点。
+- tbench.ai 表格 JS 渲染，静态抓取是空表；arena.ai 全站 403，只能取镜像。
+- 依据镜像或搜索索引得出的「无条目」，必须写成「依据镜像，非源站直读」。

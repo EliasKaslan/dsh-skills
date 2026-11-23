@@ -58,7 +58,9 @@ whenToUse: "需要比较多家模型的当前能力、上下文、价格与评�
 
 ## 分数缺席与榜单分级
 
-零条目 ≠ 跑输：无端点或未开源时榜方跑不了，写「未送测」。效率看 wall time、步数、reasoning token，TPS 高≠快。分层判据与探针 → `references/benchmark-evidence-tiers.md`
+- **零条目 ≠ 跑输**：无端点或未开源时榜方跑不了，写「未送测」。
+- 效率看 wall time、步数、reasoning token，TPS 高≠快。
+- 榜单分层与探针 → `references/benchmark-evidence-tiers.md`
 
 ## 模型"到底发布了没"：四面核验
 
