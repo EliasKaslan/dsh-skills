@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 70,
-  "file_count": 280,
-  "total_bytes": 13273602,
+  "file_count": 281,
+  "total_bytes": 13277620,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -401,8 +401,8 @@
       "name": "pwsh-on-windows",
       "path": "skills/pwsh-on-windows",
       "description": "在 Windows 排查 PowerShell 版本、编码/BOM、原生命令参数与退出码、管道和文本计数问题；名为 pwsh 的工具在本机实为 Windows PowerShell 5.1。",
-      "files": 2,
-      "bytes": 10929
+      "files": 3,
+      "bytes": 14947
     },
     {
       "name": "qq-mail-control",

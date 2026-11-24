@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **70** 个 skill、**280** 个文件、**13273602** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **70** 个 skill、**281** 个文件、**13277620** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -88,7 +88,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 54 | [`overseas-ai-service-cn-availability`](skills/overseas-ai-service-cn-availability/SKILL.md) | 分别核查AI服务的网络可达、账号与地区资格、API/企业渠道、支付账单及数据处理条件；适用于大陆或跨地区可用性与采购研究，不把一次连通或旧条文当长期结论。 | 1 |
 | 55 | [`pr-change-equivalence-audit`](skills/pr-change-equivalence-audit/SKILL.md) | PR改前改后的接口、数值边界与性能等价性审查。适用于\"PR是等价改写吗 / mask乘法安全吗 / 精度变了吗 / 性能没变化吗 / bugfix有副作用吗\"。不适用：提交PR与跟进门禁 → 用 `github-pr-flow`。 | 1 |
 | 56 | [`prior-agent-artifact-audit`](skills/prior-agent-artifact-audit/SKILL.md) | 前序交付与测试CI证据核查，区分源码、构建、安装和运行版本。适用于\"上一轮真做完了吗 / 报告全绿可信吗 / 线上是哪一版 / 测试漏跑了吗\"。不适用：漏洞报告复核 → `vuln-scan-report-verification`。 | 1 |
-| 57 | [`pwsh-on-windows`](skills/pwsh-on-windows/SKILL.md) | 在 Windows 排查 PowerShell 版本、编码/BOM、原生命令参数与退出码、管道和文本计数问题；名为 pwsh 的工具在本机实为 Windows PowerShell 5.1。 | 2 |
+| 57 | [`pwsh-on-windows`](skills/pwsh-on-windows/SKILL.md) | 在 Windows 排查 PowerShell 版本、编码/BOM、原生命令参数与退出码、管道和文本计数问题；名为 pwsh 的工具在本机实为 Windows PowerShell 5.1。 | 3 |
 | 58 | [`qq-mail-control`](skills/qq-mail-control/SKILL.md) | DSH的QQ与Outlook邮件任务总纲；核对搜索覆盖、邮件身份、正文/附件编码、草稿和发送结果，使用当前邮箱MCP schema及用户账号约定。 | 3 |
 | 59 | [`saas-mcp-onboarding`](skills/saas-mcp-onboarding/SKILL.md) | 给Codex/DSH接第三方SaaS的MCP：官方bundle优先、stdio硬条件、云文档厂商实证。适用于"接语雀/飞书/腾讯文档""这个MCP能落地吗"。 | 1 |
 | 60 | [`sedimenting-skills`](skills/sedimenting-skills/SKILL.md) | 经验沉淀选址：融合已有skill还是新建，保留验证层级并压缩目录成本。 | 1 |

@@ -65,3 +65,14 @@ $modified.Count
 3. 写完**按字节核对**：`[IO.File]::ReadAllText` 或 Python `repr()` 看反引号/反斜杠是否还在；语法检查（`node --check`）通过**不能**证明内容没被改写。
 
 判据：只要文件里有 Markdown 围栏或转义序列，一律当成"非 ASCII 文本资产"处理——生成后读回逐字比对。
+
+## git push 的「红」与「挂住」：判据取远端，修法是把用户名写进 URL
+
+## `git push` 的「红」与「挂住」
+
+- **假红**：PS 5.1 把原生程序写 stderr 的字节包成 `NativeCommandError` → 工具层报 `[exit code: 1]`，命令其实成功（输出里有 `main -> main` 就是成功）。另一面：`<cmd> 2>&1 | Select-Object -Last N` 会提前关管道让原生命令吃 EPIPE；要真退出码就用 `| Out-Null` 后读 `$LASTEXITCODE`。
+- **真挂住**：`git push`（含 `--dry-run`）几分钟不返回、进程零 CPU，而 `git ls-remote` 秒回。**远端可能已经更新**（阻塞发生在上传完成后的凭据收尾）。
+- **判据只看远端**：`git ls-remote <r> main`；tag 比 `refs/tags/<t>^{}`。
+- **最快修法**：凭据条目键带用户名（`cmdkey /list` 见 `git:https://<user>@<host>`），而 `origin` 的 URL 没有用户名 → 匹配不到 → helper 卡死。把用户名写进推送 URL：`git -c http.version=HTTP/1.1 push https://<user>@github.com/<owner>/<repo>.git main`。
+
+三步隔离（网络 / git / 凭据）、EPIPE 与 `NativeCommandError` 的逐字输出、推完的双远端复核清单 → `references/git-push-hangs.md`。
