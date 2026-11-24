@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **70** 个 skill、**281** 个文件、**13277620** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **70** 个 skill、**282** 个文件、**13281004** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -74,7 +74,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 40 | [`github-pr-flow`](skills/github-pr-flow/SKILL.md) | GitHub/GitCode PR 交付与 CI 核验：提 PR、改正文、修冲突、看红。适用于\"提PR / 改PR正文 / CI为什么红 / 修PR冲突 / 处理评审意见\"。不适用：仅审版本差异 → git-tag-diff-audit... | 2 |
 | 41 | [`gold-price-rmb-quote`](skills/gold-price-rmb-quote/SKILL.md) | 抓黄金实时行情、换算人民币每克、拆解内外盘溢价；用于查金价、判断跌幅构成与短期区间 | 1 |
 | 42 | [`korea-official-source-research`](skills/korea-official-source-research/SKILL.md) | 检索韩国与济州的主管机关、交通及旅游一手资料，核对现行政策、时刻表、营业与票价信息；适用于官方信息难抓取、日期与废止状态不清，历史端点只作线索。 | 2 |
-| 43 | [`llm-landscape-recon`](skills/llm-landscape-recon/SKILL.md) | 模型对比、速度与选订阅取证入口：官方来源、effort/tok/s 口径、编码 agent 与限额。 | 6 |
+| 43 | [`llm-landscape-recon`](skills/llm-landscape-recon/SKILL.md) | 模型对比、速度与选订阅取证入口：官方来源、effort/tok/s 口径、编码 agent 与限额。 | 7 |
 | 44 | [`login-credential-autofill`](skills/login-credential-autofill/SKILL.md) | 在用户授权的账号登录流程中复用已登录会话、辨认失败阶段和处理验证码/二次验证交接；适用于网页登录卡住或已有登录守护脚本审查，凭据填充须匹配用户指定账号和当前授权，验证码交接给用户。 | 6 |
 | 45 | [`lora-weekly-report`](skills/lora-weekly-report/SKILL.md) | 按明确时间窗和基线核查GitHub组织、仓库、LoRA或批次不变性进展并生成增量简报；适用于周报、观察点变化和已合入清单，生成报告不自动发信或创建定时任务。 | 8 |
 | 46 | [`mindspeed-ops-interface-compat-audit`](skills/mindspeed-ops-interface-compat-audit/SKILL.md) | MindSpeed-Ops跨仓接口兼容与实际调用核查。适用于\"接口兼容吗 / 周边仓能调用吗 / 导入通过算过吗 / 新增了哪些算子 / 别名绑定对吗\"。不适用：只做版本树差 → 用 `git-tag-diff-audit`。 | 1 |

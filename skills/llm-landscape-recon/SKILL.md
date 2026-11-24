@@ -75,12 +75,13 @@ whenToUse: "需要比较多家模型的当前能力、上下文、价格与评�
 
 ## 选 coding agent 与订阅（含 Codex 档位）
 
-触发信号：用户问"哪家模型最值得订阅 / coding agent 选哪家 / 未来一年谁最强"。先按任务拆"最强"（综合 / 编码 agent / 长任务改造）再落到订阅，别用单一综合榜回答。Codex 档位（max/ultra）与本地取证 → `references/codex-effort-local.md`。
+触发信号：用户问"哪家模型最值得订阅 / coding agent 选哪家 / 某档 effort 多烧多少额度"。先按任务拆"最强"再落到订阅，别用单一综合榜回答。Codex 档位与本地取证 → `references/codex-effort-local.md`。
 
 - **别用综合榜选编码模型**：综合分与编码 agent 分常不同名；优先统一 harness 的 agent index，同一版本跨快照可差 1 分以上，记抓取日。
-- **长任务看 refactor 类基准**：真实仓库、6–30h/任务、同 scaffold，比单 bug 的 SWE-bench 更接近框架程序员负载；厂商自报常比第三方复跑高 10 分以上，新模型没进榜写"未取到"。
+- **长任务看 refactor 类基准**：真实仓库、6–30h/任务、同 scaffold，比单 bug 的 SWE-bench 更接近框架负载；厂商自报常比第三方复跑高 10 分以上，没进榜写"未取到"。
 - **harness ≠ 模型**：换 harness 能差一档；差距在 verifier、后台 worktree、失败恢复。
-- **订阅 vs API**：重度（~2M tok/日）旗舰订阅通常优于 API，中端接近；真约束是额度撞墙时间，不是单价。官方只给倍数不给 token 数的标"未公布"。
-- **$X 能做多少任务**：别用 $X ÷ 单价。先对齐档位（同一 $X 在三家常是不同命名档，额度性质也不同），再找社区计量锚点（"N 小时吃掉 X% 周额度"、逐请求账本的周 token），月任务数 = 周 token ÷ 单任务 token × 4.3，并与 wall-clock 上限取小；两派实测差 2–3 倍，只给区间。方法、渠道与坑 → `references/subscription-quota-mapping.md`
+- **订阅 vs API**：重度（~2M tok/日）旗舰订阅通常优于 API；真约束是额度撞墙时间，不是单价。
+- **effort 不是倍率开关**：官方不给 effort 额度倍率，额度纯按 token 折算（reasoning 计入 output）。同题实测 xhigh≈1.2–1.4× high、max≈1.6× xhigh≈1.9–2× high、ultra≈2.6× high；常规单轮只差 1–10%，只有 p99 reasoning 接近 2×。"max 烧 3–5×"先查计费异常或 Fast/Ultrafast 叠乘 → `references/codex-effort-quota.md`。
+- **$X 能做多少任务**：别用 $X ÷ 单价；先对齐档位与额度性质，再按"周 token ÷ 单任务 token × 4.3"与 wall-clock 取小，只给区间 → `references/subscription-quota-mapping.md`
 - **预测下一代**：整代间隔（非点发布）+ 在训算力交付 + 安全闸门松紧；未官方确认的代号一律标"推算"。
 - **中国可用性单列**：截至 2026-11，三家个人订阅均不覆盖大陆；关键路径走 Azure Foundry / Vertex 或企业方案。

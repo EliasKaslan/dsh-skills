@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 70,
-  "file_count": 281,
-  "total_bytes": 13277620,
+  "file_count": 282,
+  "total_bytes": 13281004,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -303,8 +303,8 @@
       "name": "llm-landscape-recon",
       "path": "skills/llm-landscape-recon",
       "description": "模型对比、速度与选订阅取证入口：官方来源、effort/tok/s 口径、编码 agent 与限额。",
-      "files": 6,
-      "bytes": 23046
+      "files": 7,
+      "bytes": 26430
     },
     {
       "name": "login-credential-autofill",
