@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
-  "skill_count": 69,
-  "file_count": 279,
-  "total_bytes": 13268698,
+  "skill_count": 70,
+  "file_count": 280,
+  "total_bytes": 13273602,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -410,6 +410,13 @@
       "description": "DSH的QQ与Outlook邮件任务总纲；核对搜索覆盖、邮件身份、正文/附件编码、草稿和发送结果，使用当前邮箱MCP schema及用户账号约定。",
       "files": 3,
       "bytes": 8447
+    },
+    {
+      "name": "saas-mcp-onboarding",
+      "path": "skills/saas-mcp-onboarding",
+      "description": "给Codex/DSH接第三方SaaS的MCP：官方bundle优先、stdio硬条件、云文档厂商实证。适用于\"接语雀/飞书/腾讯文档\"\"这个MCP能落地吗\"。",
+      "files": 1,
+      "bytes": 4904
     },
     {
       "name": "sedimenting-skills",

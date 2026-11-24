@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **69** 个 skill、**279** 个文件、**13268698** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **70** 个 skill、**280** 个文件、**13273602** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -90,14 +90,15 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 56 | [`prior-agent-artifact-audit`](skills/prior-agent-artifact-audit/SKILL.md) | 前序交付与测试CI证据核查，区分源码、构建、安装和运行版本。适用于\"上一轮真做完了吗 / 报告全绿可信吗 / 线上是哪一版 / 测试漏跑了吗\"。不适用：漏洞报告复核 → `vuln-scan-report-verification`。 | 1 |
 | 57 | [`pwsh-on-windows`](skills/pwsh-on-windows/SKILL.md) | 在 Windows 排查 PowerShell 版本、编码/BOM、原生命令参数与退出码、管道和文本计数问题；名为 pwsh 的工具在本机实为 Windows PowerShell 5.1。 | 2 |
 | 58 | [`qq-mail-control`](skills/qq-mail-control/SKILL.md) | DSH的QQ与Outlook邮件任务总纲；核对搜索覆盖、邮件身份、正文/附件编码、草稿和发送结果，使用当前邮箱MCP schema及用户账号约定。 | 3 |
-| 59 | [`sedimenting-skills`](skills/sedimenting-skills/SKILL.md) | 经验沉淀选址：融合已有skill还是新建，保留验证层级并压缩目录成本。 | 1 |
-| 60 | [`skill-archive`](skills/skill-archive/SKILL.md) | 冷备skill查找：按INDEX核实路径与正文再加载，不凭摘要编造能力。 | 1 |
-| 61 | [`subagent-toolset-precheck`](skills/subagent-toolset-precheck/SKILL.md) | 子代理工具能力预检：按实际schema与只读probe核对网络/命令/落盘。 | 1 |
-| 62 | [`tilelang-op-generator`](skills/tilelang-op-generator/SKILL.md) | TileLang-Ascend 算子开发：内存同步、独立 golden、性能验证。适用于\"写算子 / 迁到NPU / 修kernel精度 / 尾块越界 / 测性能\"。不适用：环境安装 → 用 ascend-cann-env。 | 18 |
-| 63 | [`upstream-docs-refresh-audit`](skills/upstream-docs-refresh-audit/SKILL.md) | 上游文档与需求、代码、参数、导航及多语言一致性审计。适用于\"这批需求有文档吗 / docs要刷新吗 / 参数主线有没有 / 内部代号叫什么 / 导航漏页面了吗\"。不适用：启动推理服务 → 用 `ascend-vllm-serve`。 | 5 |
-| 64 | [`vllm-ascend-e2e-ci-wiring`](skills/vllm-ascend-e2e-ci-wiring/SKILL.md) | vLLM Ascend E2E：用例落位、时长登记、marker 与 CI 车道。适用于\"新增E2E/CI报MISSING/本地收集全吗\"。不适用：源码安装 → vllm-ascend-source-install。 | 1 |
-| 65 | [`vllm-ascend-source-install`](skills/vllm-ascend-source-install/SKILL.md) | 将指定 checkout 的 vLLM 与 vLLM Ascend 从源码配对构建到已有昇腾环境，控制依赖替换、编译器与 BI 算子产物；适用于源码安装、重编和 build dependency 错误。 | 5 |
-| 66 | [`vuln-scan-report-verification`](skills/vuln-scan-report-verification/SKILL.md) | 第三方漏洞扫描报告的基线、可达性、攻击输入和严重性复核。适用于\"这个高危是真的吗 / 行号对不对 / 注入能用吗 / 定级高不高 / 有没有漏报\"。不适用：仅审文档扫描分数 → 用 `aidd-report-reader`。 | 1 |
-| 67 | [`web-ui-contrast-audit`](skills/web-ui-contrast-audit/SKILL.md) | 定位网页主题切换后文字与背景难辨的问题，按实际渲染背景计算WCAG文本对比并复测修复；适用于浅色/深色主题可读性，不以静态颜色值替代复杂背景检查。 | 2 |
-| 68 | [`win-scheduled-task-forensics`](skills/win-scheduled-task-forensics/SKILL.md) | 在 Windows 只读追查定时弹窗、后台进程和开机启动来源，关联计划任务、Run 项、启动目录、服务与 WMI，并在明确授权后验证单项禁用或恢复。 | 1 |
-| 69 | [`yb-blue`](skills/yb-blue/SKILL.md) | 审查或操作用户明确指定的 GitHub 文件式 YB 跨区任务桥，验证任务信封、分片完整性、游标与结果归因；用于已有 yb-blue 协议，不自动向任何远端发送任务或文件。 | 4 |
+| 59 | [`saas-mcp-onboarding`](skills/saas-mcp-onboarding/SKILL.md) | 给Codex/DSH接第三方SaaS的MCP：官方bundle优先、stdio硬条件、云文档厂商实证。适用于"接语雀/飞书/腾讯文档""这个MCP能落地吗"。 | 1 |
+| 60 | [`sedimenting-skills`](skills/sedimenting-skills/SKILL.md) | 经验沉淀选址：融合已有skill还是新建，保留验证层级并压缩目录成本。 | 1 |
+| 61 | [`skill-archive`](skills/skill-archive/SKILL.md) | 冷备skill查找：按INDEX核实路径与正文再加载，不凭摘要编造能力。 | 1 |
+| 62 | [`subagent-toolset-precheck`](skills/subagent-toolset-precheck/SKILL.md) | 子代理工具能力预检：按实际schema与只读probe核对网络/命令/落盘。 | 1 |
+| 63 | [`tilelang-op-generator`](skills/tilelang-op-generator/SKILL.md) | TileLang-Ascend 算子开发：内存同步、独立 golden、性能验证。适用于\"写算子 / 迁到NPU / 修kernel精度 / 尾块越界 / 测性能\"。不适用：环境安装 → 用 ascend-cann-env。 | 18 |
+| 64 | [`upstream-docs-refresh-audit`](skills/upstream-docs-refresh-audit/SKILL.md) | 上游文档与需求、代码、参数、导航及多语言一致性审计。适用于\"这批需求有文档吗 / docs要刷新吗 / 参数主线有没有 / 内部代号叫什么 / 导航漏页面了吗\"。不适用：启动推理服务 → 用 `ascend-vllm-serve`。 | 5 |
+| 65 | [`vllm-ascend-e2e-ci-wiring`](skills/vllm-ascend-e2e-ci-wiring/SKILL.md) | vLLM Ascend E2E：用例落位、时长登记、marker 与 CI 车道。适用于\"新增E2E/CI报MISSING/本地收集全吗\"。不适用：源码安装 → vllm-ascend-source-install。 | 1 |
+| 66 | [`vllm-ascend-source-install`](skills/vllm-ascend-source-install/SKILL.md) | 将指定 checkout 的 vLLM 与 vLLM Ascend 从源码配对构建到已有昇腾环境，控制依赖替换、编译器与 BI 算子产物；适用于源码安装、重编和 build dependency 错误。 | 5 |
+| 67 | [`vuln-scan-report-verification`](skills/vuln-scan-report-verification/SKILL.md) | 第三方漏洞扫描报告的基线、可达性、攻击输入和严重性复核。适用于\"这个高危是真的吗 / 行号对不对 / 注入能用吗 / 定级高不高 / 有没有漏报\"。不适用：仅审文档扫描分数 → 用 `aidd-report-reader`。 | 1 |
+| 68 | [`web-ui-contrast-audit`](skills/web-ui-contrast-audit/SKILL.md) | 定位网页主题切换后文字与背景难辨的问题，按实际渲染背景计算WCAG文本对比并复测修复；适用于浅色/深色主题可读性，不以静态颜色值替代复杂背景检查。 | 2 |
+| 69 | [`win-scheduled-task-forensics`](skills/win-scheduled-task-forensics/SKILL.md) | 在 Windows 只读追查定时弹窗、后台进程和开机启动来源，关联计划任务、Run 项、启动目录、服务与 WMI，并在明确授权后验证单项禁用或恢复。 | 1 |
+| 70 | [`yb-blue`](skills/yb-blue/SKILL.md) | 审查或操作用户明确指定的 GitHub 文件式 YB 跨区任务桥，验证任务信封、分片完整性、游标与结果归因；用于已有 yb-blue 协议，不自动向任何远端发送任务或文件。 | 4 |
