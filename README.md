@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **71** 个 skill、**283** 个文件、**13287919** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **71** 个 skill、**284** 个文件、**13290049** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -70,7 +70,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 36 | [`external-buzz-magnitude-check`](skills/external-buzz-magnitude-check/SKILL.md) | 核查事件或模型的外部热度、社区反馈与体验量级，区分平台计数、实测、转述和检索缺口；适用于真的火吗、社区口碑和速度抱怨取证，不以仓库提交活性代替外部影响。 | 1 |
 | 37 | [`external-repo-claim-audit`](skills/external-repo-claim-audit/SKILL.md) | 解读第三方GitHub仓库并核查宣传数字有无落盘证据；适用于「帮我解读这个项目/这repo靠谱吗/它skill讲的啥」 | 1 |
 | 38 | [`git-tag-diff-audit`](skills/git-tag-diff-audit/SKILL.md) | Git版本与PR实质变更审计，区分树差、历史归因和等价性。适用于\"两个tag改了什么 / 无共同祖先能比吗 / 接口删了吗 / 是纯重构吗 / 精度性能变了吗\"。不适用：提交或跟进PR → 用 `github-pr-flow`。 | 1 |
-| 39 | [`gitcode-pr-flow`](skills/gitcode-pr-flow/SKILL.md) | GitCode PR交付、门禁与评审跟进。适用于\"GitCode提PR / 双CI怎么判 / PR冲突 / 门禁标签 / backport\"。不适用：仅核实代码是否等价 → pr-change-equivalence-audit。 | 5 |
+| 39 | [`gitcode-pr-flow`](skills/gitcode-pr-flow/SKILL.md) | GitCode PR交付、门禁与评审跟进。适用于\"GitCode提PR / 双CI怎么判 / PR冲突 / 门禁标签 / backport\"。不适用：仅核实代码是否等价 → pr-change-equivalence-audit。 | 6 |
 | 40 | [`github-org-delta-watch`](skills/github-org-delta-watch/SKILL.md) | GitHub组织与发行差集入口，按既有基线追踪仓库、PR、commit和release变化。 | 1 |
 | 41 | [`github-pr-flow`](skills/github-pr-flow/SKILL.md) | GitHub/GitCode PR 交付与 CI 核验：提 PR、改正文、修冲突、看红。适用于\"提PR / 改PR正文 / CI为什么红 / 修PR冲突 / 处理评审意见\"。不适用：仅审版本差异 → git-tag-diff-audit... | 2 |
 | 42 | [`gold-price-rmb-quote`](skills/gold-price-rmb-quote/SKILL.md) | 抓黄金实时行情、换算人民币每克、拆解内外盘溢价；用于查金价、判断跌幅构成与短期区间 | 1 |

@@ -51,14 +51,15 @@ git credential fill      # stdin: protocol=https / host=gitcode.com / 空行
 
 ## ascend-robot 自动合入的门禁集合（MindSpeed-Ops 实测 2026-11）
 
-判定「已有 approve 为什么没合入」时，不要只看 approve，按标签集合逐项对：
+按标签集合对：`approved`+`lgtm`+`ci-pipeline-passed`+`ascend-cla/yes`+`docs-ci-pipeline-success` 齐了才动，末道标签后 7~10s 合入。
 
-- 自动合入由 `ascend-robot` 执行：`approved` + `lgtm` + `ci-pipeline-passed`（外加 `ascend-cla/yes`、`docs-ci-pipeline-success`）同时存在；末道门禁落地后几乎同刻动手（近 20 个已合入 PR 实测都在末道标签后 7~10s）。
-- **代码更新会清掉 `ci-pipeline-passed`**（robot 评论 `### Notification ... removes the following label(s): ci-pipeline-passed.`），此后必须评论 `compile` 才在新 head 上重跑 UT（AtlasAccount 回 `CI 流水线已启动` + `actions/runs/{id}`）。典型卡点：先 push、隔天再 approve，approve 时绿标已不在 → 不自动合入；补 `compile` 等绿即可，**不需要重新 /approve**（#135/#234 都是 approve 早于绿标，绿标落地 9 秒内合入）。
-- 取证据：`GET /repos/{owner}/{repo}/pulls/{n}` 的 `labels[].updated_at` 是每枚标签的落地时间。标签只是线索（有 `ci-pipeline-running`/`ci-pipeline-passed` 才分别表示在跑/通过，都没有只说明未观察到）；结论必须绑定当前 head SHA 的 run 与机器人评论，绑不上就写未知，失败/取消按实见记录。
-- Actions 没有对外的 runs 列表端点（`/repos/{o}/{r}/actions/runs`、`/actions/workflows`、`/pulls/{n}/check` 均 404），run id 只能从评论里 AtlasAccount 的链接取。
+- 代码更新会清掉 `ci-pipeline-passed`，须再评论 `compile` 在新 head 重跑；**不必重新 /approve**。
+- `labels[].updated_at` 是标签落地时间；标签只是线索，结论绑当前 head SHA 的 run。
+- 查 run/job 走 **v8**（v5 无线）：`/api/v8/repos/{o}/{r}/actions/runs[?per_page=100]`、`…/runs/{run_id}`、`…/runs/{run_id}/jobs/{job_id}`。字段/坑见 [v8 API](references/gitcode-actions-v8-api.md)。
+- **`Job(<a>_<b>)` 不是 run id**：它是 job 的 `exec_id`。
+- 判读：`步骤初始化步骤执行失败`+`start_time=null` = 排队到超时、容器没起来；`步骤run X执行失败` 才是脚本挂。
 
-门禁时间线、retry 语义与失败判读的实测细节见 [坑与判据](references/maintenance-log.md)。
+细节见 [坑与判据](references/maintenance-log.md)。
 
 ## 评审意见定点取证：diff_comment 锚点与按 sha 读原文
 
