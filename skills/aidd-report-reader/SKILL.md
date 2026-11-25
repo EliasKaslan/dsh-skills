@@ -45,3 +45,32 @@ disable-model-invocation: true
 - `page_size=200` 可能返回空 items（total 仍正确），改 100 分页。
 - 「未处理」= `feedback_status=pending`，但先看 `validity=all`：pending 可能全是 `validity≠valid` 的失效条目，UI「有效问题」只算 valid，两边数字不一致属正常。
 - `403 {"detail":{"code":"PERMISSION_DENIED","permission":"project:read","reason":"default_deny"}}` 常见于产品/版本节点，不代表子项目不可读；权限按项目成员判定，逐项目试。
+
+## 问题处理闭环与反馈回填（2026-11 实测）
+
+## 问题处理闭环与反馈回填（2026-11 实测）
+
+把某个项目的「未处理」清零 = 取 `feedback_status=pending` → 逐条对仓内实现核对 → 需要改的提 PR、不需要的在平台回填。
+
+**反馈接口**（页面上下文 fetch，Bearer 用 `localStorage.authToken`）：
+
+```js
+await fetch('/api/v1/issue-management/issues/' + issue_id + '/feedback', {
+  method: 'POST',
+  headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' },
+  body: JSON.stringify({ status: 'rejected_false_positive', comment: '...' })
+});
+// 200 → {"status":"rejected_false_positive","rating":null,"comment":"..."}
+```
+
+- `status` 实测可用：`accepted_modified`（采纳并已修改）、`rejected_false_positive`（误报/无需改）。写入是更新当前状态，重复提交只覆盖。
+- 收尾自检：重取 `validity=all&view=current` 逐页统计 `feedback_status`，确认 `pending` 归零；逐条回读备注也能核对是否落库。
+- 批量提交串行 + 每条间隔约 100ms，64 条一次全部 200，没有被限流。
+
+**判定纪律**（同一批里三种坑都会出现）：
+
+1. 拼写字典误判合法标识符：CANN `gert::`（GE Runtime 命名空间）、内核张量名 `Ad`，改成 `ge::`/`id` 反而错。
+2. 扫描器建议方向与实现相反：文档表格写「未知型号默认走 ATB」，实现是返回 MAX_VERSION 走 `addmm_`——要按实现改文档，不能照抄建议。
+3. 原文/行号已随后续提交失效：先 `git log -p -- <file>` 与全仓 `git grep` 判是否已修，再决定修还是回填。
+
+每条结论都要落到代码行、提交号或全仓一致性上；扫描发生在若干天前时行号一律不可信，按文本 grep 定位。
