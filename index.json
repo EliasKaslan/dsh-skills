@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 71,
   "file_count": 283,
-  "total_bytes": 13286170,
+  "total_bytes": 13287919,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -262,7 +262,7 @@
       "path": "skills/external-repo-claim-audit",
       "description": "解读第三方GitHub仓库并核查宣传数字有无落盘证据；适用于「帮我解读这个项目/这repo靠谱吗/它skill讲的啥」",
       "files": 1,
-      "bytes": 5166
+      "bytes": 6915
     },
     {
       "name": "git-tag-diff-audit",

@@ -27,7 +27,19 @@ description: 解读第三方GitHub仓库并核查宣传数字有无落盘证据�
 3. **查数字归属**。仓库正文讲 A（4 个同步 on-policy case），intro 讲 B（论文里的 async 实验）：`grep 'asynchron|policy lag' cases/` 零命中，即可判定 B 不是本仓自证，只是引用。
 4. **读报告自述的删除记录**。「2026-10-07 删掉 raw scripts / results-data」= 不可复算；再确认 `$WORK`、`<image>`、`nodeN` 这类占位符，就是「配方可读、结果不可复现」。
 
-结论口径固定：**能复核的是叙述自洽与报告互证，不能复核的是任何一条 diff=0 或吞吐**；单 seed 单次运行的漂亮结果一律降级为「自证」。诚实记录失败（报 `gate 不通过`、`not run`、`未做控制实验`）是可信度加分项，要单独指出来。
+5. **证据可能在别的分支——判「未命中」前必须先横向找**。单分支克隆上 grep 不到，不等于没有证据：某项目主结论在 `optimization/...`，而某一轮交付的 432 对哈希 / 31,638 token 只在 `experiment/...-20261123` 上；只查一条分支会把「有据」写成「未命中」。
+
+```bash
+git fetch origin <suspect-branch> --depth=1
+git ls-tree -r --name-only FETCH_HEAD -- <dir>   # 这条分支到底有什么
+git show FETCH_HEAD:<file>                       # 逐个文件核对，别整份打印
+```
+
+私有仓取证前置：GitHub 私有仓 `raw.githubusercontent.com` 直连返回 404，改走 `GET /repos/<o>/<r>/contents/<path>` 或带 token 的 `download_url`；GitCode 私有仓若已存 Windows 凭据（`credential.helper=wincred`），用 `GIT_TERMINAL_PROMPT=0 git ls-remote <url>` 一次验证可达性，别先 clone 再等超时。大仓取中间解：`--filter=blob:none --single-branch -b <br>`（本机实测 vllm 100MB / verl 22MB，diff 时按需拉 blob）。
+
+6. **文档描述的代码行为也要对回代码**。本轮两处「文档这么说、代码不是这样」：文档称 sqrt-softplus 尾部是 `exp(scores/2)`，代码是 `(scores.clamp_max(-20) * 0.5).exp()`（钳成常数 `exp(-10)`）；文档称 MoE 通信无条件走 `ALLTOALL`，代码在内层还有 `ALLGATHER` 分支并强制 TP=PCP=1。写结论时以代码为准，并在正文里显式标出「这里修正了原文」，这比藏起来更有价值。
+
+结论口径固定：**能复核的是叙述自洽与报告互证，不能复核的是任何一条 diff=0 或吞吐**；单 seed 单次运行的漂亮结果一律降级为「自证」。诚实记录失败（报 `gate 不通过`、`not run`、`未做控制实验`）是可信度加分项，要单独指出来。另外区分三档：`✅ 命中证据文件` / `⚠️ 只有叙述` / `❌ 与代码或数值不符`，并在附录里逐条列出——把「文档说了」和「证据支持」混在一张表里，是这类分析最容易翻车的地方。
 
 ## 分片委派（≥50 篇文档时必须）
 
