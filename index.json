@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 71,
-  "file_count": 284,
-  "total_bytes": 13290049,
+  "file_count": 286,
+  "total_bytes": 13297565,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -100,15 +100,15 @@
       "name": "ascend-server-access",
       "path": "skills/ascend-server-access",
       "description": "按用户维护的当前服务器资源选机、匹配账号和连接 SSH，诊断 Windows 经 UniVPN 访问昇腾时的双隧道、路由、握手和跨机通信。",
-      "files": 12,
-      "bytes": 19463
+      "files": 13,
+      "bytes": 21987
     },
     {
       "name": "ascend-server-layout",
       "path": "skills/ascend-server-layout",
       "description": "在共享昇腾服务器上选择项目、环境、缓存与权重落点，核实磁盘、NPU 占用及 safetensors 分片完整性；适用于写哪盘、找真权重、挑空卡和容器挂载问题。",
-      "files": 10,
-      "bytes": 28343
+      "files": 11,
+      "bytes": 33335
     },
     {
       "name": "ascend-torch-npu",

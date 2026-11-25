@@ -10,11 +10,15 @@ whenToUse: 在共享昇腾服务器上选择项目、环境、缓存与权重落
 
 ## 磁盘和目录
 
+## 磁盘和目录
+
 对目标路径先 `readlink -f`、`findmnt -T`、`df -h`，不存在时检查最近的已存在父目录。目录名 share/home/weight 不证明独立大盘或 NFS，跨主机同名路径不证明同一份数据。按下载、解压、编译、Docker layer 与缓存峰值一起估算写入。
 
 沿用用户已有布局；需要新布局时可采用 `<个人根>/{env,work,agent,data,tmp,logs}`，权重/数据集用明确的公共入口。不要为统一目录搬动工作中的 conda/CANN 或改共享 shell 配置。CANN 安装树可能内嵌绝对路径，软链也不能证明可搬迁。
 
 将 TMPDIR、PIP_CACHE_DIR、CONDA_PKGS_DIRS、HF_HOME、ModelScope 缓存按目标盘显式配置。`/home` 在大盘上并不保证 Docker root 也在大盘；查 `docker info` 的根目录和对应挂载。挂容器时包含软链的真实目标，核对容器内可见设备、驱动库及路径；不要默认需要 privileged 或挂所有人的目录。
+
+要整体搬到新盘（本地盘→NFS）再留软链时，别直接开串行 rsync：瓶颈是单文件创建而非带宽，按顶层目录并行可快 7×；NFS 导出多不支持 xattr，用 `-aHA` 别加 `-X`。可抄命令、三层校验与「这台机器根本挂不上该 NFS」的判别见 [NFS 目录迁移](references/nfs-directory-migration.md)。
 
 ## 挑卡
 

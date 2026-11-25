@@ -39,11 +39,9 @@ whenToUse: 按用户维护的当前服务器资源选机、匹配账号和连接
 
 ## Windows 传脚本
 
-复杂 Bash/Python 经本地 UTF-8 无 BOM、LF 文件，用 `scp`/SFTP 传到本任务目录，核对 hash 后执行；执行已有远端文件可加 `ssh -n`。脚本经 stdin 发送时不可加 `-n`。Bash heredoc 本身合法，风险在多层 shell 引号和多个消费者抢 stdin；不要无条件 `tail -c +4`（无 BOM 时会截掉三个正文字符）。
+## Windows 传脚本与跳板
 
-长任务记录本任务 PID、日志、退出码及恢复点。停止时核对 PID 的启动时间与命令，不用宽泛 `pkill -f`。Git 下载先区分 DNS/TCP/TLS/认证，代理仅进程级或仓库级；不把旧的第三方镜像域名当固定依赖，也不向它转发凭据。
-
-**目标机重载时**（`uptime` load average 远大于核数，如 256 核上 286）：OpenSSH 会卡在 KEX、`scp`/SFTP put 与长 inline 命令被中途掐断，而 `ping` 与 TCP:22 都正常。此时别重启 VPN/换网络，按 [重载主机连接受阻](references/heavy-load-ssh.md) 走：Paramiko 长 banner 超时接手、文件用 base64 分片追加写入、长任务 `setsid nohup` 后置并轮询日志。
+脚本按本地 UTF-8 无 BOM、LF 写好再 `scp` 上传执行；Bash heredoc 与多层引号留给远端文件，stdin 方式不要加 `ssh -n`。本机到目标路径不通、而邻机可达时用 `ssh -J`/`scp -J` 走跳板；paramiko 的 ProxyCommand 在 Windows 不可用（`WinError 10038`）。判「目标机真掉线」还是「本机路径断了」、原始报错与可抄命令见 [Windows 传文件与跳板](references/windows-file-transfer.md)。
 
 ## 跨机 HCCL 实测（A5/UB 平台）
 
