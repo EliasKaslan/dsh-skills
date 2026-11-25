@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
-  "skill_count": 70,
-  "file_count": 282,
-  "total_bytes": 13281004,
+  "skill_count": 71,
+  "file_count": 283,
+  "total_bytes": 13284933,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -256,6 +256,13 @@
       "description": "核查事件或模型的外部热度、社区反馈与体验量级，区分平台计数、实测、转述和检索缺口；适用于真的火吗、社区口碑和速度抱怨取证，不以仓库提交活性代替外部影响。",
       "files": 1,
       "bytes": 2654
+    },
+    {
+      "name": "external-repo-claim-audit",
+      "path": "skills/external-repo-claim-audit",
+      "description": "解读第三方GitHub仓库并核查宣传数字有无落盘证据；适用于「帮我解读这个项目/这repo靠谱吗/它skill讲的啥」",
+      "files": 1,
+      "bytes": 3929
     },
     {
       "name": "git-tag-diff-audit",

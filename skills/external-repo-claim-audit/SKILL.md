@@ -1,0 +1,46 @@
+---
+name: external-repo-claim-audit
+description: 解读第三方GitHub仓库并核查宣传数字有无落盘证据；适用于「帮我解读这个项目/这repo靠谱吗/它skill讲的啥」
+---
+
+# 外部仓库解读与宣传数字取证
+
+## 何时调用
+
+用户说「帮我解读这个 GitHub 项目 / 这个 repo 靠不靠谱 / 它那个 skill 讲的啥 / 这些数字可信吗」。
+不适用：提 PR 或看 CI → `github-pr-flow`；只比两个版本差异 → `git-tag-diff-audit`；模型/订阅选型取证 → `llm-landscape-recon`。
+
+## 先量结构，别先读正文
+
+- 浅克隆足够：`git clone --depth 1 <url> <dir>`。**--depth 1 只拿默认分支**，代码若按 `vllm/<model>` 这类分支发布于，本地根本看不到。
+- 拿全量分支走 API，一步到位：
+  `web_fetch https://api.github.com/repos/<owner>/<repo>/branches?per_page=100`
+  （实测某仓 main 上 `*.py/*.sh/Dockerfile` 计数为 0、113 篇 md，而分支有 17 个 = 代码全在分支上。）
+- 一条命令出「体积 + 文件性质」：`Get-ChildItem -Recurse -File | % { '{0,8}  {1}' -f $_.Length, $_.FullName.Substring($root.Length+1) } | Sort-Object`，再分别数 `*.py,*.sh` 与 `*.md`，先判断「代码仓 / 文档仓 / 方法包」。
+
+## 宣称 vs 证据：把每个关键数字 grep 一遍
+
+这是本流程的主产出，四步：
+
+1. **只在 README 出现一次 = 无落盘证据**。逐个 grep 卖点数字（吞吐、步数、百分比）：命中 1 处且就在 README 脚注，说明没有对应实验表。
+2. **查方向一致性**。README 写「12.5% lower」而落盘表是 `BI=1 530s vs BI=0 601s`（对齐后反而更快）→ 符号相反；仓库自己另有一篇报告承认这是某条路径导致的「倒挂」，则该百分数不能当成本。
+3. **查数字归属**。仓库正文讲 A（4 个同步 on-policy case），intro 讲 B（论文里的 async 实验）：`grep 'asynchron|policy lag' cases/` 零命中，即可判定 B 不是本仓自证，只是引用。
+4. **读报告自述的删除记录**。「2026-10-07 删掉 raw scripts / results-data」= 不可复算；再确认 `$WORK`、`<image>`、`nodeN` 这类占位符，就是「配方可读、结果不可复现」。
+
+结论口径固定：**能复核的是叙述自洽与报告互证，不能复核的是任何一条 diff=0 或吞吐**；单 seed 单次运行的漂亮结果一律降级为「自证」。诚实记录失败（报 `gate 不通过`、`not run`、`未做控制实验`）是可信度加分项，要单独指出来。
+
+## 分片委派（≥50 篇文档时必须）
+
+按子树切 4 片一起下发：①入口 README（自己做，只需一次 read）②主方法论目录 ③案例/报告目录 ④模板与契约。
+每条 prompt 写死：只读、≤40 行、结论带 `file:line`、禁止贴大段原文。回收后**自己抽查 2-4 个 file:line**（一条 grep 即可）再写结论；子代理会自信地报错。
+
+## 结论骨架
+
+三段：**它实际是什么**（形态 = 文档 / 代码 / 方法包，先破「名字听起来像能跑的训练栈」这类误解）→ **机制与真结论**（核心概念、关键数字、最有信息量的 5-8 条反直觉发现）→ **宣称 vs 证据打几折**（用表格列不一致项，每条给两边原文位置）。
+用户问「重点是它的 skill」时，要额外讲清：入口文件是谁、有没有 frontmatter/触发词、目录如何路由、预算与禁用项——这是判断它能不能被 agent 直接复用的关键。
+
+## 坑
+
+- 大仓不要全量 clone；先 `--depth 1`，需要某个分支再 `--single-branch -b`。
+- 长行 markdown 直接用 `Select-String` 会把整屏幕撑爆 → 用 grep 工具，或只取 `.LineNumber`。
+- 别把「README 写了」当「已验证」：这一轮实测 3 处根 README 与 cases 内部数据不一致（模型行描述、吞吐方向、单点数字），全部靠 grep 才暴露。

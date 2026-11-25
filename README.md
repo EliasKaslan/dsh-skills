@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **70** 个 skill、**282** 个文件、**13281004** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **71** 个 skill、**283** 个文件、**13284933** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -68,37 +68,38 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 34 | [`dsh-skill-authoring`](skills/dsh-skill-authoring/SKILL.md) | 编写、验证和精简DSH skill：触发字段、调用策略、资源路由、去重归档、目录预算与批量发布边界。 | 7 |
 | 35 | [`dsh-skill-self-audit`](skills/dsh-skill-self-audit/SKILL.md) | DSH skill集合体检：字段、引用、重复、预算与文件摘要核对，用只读校验器出结论。 | 6 |
 | 36 | [`external-buzz-magnitude-check`](skills/external-buzz-magnitude-check/SKILL.md) | 核查事件或模型的外部热度、社区反馈与体验量级，区分平台计数、实测、转述和检索缺口；适用于真的火吗、社区口碑和速度抱怨取证，不以仓库提交活性代替外部影响。 | 1 |
-| 37 | [`git-tag-diff-audit`](skills/git-tag-diff-audit/SKILL.md) | Git版本与PR实质变更审计，区分树差、历史归因和等价性。适用于\"两个tag改了什么 / 无共同祖先能比吗 / 接口删了吗 / 是纯重构吗 / 精度性能变了吗\"。不适用：提交或跟进PR → 用 `github-pr-flow`。 | 1 |
-| 38 | [`gitcode-pr-flow`](skills/gitcode-pr-flow/SKILL.md) | GitCode PR交付、门禁与评审跟进。适用于\"GitCode提PR / 双CI怎么判 / PR冲突 / 门禁标签 / backport\"。不适用：仅核实代码是否等价 → pr-change-equivalence-audit。 | 5 |
-| 39 | [`github-org-delta-watch`](skills/github-org-delta-watch/SKILL.md) | GitHub组织与发行差集入口，按既有基线追踪仓库、PR、commit和release变化。 | 1 |
-| 40 | [`github-pr-flow`](skills/github-pr-flow/SKILL.md) | GitHub/GitCode PR 交付与 CI 核验：提 PR、改正文、修冲突、看红。适用于\"提PR / 改PR正文 / CI为什么红 / 修PR冲突 / 处理评审意见\"。不适用：仅审版本差异 → git-tag-diff-audit... | 2 |
-| 41 | [`gold-price-rmb-quote`](skills/gold-price-rmb-quote/SKILL.md) | 抓黄金实时行情、换算人民币每克、拆解内外盘溢价；用于查金价、判断跌幅构成与短期区间 | 1 |
-| 42 | [`korea-official-source-research`](skills/korea-official-source-research/SKILL.md) | 检索韩国与济州的主管机关、交通及旅游一手资料，核对现行政策、时刻表、营业与票价信息；适用于官方信息难抓取、日期与废止状态不清，历史端点只作线索。 | 2 |
-| 43 | [`llm-landscape-recon`](skills/llm-landscape-recon/SKILL.md) | 模型对比、速度与选订阅取证入口：官方来源、effort/tok/s 口径、编码 agent 与限额。 | 7 |
-| 44 | [`login-credential-autofill`](skills/login-credential-autofill/SKILL.md) | 在用户授权的账号登录流程中复用已登录会话、辨认失败阶段和处理验证码/二次验证交接；适用于网页登录卡住或已有登录守护脚本审查，凭据填充须匹配用户指定账号和当前授权，验证码交接给用户。 | 6 |
-| 45 | [`lora-weekly-report`](skills/lora-weekly-report/SKILL.md) | 按明确时间窗和基线核查GitHub组织、仓库、LoRA或批次不变性进展并生成增量简报；适用于周报、观察点变化和已合入清单，生成报告不自动发信或创建定时任务。 | 8 |
-| 46 | [`mindspeed-ops-interface-compat-audit`](skills/mindspeed-ops-interface-compat-audit/SKILL.md) | MindSpeed-Ops跨仓接口兼容与实际调用核查。适用于\"接口兼容吗 / 周边仓能调用吗 / 导入通过算过吗 / 新增了哪些算子 / 别名绑定对吗\"。不适用：只做版本树差 → 用 `git-tag-diff-audit`。 | 1 |
-| 47 | [`mindspeed-ops-smoke`](skills/mindspeed-ops-smoke/SKILL.md) | MindSpeed-Ops接口兼容、wheel验收及UT/ATK冒烟（含A3双机26.2.0配套）。适用于\"跑Ops冒烟 / ATK精度怎么判 / UT全绿了吗 / 跨仓接口兼容吗\"。 | 7 |
-| 48 | [`mindspeed-ops-whl-build`](skills/mindspeed-ops-whl-build/SKILL.md) | MindSpeed-Ops wheel构建与独立环境验收。适用于\"打Ops的whl / CMake报错 / 编译器太旧 / SOC怎么选 / 验证wheel\"。不适用：只配置CANN运行环境 → 用 `ascend-cann-env`。 | 1 |
-| 49 | [`minimax-ai-musume-4k-art`](skills/minimax-ai-musume-4k-art/SKILL.md) | 整理AI娘角色参考、身份与画风并验收插画；生成时使用当前DSH已配置图像工具，指定H3等自托管后端时另核接口与设备。 | 54 |
-| 50 | [`model-endpoint-identity-audit`](skills/model-endpoint-identity-audit/SKILL.md) | 比较多个模型端点或model id的行为、能力、缓存和性能，评估是否共享服务路径及身份声明的证据强度；适用于渠道是否同模型、兼容性和速度成本测试，不从行为指纹断言权重相同。 | 1 |
-| 51 | [`node-test-false-green-audit`](skills/node-test-false-green-audit/SKILL.md) | Node测试与CI假绿、漏跑和断言有效性审查。适用于\"CI绿了却没跑 / 测试数对不上 / cancelled算过吗 / 这条断言会红吗\"。不适用：PowerShell编码故障 → `pwsh-on-windows`。 | 1 |
-| 52 | [`orchestrating-subagents`](skills/orchestrating-subagents/SKILL.md) | 派发子代理：任务边界、工具能力、可写范围、产物与验收契约。 | 1 |
-| 53 | [`outlook-mailbox-control`](skills/outlook-mailbox-control/SKILL.md) | Outlook邮箱任务入口；以当前DSH邮件MCP schema检索/读附件/草稿/发送并核验证据，转邮件总纲Outlook模式。 | 1 |
-| 54 | [`overseas-ai-service-cn-availability`](skills/overseas-ai-service-cn-availability/SKILL.md) | 分别核查AI服务的网络可达、账号与地区资格、API/企业渠道、支付账单及数据处理条件；适用于大陆或跨地区可用性与采购研究，不把一次连通或旧条文当长期结论。 | 1 |
-| 55 | [`pr-change-equivalence-audit`](skills/pr-change-equivalence-audit/SKILL.md) | PR改前改后的接口、数值边界与性能等价性审查。适用于\"PR是等价改写吗 / mask乘法安全吗 / 精度变了吗 / 性能没变化吗 / bugfix有副作用吗\"。不适用：提交PR与跟进门禁 → 用 `github-pr-flow`。 | 1 |
-| 56 | [`prior-agent-artifact-audit`](skills/prior-agent-artifact-audit/SKILL.md) | 前序交付与测试CI证据核查，区分源码、构建、安装和运行版本。适用于\"上一轮真做完了吗 / 报告全绿可信吗 / 线上是哪一版 / 测试漏跑了吗\"。不适用：漏洞报告复核 → `vuln-scan-report-verification`。 | 1 |
-| 57 | [`pwsh-on-windows`](skills/pwsh-on-windows/SKILL.md) | 在 Windows 排查 PowerShell 版本、编码/BOM、原生命令参数与退出码、管道和文本计数问题；名为 pwsh 的工具在本机实为 Windows PowerShell 5.1。 | 3 |
-| 58 | [`qq-mail-control`](skills/qq-mail-control/SKILL.md) | DSH的QQ与Outlook邮件任务总纲；核对搜索覆盖、邮件身份、正文/附件编码、草稿和发送结果，使用当前邮箱MCP schema及用户账号约定。 | 3 |
-| 59 | [`saas-mcp-onboarding`](skills/saas-mcp-onboarding/SKILL.md) | 给Codex/DSH接第三方SaaS的MCP：官方bundle优先、stdio硬条件、云文档厂商实证。适用于"接语雀/飞书/腾讯文档""这个MCP能落地吗"。 | 1 |
-| 60 | [`sedimenting-skills`](skills/sedimenting-skills/SKILL.md) | 经验沉淀选址：融合已有skill还是新建，保留验证层级并压缩目录成本。 | 1 |
-| 61 | [`skill-archive`](skills/skill-archive/SKILL.md) | 冷备skill查找：按INDEX核实路径与正文再加载，不凭摘要编造能力。 | 1 |
-| 62 | [`subagent-toolset-precheck`](skills/subagent-toolset-precheck/SKILL.md) | 子代理工具能力预检：按实际schema与只读probe核对网络/命令/落盘。 | 1 |
-| 63 | [`tilelang-op-generator`](skills/tilelang-op-generator/SKILL.md) | TileLang-Ascend 算子开发：内存同步、独立 golden、性能验证。适用于\"写算子 / 迁到NPU / 修kernel精度 / 尾块越界 / 测性能\"。不适用：环境安装 → 用 ascend-cann-env。 | 18 |
-| 64 | [`upstream-docs-refresh-audit`](skills/upstream-docs-refresh-audit/SKILL.md) | 上游文档与需求、代码、参数、导航及多语言一致性审计。适用于\"这批需求有文档吗 / docs要刷新吗 / 参数主线有没有 / 内部代号叫什么 / 导航漏页面了吗\"。不适用：启动推理服务 → 用 `ascend-vllm-serve`。 | 5 |
-| 65 | [`vllm-ascend-e2e-ci-wiring`](skills/vllm-ascend-e2e-ci-wiring/SKILL.md) | vLLM Ascend E2E：用例落位、时长登记、marker 与 CI 车道。适用于\"新增E2E/CI报MISSING/本地收集全吗\"。不适用：源码安装 → vllm-ascend-source-install。 | 1 |
-| 66 | [`vllm-ascend-source-install`](skills/vllm-ascend-source-install/SKILL.md) | 将指定 checkout 的 vLLM 与 vLLM Ascend 从源码配对构建到已有昇腾环境，控制依赖替换、编译器与 BI 算子产物；适用于源码安装、重编和 build dependency 错误。 | 5 |
-| 67 | [`vuln-scan-report-verification`](skills/vuln-scan-report-verification/SKILL.md) | 第三方漏洞扫描报告的基线、可达性、攻击输入和严重性复核。适用于\"这个高危是真的吗 / 行号对不对 / 注入能用吗 / 定级高不高 / 有没有漏报\"。不适用：仅审文档扫描分数 → 用 `aidd-report-reader`。 | 1 |
-| 68 | [`web-ui-contrast-audit`](skills/web-ui-contrast-audit/SKILL.md) | 定位网页主题切换后文字与背景难辨的问题，按实际渲染背景计算WCAG文本对比并复测修复；适用于浅色/深色主题可读性，不以静态颜色值替代复杂背景检查。 | 2 |
-| 69 | [`win-scheduled-task-forensics`](skills/win-scheduled-task-forensics/SKILL.md) | 在 Windows 只读追查定时弹窗、后台进程和开机启动来源，关联计划任务、Run 项、启动目录、服务与 WMI，并在明确授权后验证单项禁用或恢复。 | 1 |
-| 70 | [`yb-blue`](skills/yb-blue/SKILL.md) | 审查或操作用户明确指定的 GitHub 文件式 YB 跨区任务桥，验证任务信封、分片完整性、游标与结果归因；用于已有 yb-blue 协议，不自动向任何远端发送任务或文件。 | 4 |
+| 37 | [`external-repo-claim-audit`](skills/external-repo-claim-audit/SKILL.md) | 解读第三方GitHub仓库并核查宣传数字有无落盘证据；适用于「帮我解读这个项目/这repo靠谱吗/它skill讲的啥」 | 1 |
+| 38 | [`git-tag-diff-audit`](skills/git-tag-diff-audit/SKILL.md) | Git版本与PR实质变更审计，区分树差、历史归因和等价性。适用于\"两个tag改了什么 / 无共同祖先能比吗 / 接口删了吗 / 是纯重构吗 / 精度性能变了吗\"。不适用：提交或跟进PR → 用 `github-pr-flow`。 | 1 |
+| 39 | [`gitcode-pr-flow`](skills/gitcode-pr-flow/SKILL.md) | GitCode PR交付、门禁与评审跟进。适用于\"GitCode提PR / 双CI怎么判 / PR冲突 / 门禁标签 / backport\"。不适用：仅核实代码是否等价 → pr-change-equivalence-audit。 | 5 |
+| 40 | [`github-org-delta-watch`](skills/github-org-delta-watch/SKILL.md) | GitHub组织与发行差集入口，按既有基线追踪仓库、PR、commit和release变化。 | 1 |
+| 41 | [`github-pr-flow`](skills/github-pr-flow/SKILL.md) | GitHub/GitCode PR 交付与 CI 核验：提 PR、改正文、修冲突、看红。适用于\"提PR / 改PR正文 / CI为什么红 / 修PR冲突 / 处理评审意见\"。不适用：仅审版本差异 → git-tag-diff-audit... | 2 |
+| 42 | [`gold-price-rmb-quote`](skills/gold-price-rmb-quote/SKILL.md) | 抓黄金实时行情、换算人民币每克、拆解内外盘溢价；用于查金价、判断跌幅构成与短期区间 | 1 |
+| 43 | [`korea-official-source-research`](skills/korea-official-source-research/SKILL.md) | 检索韩国与济州的主管机关、交通及旅游一手资料，核对现行政策、时刻表、营业与票价信息；适用于官方信息难抓取、日期与废止状态不清，历史端点只作线索。 | 2 |
+| 44 | [`llm-landscape-recon`](skills/llm-landscape-recon/SKILL.md) | 模型对比、速度与选订阅取证入口：官方来源、effort/tok/s 口径、编码 agent 与限额。 | 7 |
+| 45 | [`login-credential-autofill`](skills/login-credential-autofill/SKILL.md) | 在用户授权的账号登录流程中复用已登录会话、辨认失败阶段和处理验证码/二次验证交接；适用于网页登录卡住或已有登录守护脚本审查，凭据填充须匹配用户指定账号和当前授权，验证码交接给用户。 | 6 |
+| 46 | [`lora-weekly-report`](skills/lora-weekly-report/SKILL.md) | 按明确时间窗和基线核查GitHub组织、仓库、LoRA或批次不变性进展并生成增量简报；适用于周报、观察点变化和已合入清单，生成报告不自动发信或创建定时任务。 | 8 |
+| 47 | [`mindspeed-ops-interface-compat-audit`](skills/mindspeed-ops-interface-compat-audit/SKILL.md) | MindSpeed-Ops跨仓接口兼容与实际调用核查。适用于\"接口兼容吗 / 周边仓能调用吗 / 导入通过算过吗 / 新增了哪些算子 / 别名绑定对吗\"。不适用：只做版本树差 → 用 `git-tag-diff-audit`。 | 1 |
+| 48 | [`mindspeed-ops-smoke`](skills/mindspeed-ops-smoke/SKILL.md) | MindSpeed-Ops接口兼容、wheel验收及UT/ATK冒烟（含A3双机26.2.0配套）。适用于\"跑Ops冒烟 / ATK精度怎么判 / UT全绿了吗 / 跨仓接口兼容吗\"。 | 7 |
+| 49 | [`mindspeed-ops-whl-build`](skills/mindspeed-ops-whl-build/SKILL.md) | MindSpeed-Ops wheel构建与独立环境验收。适用于\"打Ops的whl / CMake报错 / 编译器太旧 / SOC怎么选 / 验证wheel\"。不适用：只配置CANN运行环境 → 用 `ascend-cann-env`。 | 1 |
+| 50 | [`minimax-ai-musume-4k-art`](skills/minimax-ai-musume-4k-art/SKILL.md) | 整理AI娘角色参考、身份与画风并验收插画；生成时使用当前DSH已配置图像工具，指定H3等自托管后端时另核接口与设备。 | 54 |
+| 51 | [`model-endpoint-identity-audit`](skills/model-endpoint-identity-audit/SKILL.md) | 比较多个模型端点或model id的行为、能力、缓存和性能，评估是否共享服务路径及身份声明的证据强度；适用于渠道是否同模型、兼容性和速度成本测试，不从行为指纹断言权重相同。 | 1 |
+| 52 | [`node-test-false-green-audit`](skills/node-test-false-green-audit/SKILL.md) | Node测试与CI假绿、漏跑和断言有效性审查。适用于\"CI绿了却没跑 / 测试数对不上 / cancelled算过吗 / 这条断言会红吗\"。不适用：PowerShell编码故障 → `pwsh-on-windows`。 | 1 |
+| 53 | [`orchestrating-subagents`](skills/orchestrating-subagents/SKILL.md) | 派发子代理：任务边界、工具能力、可写范围、产物与验收契约。 | 1 |
+| 54 | [`outlook-mailbox-control`](skills/outlook-mailbox-control/SKILL.md) | Outlook邮箱任务入口；以当前DSH邮件MCP schema检索/读附件/草稿/发送并核验证据，转邮件总纲Outlook模式。 | 1 |
+| 55 | [`overseas-ai-service-cn-availability`](skills/overseas-ai-service-cn-availability/SKILL.md) | 分别核查AI服务的网络可达、账号与地区资格、API/企业渠道、支付账单及数据处理条件；适用于大陆或跨地区可用性与采购研究，不把一次连通或旧条文当长期结论。 | 1 |
+| 56 | [`pr-change-equivalence-audit`](skills/pr-change-equivalence-audit/SKILL.md) | PR改前改后的接口、数值边界与性能等价性审查。适用于\"PR是等价改写吗 / mask乘法安全吗 / 精度变了吗 / 性能没变化吗 / bugfix有副作用吗\"。不适用：提交PR与跟进门禁 → 用 `github-pr-flow`。 | 1 |
+| 57 | [`prior-agent-artifact-audit`](skills/prior-agent-artifact-audit/SKILL.md) | 前序交付与测试CI证据核查，区分源码、构建、安装和运行版本。适用于\"上一轮真做完了吗 / 报告全绿可信吗 / 线上是哪一版 / 测试漏跑了吗\"。不适用：漏洞报告复核 → `vuln-scan-report-verification`。 | 1 |
+| 58 | [`pwsh-on-windows`](skills/pwsh-on-windows/SKILL.md) | 在 Windows 排查 PowerShell 版本、编码/BOM、原生命令参数与退出码、管道和文本计数问题；名为 pwsh 的工具在本机实为 Windows PowerShell 5.1。 | 3 |
+| 59 | [`qq-mail-control`](skills/qq-mail-control/SKILL.md) | DSH的QQ与Outlook邮件任务总纲；核对搜索覆盖、邮件身份、正文/附件编码、草稿和发送结果，使用当前邮箱MCP schema及用户账号约定。 | 3 |
+| 60 | [`saas-mcp-onboarding`](skills/saas-mcp-onboarding/SKILL.md) | 给Codex/DSH接第三方SaaS的MCP：官方bundle优先、stdio硬条件、云文档厂商实证。适用于"接语雀/飞书/腾讯文档""这个MCP能落地吗"。 | 1 |
+| 61 | [`sedimenting-skills`](skills/sedimenting-skills/SKILL.md) | 经验沉淀选址：融合已有skill还是新建，保留验证层级并压缩目录成本。 | 1 |
+| 62 | [`skill-archive`](skills/skill-archive/SKILL.md) | 冷备skill查找：按INDEX核实路径与正文再加载，不凭摘要编造能力。 | 1 |
+| 63 | [`subagent-toolset-precheck`](skills/subagent-toolset-precheck/SKILL.md) | 子代理工具能力预检：按实际schema与只读probe核对网络/命令/落盘。 | 1 |
+| 64 | [`tilelang-op-generator`](skills/tilelang-op-generator/SKILL.md) | TileLang-Ascend 算子开发：内存同步、独立 golden、性能验证。适用于\"写算子 / 迁到NPU / 修kernel精度 / 尾块越界 / 测性能\"。不适用：环境安装 → 用 ascend-cann-env。 | 18 |
+| 65 | [`upstream-docs-refresh-audit`](skills/upstream-docs-refresh-audit/SKILL.md) | 上游文档与需求、代码、参数、导航及多语言一致性审计。适用于\"这批需求有文档吗 / docs要刷新吗 / 参数主线有没有 / 内部代号叫什么 / 导航漏页面了吗\"。不适用：启动推理服务 → 用 `ascend-vllm-serve`。 | 5 |
+| 66 | [`vllm-ascend-e2e-ci-wiring`](skills/vllm-ascend-e2e-ci-wiring/SKILL.md) | vLLM Ascend E2E：用例落位、时长登记、marker 与 CI 车道。适用于\"新增E2E/CI报MISSING/本地收集全吗\"。不适用：源码安装 → vllm-ascend-source-install。 | 1 |
+| 67 | [`vllm-ascend-source-install`](skills/vllm-ascend-source-install/SKILL.md) | 将指定 checkout 的 vLLM 与 vLLM Ascend 从源码配对构建到已有昇腾环境，控制依赖替换、编译器与 BI 算子产物；适用于源码安装、重编和 build dependency 错误。 | 5 |
+| 68 | [`vuln-scan-report-verification`](skills/vuln-scan-report-verification/SKILL.md) | 第三方漏洞扫描报告的基线、可达性、攻击输入和严重性复核。适用于\"这个高危是真的吗 / 行号对不对 / 注入能用吗 / 定级高不高 / 有没有漏报\"。不适用：仅审文档扫描分数 → 用 `aidd-report-reader`。 | 1 |
+| 69 | [`web-ui-contrast-audit`](skills/web-ui-contrast-audit/SKILL.md) | 定位网页主题切换后文字与背景难辨的问题，按实际渲染背景计算WCAG文本对比并复测修复；适用于浅色/深色主题可读性，不以静态颜色值替代复杂背景检查。 | 2 |
+| 70 | [`win-scheduled-task-forensics`](skills/win-scheduled-task-forensics/SKILL.md) | 在 Windows 只读追查定时弹窗、后台进程和开机启动来源，关联计划任务、Run 项、启动目录、服务与 WMI，并在明确授权后验证单项禁用或恢复。 | 1 |
+| 71 | [`yb-blue`](skills/yb-blue/SKILL.md) | 审查或操作用户明确指定的 GitHub 文件式 YB 跨区任务桥，验证任务信封、分片完整性、游标与结果归因；用于已有 yb-blue 协议，不自动向任何远端发送任务或文件。 | 4 |
