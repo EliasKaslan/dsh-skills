@@ -43,7 +43,13 @@ disable-model-invocation: true
 - `project_id=`（单数）在 issues/global 会被忽略，返回"我可见的全量问题"，容易把别的项目问题算到本项目头上；必须用 `project_ids=`。
 - 必须显式 `cache:'no-store'`：否则浏览器缓存返回 `items:[]` 或 `{}`，`total` 却正常，误读成零问题。
 - `page_size=200` 可能返回空 items（total 仍正确），改 100 分页。
-- 「未处理」= `feedback_status=pending`，但先看 `validity=all`：pending 可能全是 `validity≠valid` 的失效条目，UI「有效问题」只算 valid，两边数字不一致属正常。
+- **「未处理」= `feedback_status` 为 `pending` 或为空值（`null`），不是只有 `pending`。** 只按 `=== 'pending'` 过滤会漏掉「从未处理过」的条目：本项目 64 条 pending 全部回填后，平台仍显示 2 条未处理，它们就是 `feedback_status=null` 的老条目。收尾自检必须同时统计两者为 0：
+
+```js
+const left = all.filter(x => !x.feedback_status || x.feedback_status === 'pending');
+```
+
+- 先看 `validity=all`：`pending` 可能全是 `validity≠valid` 的失效条目，UI 的「有效问题」只算 valid，两边数字不一致属正常。
 - `403 {"detail":{"code":"PERMISSION_DENIED","permission":"project:read","reason":"default_deny"}}` 常见于产品/版本节点，不代表子项目不可读；权限按项目成员判定，逐项目试。
 
 ## 问题处理闭环与反馈回填（2026-11 实测）
