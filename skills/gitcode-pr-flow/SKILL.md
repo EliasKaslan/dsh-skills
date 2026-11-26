@@ -43,14 +43,14 @@ git credential fill      # stdin: protocol=https / host=gitcode.com / 空行
 
 **建 PR 的关键点**：fork 源写成 `用户名:分支名`（如 `EliasKaslan:ci/master-2620-pairing`），只给分支名会被当成上游同名分支。建完回读 `title/base.sha/head.sha/files/body`，确认中文正文没变成 `?`、文件清单与本地 diff 一致。
 
-**改 PR 标题/正文**：正文**整段重发**（先 `GET` 再拼），`ensure_ascii=False` + UTF-8 字节提交，中文才不变 `??`；只改标题/正文不清门禁标签，推新提交才清 `ci-pipeline-passed`。
+**改 PR 标题/正文**：PATCH 必须同时带 `title` 和 `body` —— 只传 `body` 会返回 200 但**不落库**（回读才知道没改）。正文**整段重发**（先 `GET` 再拼），`ensure_ascii=False` + UTF-8 字节提交，中文才不变 `??`；只改标题/正文不清门禁标签，推新提交才清 `ci-pipeline-passed`。
 
 **门禁判读**：
 - 触发靠 PR 评论 `compile`（AtlasAccount 回评论 `CI 流水线已启动` + run 链接），标签从 `ci-pipeline-running` 翻成 `ci-pipeline-passed` / 失败态。
 - `ci-pipeline-passed` 只说明流水线整体结论，**不能证明 workflow 引用的容器镜像可拉**：曾出现 head 引用的新镜像在 SWR 返回 404 而 PR 仍带绿标（该 PR 只改 ci/ 与 .gitcode/，UT 是否真跑无从证）。凡改 `container.image` 的 PR 必须另行直连 registry 验镜像存在。
 - `mergeable_state.reason.merged_by_user_passed` 提示 "do not have PUSH permission" 或 "protected branch, you do not have MERGE permission"，都只反映查询账号无合并权，不是 PR 的阻塞项。
 
-完整字段还包括 `can_merge_check`、`approval_approvers_required_passed`；`stat/needs-squash` 只表示合入时要 squash，**不阻塞合入**（已合入的 #246 就带着它）。
+完整字段还包括 `can_merge_check`、`approval_approvers_required_passed`；`stat/needs-squash` 只表示合入时要 squash，**不阻塞合入**。
 
 ## ascend-robot 自动合入的门禁集合（MindSpeed-Ops 实测 2026-11）
 
