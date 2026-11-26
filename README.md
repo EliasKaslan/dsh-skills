@@ -28,14 +28,14 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **71** 个 skill、**286** 个文件、**13300093** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **71** 个 skill、**287** 个文件、**13303086** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
 | 1 | [`ace-step-music-gen-on-ascend`](skills/ace-step-music-gen-on-ascend/SKILL.md) | 在用户指定ACE-Step等自托管音乐模型时规划权重组件、CPU/NPU路径、批量生成与音频验收；适用于本地歌曲实验和生成排障，不依赖旧服务器固定目录。 | 1 |
 | 2 | [`ai-musume-4k-art`](skills/ai-musume-4k-art/SKILL.md) | 已归档的AI娘旧管线：只保留路由，指向 minimax-ai-musume-4k-art 与 anime-art 两条现行链路。 | 1 |
 | 3 | [`ai-vendor-official-source-audit`](skills/ai-vendor-official-source-audit/SKILL.md) | 核查 AI 厂商发布、技术报告、模型仓、API model id、能力与价格的官方依据，并比较模型版图；适用于链接真伪、是否发布和选型取证，不代替实测模型身份或基准复现。 | 2 |
-| 4 | [`aidd-report-reader`](skills/aidd-report-reader/SKILL.md) | 读取AIDD等文档质量扫描报告，校验分页、项目范围与问题聚合，并将报告命中对账到仓库交付件；适用于扫描分数、fatal/critical清单和公网地址声明覆盖核查。 | 2 |
+| 4 | [`aidd-report-reader`](skills/aidd-report-reader/SKILL.md) | 读取AIDD等文档质量扫描报告，校验分页、项目范围与问题聚合，并将报告命中对账到仓库交付件；适用于扫描分数、fatal/critical清单和公网地址声明覆盖核查。 | 3 |
 | 5 | [`anima-ai-musume-lora`](skills/anima-ai-musume-lora/SKILL.md) | Anima/ComfyUI与AI娘LoRA的场景入口，转自托管图像方法并按需复用角色参考。 | 6 |
 | 6 | [`anime-art`](skills/anime-art/SKILL.md) | 维护用户明确选择的SDXL、Anima/ComfyUI、H3等自托管图像与LoRA工作流，核对版本、设备、生成与训练结果。 | 18 |
 | 7 | [`app-release-version-recon`](skills/app-release-version-recon/SKILL.md) | 核查某 App 今天是否发版、更新了什么：Microsoft Store / iTunes lookup / Homebrew cask 三处版本取证，区分构建重发与服务端功能放量，全程不动本地安装。 | 1 |

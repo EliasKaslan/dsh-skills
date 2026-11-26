@@ -80,3 +80,15 @@ await fetch('/api/v1/issue-management/issues/' + issue_id + '/feedback', {
 3. 原文/行号已随后续提交失效：先 `git log -p -- <file>` 与全仓 `git grep` 判是否已修，再决定修还是回填。
 
 每条结论都要落到代码行、提交号或全仓一致性上；扫描发生在若干天前时行号一律不可信，按文本 grep 定位。
+
+## 批量修复后的对抗式复核
+
+几十条一起改时，「自己再读一遍 diff」抓不到错。派**独立、只读、任务写"证伪"**的复核，分四路并行，每路要条目编号 + 证据格式（`file:行` / commit）：事实（API 签名、返回值、公式、表格数据 vs 源码）、口径（我给的理由有没有超出事实范围）、结构（fence/表格列数/CRLF 计数==换行数/BOM/python 块 `compile()`）、越界（改了不该改的行）。清单与样本见 [对抗式复核清单](references/batch-doc-fix-review.md)。
+
+三个最常踩的：
+
+- 计数断言：写「返回 X，与 forward 入参一一对应」前数一遍——5 个入参、4 个返回值，PyTorch 反传直接抛 `returned an incorrect number of gradients`。
+- 范围断言：「SOC_VERSION 已全清」只在 `docs/zh` 成立，`docs/en/**`、`README_en.md`、`docker/OVERVIEW.md`、`setup.py` 兼容别名仍在；写「已修复/已清除」必须带目录范围。
+- 证据强度：拿另一个 MR 的描述当参数名依据只有中强度（可能在别的分支、也可能是同一作者重复手误），仓内无该工具本体时标 `未验证：`。
+
+复核完还要做两件收尾：重跑结构检查；把**改了文本的条目**在平台上重发反馈备注（备注还描述旧文本就白改了）。
