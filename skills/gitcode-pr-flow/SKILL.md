@@ -29,6 +29,7 @@ whenToUse: "处理GitCode PR交付、门禁与评审跟进，使用当前配置�
 | 读 PR 详情/文件/提交 | `GET /repos/{owner}/{repo}/pulls/{n}`、`/files`、`/commits` | 匿名可读 |
 | 读 PR 评论 | `GET /repos/{owner}/{repo}/pulls/{n}/comments` | 匿名可读（`/reviews` 端点不通） |
 | 开 PR | `POST /repos/{owner}/{repo}/pulls` `{title, head, base, body}` | Bearer |
+| 改 PR 标题/正文 | `PATCH /repos/{owner}/{repo}/pulls/{n}` `{title, body}` | Bearer |
 | 发 PR 评论 | `POST /repos/{owner}/{repo}/pulls/{n}/comments` `{body}` | Bearer |
 | 触发门禁 | 上面同一个评论端点，body 发 `compile` | Bearer |
 
@@ -41,6 +42,8 @@ git credential fill      # stdin: protocol=https / host=gitcode.com / 空行
 返回的 `password` 即令牌（GitCode 是 24 位串），`Authorization: Bearer <token>` 有效。PS 管道给 git 喂 stdin 会注入 BOM 导致 `missing protocol field`，用 Python `subprocess.run(stdin=...)` 或 `Start-Process -RedirectStandardInput`。
 
 **建 PR 的关键点**：fork 源写成 `用户名:分支名`（如 `EliasKaslan:ci/master-2620-pairing`），只给分支名会被当成上游同名分支。建完回读 `title/base.sha/head.sha/files/body`，确认中文正文没变成 `?`、文件清单与本地 diff 一致。
+
+**改 PR 标题/正文**：正文**整段重发**（先 `GET` 再拼），`ensure_ascii=False` + UTF-8 字节提交，中文才不变 `??`；只改标题/正文不清门禁标签，推新提交才清 `ci-pipeline-passed`。
 
 **门禁判读**：
 - 触发靠 PR 评论 `compile`（AtlasAccount 回评论 `CI 流水线已启动` + run 链接），标签从 `ci-pipeline-running` 翻成 `ci-pipeline-passed` / 失败态。
