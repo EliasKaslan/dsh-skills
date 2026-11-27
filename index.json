@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
-  "skill_count": 71,
-  "file_count": 287,
-  "total_bytes": 13303172,
+  "skill_count": 72,
+  "file_count": 288,
+  "total_bytes": 13307649,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -389,6 +389,13 @@
       "description": "分别核查AI服务的网络可达、账号与地区资格、API/企业渠道、支付账单及数据处理条件；适用于大陆或跨地区可用性与采购研究，不把一次连通或旧条文当长期结论。",
       "files": 1,
       "bytes": 2554
+    },
+    {
+      "name": "overseas-remote-job-due-diligence",
+      "path": "skills/overseas-remote-job-due-diligence",
+      "description": "核查海外远程岗真伪、用工形式与薪资水位：ATS公开API反查、LCA付薪基线、时区与on-call取证",
+      "files": 1,
+      "bytes": 4477
     },
     {
       "name": "pr-change-equivalence-audit",
