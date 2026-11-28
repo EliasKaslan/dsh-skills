@@ -24,3 +24,24 @@ description: "诊断或维护 DSH Pocket 手机远程中继的建联、分片、
 5. **判断新旧代码看 boot id，不看版本号**：`~/.dsh/pocket/bridge.log` 的启动行带 `plugin loading; data=… pid=…` 与 `boot=<hash>`。插件常在不升 `package.json` 的情况下被改，`runtime.json` 的 `version` 也是写死的 → "版本没变"证明不了"代码没变"；反过来宿主进程启动早于改动、靠热重载生效时，ESM 是否有缓存也未定，验证新代码要用**具体新行为/新路由**取证。
 
 坑：两棵树在改动前就已经分叉时，本次只动一侧并不自动等于本次引入的缺陷——必须 `git show <base>:<path> | git hash-object --stdin` 算基线 hash 定性，否则会把历史漂移算到改动人头上。
+
+## 版本是否生效：看 build.evalId，不要看 bootId
+
+## 版本是否生效：看 `build.evalId`，不要看 `bootId`
+
+本插件的桌面端代码**不会**因为"设置 → 插件里关掉再打开"而更新：宿主用原生 `import(url)` 装载（无 cache-busting），重装只重跑 `apply()`，`lib/**` 的模块命中 ESM 缓存。只有 `dsh-hmr` 会 evict 模块缓存；没有 HMR 时 `reload()` 只重新组合并回 `restart-required`（`restartReason: no-hmr`），**卸载→再启用也一样**。
+
+判据（`lib/index.mjs` 顶层已内置）：
+
+```js
+// 模块顶层，只求值一次
+const EVAL_ID = randomBytes(4).toString('hex');
+export const build = { version: PLUGIN_VERSION, evalId: EVAL_ID, evalAt: new Date().toISOString() };
+// apply() 把 build 塞进 /api/v1/health
+```
+
+- `/api/v1/health` 的 `data.build.evalId` **变了** ⇒ 新代码在跑。
+- 只有 `bootId` 变、`evalId` 不变（或 `build` 为 `null`）⇒ 旧模块还在跑。
+- **反向证据**：把 `/health` 的 `version` 与仓库 `lib/util.mjs` 的 `PLUGIN_VERSION` 比；不一致说明模块从未重新求值。
+
+交付纪律：改完插件必须让用户**重启 DSH 应用**，并写清"重启后 `version` 应为 X 且 `build` 不为 null"。"关掉再打开即可"在无 HMR 的 profile 上是错的——症状是"改了没反应"，而日志一切正常。
