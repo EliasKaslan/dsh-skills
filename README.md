@@ -28,7 +28,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 
 ## 清单
 
-共 **72** 个 skill、**288** 个文件、**13310410** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
+共 **72** 个 skill、**289** 个文件、**13314883** 字节。凭据文件（`credentials.txt`、`*.key`、`*.pem` 等）按规则排除，不入库。
 
 | # | Skill | 说明 | 文件 |
 |---:|---|---|---:|
@@ -62,7 +62,7 @@ git clone https://github.com/EliasKaslan/dsh-skills.git
 | 28 | [`dsh-home-guard`](skills/dsh-home-guard/SKILL.md) | DSH home备份与自愈排查：外置守护、失败不固化删除、隔离恢复与hash核验。 | 1 |
 | 29 | [`dsh-isolated-web-host`](skills/dsh-isolated-web-host/SKILL.md) | DSH隔离host入口；独立DSH_HOME、profile与loopback端口启动并验证身份，转总纲隔离host模式。 | 1 |
 | 30 | [`dsh-longhaul-mode`](skills/dsh-longhaul-mode/SKILL.md) | 检查用户明确采用的 DSH Longhaul 工程契约、红基线、yardstick 与独立审计，或诊断既有 .longhaul run；只用于 Longhaul，不自动接管普通 DSH 任务。 | 1 |
-| 31 | [`dsh-phone-remote-relay`](skills/dsh-phone-remote-relay/SKILL.md) | 诊断或维护 DSH Pocket 手机远程中继的建联、分片、重复请求、WebSocket 回放与版本生效；用于既有手机接管场景，需要区分出站中继与本机监听状态。 | 2 |
+| 31 | [`dsh-phone-remote-relay`](skills/dsh-phone-remote-relay/SKILL.md) | 诊断或维护 DSH Pocket 手机远程中继的建联、分片、重复请求、WebSocket 回放与版本生效；用于既有手机接管场景，需要区分出站中继与本机监听状态。 | 3 |
 | 32 | [`dsh-plugin-market`](skills/dsh-plugin-market/SKILL.md) | DSH插件市场与安装包审查入口；核对索引schema、来源固定、版本匹配及ASAR有界解析。 | 1 |
 | 33 | [`dsh-repo-sync`](skills/dsh-repo-sync/SKILL.md) | 退役DSH仓库同步审查入口；定位旧脚本/任务并保留镜像和凭据排除经验，不恢复旧自动发布。 | 3 |
 | 34 | [`dsh-skill-authoring`](skills/dsh-skill-authoring/SKILL.md) | 编写、验证和精简DSH skill：触发字段、调用策略、资源路由、去重归档、目录预算与批量发布边界。 | 7 |

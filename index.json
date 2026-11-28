@@ -2,8 +2,8 @@
   "schema": 1,
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 72,
-  "file_count": 288,
-  "total_bytes": 13310410,
+  "file_count": 289,
+  "total_bytes": 13314883,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -219,8 +219,8 @@
       "name": "dsh-phone-remote-relay",
       "path": "skills/dsh-phone-remote-relay",
       "description": "诊断或维护 DSH Pocket 手机远程中继的建联、分片、重复请求、WebSocket 回放与版本生效；用于既有手机接管场景，需要区分出站中继与本机监听状态。",
-      "files": 2,
-      "bytes": 11910
+      "files": 3,
+      "bytes": 16383
     },
     {
       "name": "dsh-plugin-market",

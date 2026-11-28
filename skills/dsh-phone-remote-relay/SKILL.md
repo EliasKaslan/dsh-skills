@@ -45,3 +45,17 @@ export const build = { version: PLUGIN_VERSION, evalId: EVAL_ID, evalAt: new Dat
 - **反向证据**：把 `/health` 的 `version` 与仓库 `lib/util.mjs` 的 `PLUGIN_VERSION` 比；不一致说明模块从未重新求值。
 
 交付纪律：改完插件必须让用户**重启 DSH 应用**，并写清"重启后 `version` 应为 X 且 `build` 不为 null"。"关掉再打开即可"在无 HMR 的 profile 上是错的——症状是"改了没反应"，而日志一切正常。
+
+## 半死链路：桌面毫秒级答完、手机却报超时
+
+## 半死链路：桌面毫秒级答完、手机却报超时
+
+**判据**：桌面日志有 `详情请求收到` + `详情响应 … 几 ms`，手机仍报 `relay_timeout`，且 `nackRepairs=0`（非分片问题）⇒ 回包丢失、上行通下行死。锁屏唤醒、切网之后最常见。
+
+**先算两个计时的先后**：单条请求的绝对预算 vs 看门狗判"下行静默"的阈值。若 `预算 < 看门狗`，则每一次半死都必然是请求先判死、报 `relay_timeout`，救它的重建永远晚到。
+
+修法：① 看门狗加"**有请求在途 + 下行静默 ⇒ 立刻重建**"，重建后 `resendPending()` 用同一 request id 重发；② `relay_timeout` 的 GET/HEAD 在 `linkEpoch` 变化过（确实重建过）后允许自动补一次，写方法不重试。
+
+现场判读：新增计数 `stallRebuilds`。它 ≥1 且「RPC 超时未回包」=0 ⇒ 自救生效；两者同涨 ⇒ 转查桌面侧。健康链路上应恒为 0。
+
+判据的精确写法、两个必踩的坑（`hello` 探针被 10s 限流、`entry.at` 被每次 attempt 刷新）与代码片段见 `references/half-dead-link.md`。
