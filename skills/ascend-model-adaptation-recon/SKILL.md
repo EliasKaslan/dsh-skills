@@ -25,3 +25,33 @@ whenToUse: 核实指定模型及变体在昇腾推理或训练生态中的实现
 软件可用性和容量单独判断；容量用 `ascend-moe-ep-capacity-planning`，运行用 `ascend-vllm-serve`。历史 H3、GLM、K3 的成熟度、issue 状态与镜像 tag 只作为检索线索，不能迁成现状。
 
 来源：`D:/workspace/share/raw/ascend-model-adaptation-recon/SKILL.md`，沉淀日 2026-11-16。修正了路径搜索即定论、404 反证、四条件充分性和固定搜索语法等过度推论。API 边界参考 [Git trees](https://docs.github.com/en/rest/git/trees)、[Pull requests](https://docs.github.com/en/rest/pulls/pulls)。逐项审查见 `D:/workspace/share/codex-review/REVIEW.md`。
+
+## 变体权重先验格式：config 的 dtype 不算证据
+
+## 变体权重先验格式：`config.json` 的 `dtype` 不算证据
+
+同一模型的多份变体目录，`config.json` 可能都写 `dtype: bfloat16`、层数/专家数也一样，但**实际存储格式不同**。判据是 index 的键名与每层键数：
+
+- 纯 BF16：`…layers.N.block_sparse_moe.experts.K.w1.weight`，每专家 3 个张量
+- 打包量化：出现 `…w3.weight_packed` + `…w3.weight_scale`，每层键数约为纯权重的 2 倍
+
+```python
+import json, re, collections, sys
+wm = json.load(open(sys.argv[1]))["weight_map"]   # model.safetensors.index.json
+c = collections.Counter()
+for k in wm:
+    m = re.search(r"\.layers\.(\d+)\.", k)
+    if m:
+        c[int(m.group(1))] += 1
+print("keys", len(wm), c.most_common(2))
+print([k for k in wm if ".layers.1." in k][:2])
+```
+
+昇腾侧另有一个顺序坑：vllm-ascend 把 KDA 的 q/k/v conv1d 打包成 `ascend_conv1d_weight`，这一步只在 `process_weights_after_loading` 里发生，**晚于** vLLM 的「权重未初始化」检查，于是 plain checkpoint 直接失败：
+
+```
+ValueError: Following weights were not initialized from checkpoint:
+{'...layers.{0,1,2}.self_attn.ascend_conv1d_weight'}
+```
+
+不是权重缺失，是布局不对口：要么补这 3 个打包张量，要么换预打包 checkpoint，要么改模型侧打包时机（越界，需确认）。

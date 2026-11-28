@@ -3,7 +3,7 @@
   "generated_by": "dsh-plugin-skill-publish",
   "skill_count": 72,
   "file_count": 288,
-  "total_bytes": 13309022,
+  "total_bytes": 13310410,
   "skills": [
     {
       "name": "ace-step-music-gen-on-ascend",
@@ -87,7 +87,7 @@
       "path": "skills/ascend-model-adaptation-recon",
       "description": "核实指定模型及变体在昇腾推理或训练生态中的实现、跨仓分工、硬件/精度支持与未闭合缺口；适用于能否跑、适配成熟度、镜像和 Day-0 宣称取证。",
       "files": 1,
-      "bytes": 3405
+      "bytes": 4793
     },
     {
       "name": "ascend-moe-ep-capacity-planning",
